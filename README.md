@@ -1,6 +1,6 @@
 # 🌍 pi-web-providers
 
-A *meta* web extension for [pi](https://pi.dev).
+A _meta_ web extension for [pi](https://pi.dev).
 
 ## Why?
 
@@ -26,8 +26,8 @@ Switch to a provider that supports it and the tool appears automatically.
   SDK, strengths, and capability set
 - **One config command** (`/web-providers`) with a TUI that adapts to the
   selected provider
-- **Transparent fallback** — if no provider is explicitly enabled, the extension
-  walks the list alphabetically and picks the first one that is available
+- **Transparent fallback** — search falls back to Codex when no provider is
+  explicitly enabled, unless Codex was explicitly disabled
 - **Per-provider tool toggles** — disable individual capabilities you don't need
   without switching providers
 - **Truncated output with temp-file spillover** for large results
@@ -64,54 +64,54 @@ corresponding tool is never exposed to the agent.
 
 Search the web and return titles, URLs, and snippets.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | string | required | What to search for |
-| `maxResults` | integer | `5` | Result count, clamped to `1–20` |
-| `provider` | string | auto | Optional override: `codex`, `exa`, `gemini`, `parallel`, or `valyu` |
+| Parameter    | Type    | Default  | Description                                                         |
+| ------------ | ------- | -------- | ------------------------------------------------------------------- |
+| `query`      | string  | required | What to search for                                                  |
+| `maxResults` | integer | `5`      | Result count, clamped to `1–20`                                     |
+| `provider`   | string  | auto     | Optional override: `codex`, `exa`, `gemini`, `parallel`, or `valyu` |
 
 ### `web_contents`
 
 Extract contents for one or more URLs.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `urls` | string[] | required | One or more URLs to extract |
-| `options` | object | — | Provider-specific extraction options |
-| `provider` | string | auto | Optional override among providers that support contents |
+| Parameter  | Type     | Default  | Description                                             |
+| ---------- | -------- | -------- | ------------------------------------------------------- |
+| `urls`     | string[] | required | One or more URLs to extract                             |
+| `options`  | object   | —        | Provider-specific extraction options                    |
+| `provider` | string   | auto     | Optional override among providers that support contents |
 
 ### `web_answer`
 
 Get a provider-generated answer grounded in search results.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | string | required | Question to answer |
-| `options` | object | — | Provider-specific answer options |
-| `provider` | string | auto | Optional override among providers that support answers |
+| Parameter  | Type   | Default  | Description                                            |
+| ---------- | ------ | -------- | ------------------------------------------------------ |
+| `query`    | string | required | Question to answer                                     |
+| `options`  | object | —        | Provider-specific answer options                       |
+| `provider` | string | auto     | Optional override among providers that support answers |
 
 ### `web_research`
 
 Run a longer-form research task.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `input` | string | required | Research brief or question |
-| `options` | object | — | Provider-specific research options |
-| `provider` | string | auto | Optional override among providers that support research |
+| Parameter  | Type   | Default  | Description                                             |
+| ---------- | ------ | -------- | ------------------------------------------------------- |
+| `input`    | string | required | Research brief or question                              |
+| `options`  | object | —        | Provider-specific research options                      |
+| `provider` | string | auto     | Optional override among providers that support research |
 
 ## 🔌 Providers
 
 Every provider is a thin adapter around an official SDK. The table below
 summarises which capabilities each provider exposes:
 
-| Provider | search | contents | answer | research | Auth |
-|----------|:------:|:--------:|:------:|:--------:|------|
-| **Codex** | ✓ | | | | Local Codex CLI auth |
-| **Exa** | ✓ | ✓ | ✓ | ✓ | `EXA_API_KEY` |
-| **Gemini** | ✓ | | ✓ | ✓ | `GOOGLE_API_KEY` |
-| **Parallel** | ✓ | ✓ | | | `PARALLEL_API_KEY` |
-| **Valyu** | ✓ | ✓ | ✓ | ✓ | `VALYU_API_KEY` |
+| Provider     | search | contents | answer | research | Auth                 |
+| ------------ | :----: | :------: | :----: | :------: | -------------------- |
+| **Codex**    |   ✓    |          |        |          | Local Codex CLI auth |
+| **Exa**      |   ✓    |    ✓     |   ✓    |    ✓     | `EXA_API_KEY`        |
+| **Gemini**   |   ✓    |          |   ✓    |    ✓     | `GOOGLE_API_KEY`     |
+| **Parallel** |   ✓    |    ✓     |        |          | `PARALLEL_API_KEY`   |
+| **Valyu**    |   ✓    |    ✓     |   ✓    |    ✓     | `VALYU_API_KEY`      |
 
 ### Codex
 
@@ -148,8 +148,10 @@ summarises which capabilities each provider exposes:
   for the selected provider and `enabled: false` for the others
 - Each provider can also enable or disable its individual tools through a `tools`
   block
-- If a config has no explicitly enabled provider, the extension falls back to the
-  first available provider alphabetically
+- If no provider is explicitly enabled for search, the extension falls back to
+  Codex unless it was explicitly configured as disabled
+- Tools stay inactive when no provider is available for their capability, so
+  they are not injected into the LLM prompt
 - Secret-like values can be:
   - literal strings
   - environment variable names such as `EXA_API_KEY`

@@ -1,6 +1,10 @@
+import {
+  isProviderToolEnabled,
+  type ProviderConfigUnion,
+  type ProviderToolId,
+} from "./provider-tools.js";
 import { PROVIDER_MAP, PROVIDERS } from "./providers/index.js";
 import type { ProviderId, WebProvidersConfig } from "./types.js";
-import { isProviderToolEnabled, type ProviderConfigUnion, type ProviderToolId } from "./provider-tools.js";
 
 export function resolveProviderChoice(
   config: WebProvidersConfig,
@@ -8,6 +12,22 @@ export function resolveProviderChoice(
   cwd: string,
 ) {
   return resolveProviderForCapability(config, explicit, cwd, "search");
+}
+
+export function getEffectiveProviderConfig(
+  config: WebProvidersConfig,
+  providerId: ProviderId,
+): ProviderConfigUnion | undefined {
+  const configured = config.providers?.[providerId] as
+    | ProviderConfigUnion
+    | undefined;
+  if (configured) {
+    return configured;
+  }
+  if (providerId === "codex") {
+    return PROVIDER_MAP.codex.createTemplate() as ProviderConfigUnion;
+  }
+  return undefined;
 }
 
 export function resolveProviderForCapability(
@@ -18,26 +38,18 @@ export function resolveProviderForCapability(
 ) {
   if (explicit) {
     const provider = PROVIDER_MAP[explicit];
+    const providerConfig = getEffectiveProviderConfig(config, explicit);
     if (typeof provider[capability] !== "function") {
       throw new Error(
         `Provider '${explicit}' does not support '${capability}'.`,
       );
     }
-    if (
-      !isProviderToolEnabled(
-        explicit,
-        config.providers?.[explicit] as ProviderConfigUnion | undefined,
-        capability,
-      )
-    ) {
+    if (!isProviderToolEnabled(explicit, providerConfig, capability)) {
       throw new Error(
         `Provider '${explicit}' has '${capability}' disabled in config.`,
       );
     }
-    const status = provider.getStatus(
-      config.providers?.[explicit] as never,
-      cwd,
-    );
+    const status = provider.getStatus(providerConfig as never, cwd);
     if (!status.available) {
       throw new Error(
         `Provider '${explicit}' is not available: ${status.summary}.`,
@@ -65,19 +77,11 @@ export function resolveProviderForCapability(
 
   for (const provider of PROVIDERS) {
     if (typeof provider[capability] !== "function") continue;
-    if (
-      !isProviderToolEnabled(
-        provider.id,
-        config.providers?.[provider.id] as ProviderConfigUnion | undefined,
-        capability,
-      )
-    ) {
+    const providerConfig = getEffectiveProviderConfig(config, provider.id);
+    if (!isProviderToolEnabled(provider.id, providerConfig, capability)) {
       continue;
     }
-    const status = provider.getStatus(
-      config.providers?.[provider.id] as never,
-      cwd,
-    );
+    const status = provider.getStatus(providerConfig as never, cwd);
     if (status.available) return provider;
   }
 

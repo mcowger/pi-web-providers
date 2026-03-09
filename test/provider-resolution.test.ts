@@ -59,24 +59,39 @@ describe("provider resolution", () => {
     expect(provider.id).toBe("exa");
   });
 
-  it("falls back to the first available provider alphabetically when none are explicitly enabled", () => {
+  it("falls back to implicit Codex search when no provider is explicitly enabled", () => {
+    const config: WebProvidersConfig = {
+      version: 1,
+      providers: {
+        exa: {
+          enabled: false,
+          apiKey: "EXA_API_KEY",
+        },
+      },
+    };
+
+    const provider = resolveProviderChoice(config, undefined, process.cwd());
+    expect(provider.id).toBe("codex");
+  });
+
+  it("allows explicit Codex search without a config file entry", () => {
+    const provider = resolveProviderChoice(
+      { version: 1 },
+      "codex",
+      process.cwd(),
+    );
+    expect(provider.id).toBe("codex");
+  });
+
+  it("respects an explicitly enabled non-Codex provider over the implicit Codex fallback", () => {
     process.env.EXA_API_KEY = "test-key";
-    process.env.GOOGLE_API_KEY = "test-key";
 
     const config: WebProvidersConfig = {
       version: 1,
       providers: {
-        codex: {
-          enabled: false,
-        },
         exa: {
+          enabled: true,
           apiKey: "EXA_API_KEY",
-        },
-        gemini: {
-          apiKey: "GOOGLE_API_KEY",
-        },
-        valyu: {
-          apiKey: "VALYU_API_KEY",
         },
       },
     };

@@ -1,33 +1,34 @@
-import {
-  DEFAULT_MAX_BYTES,
-  DEFAULT_MAX_LINES,
-  formatSize,
-  keyHint,
-  truncateHead,
-  type ExtensionAPI,
-  type ExtensionCommandContext,
-  type Theme,
-} from "@mariozechner/pi-coding-agent";
-import { StringEnum } from "@mariozechner/pi-ai";
-import {
-  Editor,
-  Key,
-  Text,
-  getEditorKeybindings,
-  matchesKey,
-  truncateToWidth,
-  visibleWidth,
-  wrapTextWithAnsi,
-  type Component,
-  type EditorTheme,
-  type TUI,
-} from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { StringEnum } from "@mariozechner/pi-ai";
+import {
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_LINES,
+  type ExtensionAPI,
+  type ExtensionCommandContext,
+  formatSize,
+  keyHint,
+  type Theme,
+  truncateHead,
+} from "@mariozechner/pi-coding-agent";
+import {
+  type Component,
+  Editor,
+  type EditorTheme,
+  getEditorKeybindings,
+  Key,
+  matchesKey,
+  Text,
+  type TUI,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@mariozechner/pi-tui";
+import { Type } from "@sinclair/typebox";
 import { loadConfig, writeConfigFile } from "./config.js";
 import {
+  getEffectiveProviderConfig,
   resolveProviderChoice,
   resolveProviderForCapability,
 } from "./provider-resolution.js";
@@ -39,27 +40,32 @@ import {
   type ProviderToolId,
 } from "./provider-tools.js";
 import { PROVIDER_MAP, PROVIDERS } from "./providers/index.js";
-import {
-  PROVIDER_IDS,
-} from "./types.js";
 import type {
   CodexProviderConfig,
   ExaProviderConfig,
   GeminiProviderConfig,
   JsonObject,
   ParallelProviderConfig,
+  ProviderId,
   ProviderToolDetails,
   ProviderToolOutput,
-  ProviderId,
   SearchResponse,
+  ValyuProviderConfig,
   WebProvidersConfig,
   WebSearchDetails,
-  ValyuProviderConfig,
 } from "./types.js";
+import { PROVIDER_IDS } from "./types.js";
 
 const DEFAULT_MAX_RESULTS = 5;
 const MAX_ALLOWED_RESULTS = 20;
 type ProviderCapability = ProviderToolId;
+const CAPABILITY_TOOL_NAMES: Record<ProviderCapability, string> = {
+  search: "web_search",
+  contents: "web_contents",
+  answer: "web_answer",
+  research: "web_research",
+};
+const MANAGED_TOOL_NAMES = Object.values(CAPABILITY_TOOL_NAMES);
 
 export default function webProvidersExtension(pi: ExtensionAPI) {
   registerWebSearchTool(pi);
@@ -75,8 +81,16 @@ export default function webProvidersExtension(pi: ExtensionAPI) {
         return;
       }
 
-      await runWebProvidersConfig(ctx);
+      await runWebProvidersConfig(pi, ctx);
     },
+  });
+
+  pi.on("session_start", async (_event, ctx) => {
+    await syncManagedToolAvailability(pi, ctx.cwd, { addAvailable: true });
+  });
+
+  pi.on("before_agent_start", async (_event, ctx) => {
+    await syncManagedToolAvailability(pi, ctx.cwd, { addAvailable: false });
   });
 }
 
@@ -99,7 +113,7 @@ function registerWebSearchTool(pi: ExtensionAPI): void {
       provider: Type.Optional(
         StringEnum(PROVIDER_IDS, {
           description:
-            "Provider override. If omitted, uses the active configured provider or falls back to the first available provider alphabetically.",
+            "Provider override. If omitted, uses the active configured provider or falls back to Codex for search when it is not explicitly disabled.",
         }),
       ),
     }),
@@ -108,7 +122,7 @@ function registerWebSearchTool(pi: ExtensionAPI): void {
       const config = await loadConfig();
       const provider = resolveProviderChoice(config, params.provider, ctx.cwd);
       const maxResults = clampResults(params.maxResults);
-      const providerConfig = config.providers?.[provider.id];
+      const providerConfig = getEffectiveProviderConfig(config, provider.id);
 
       if (!providerConfig) {
         throw new Error(`Provider '${provider.id}' is not configured.`);
@@ -217,7 +231,7 @@ function registerWebContentsTool(pi: ExtensionAPI): void {
     renderCall(args, theme) {
       return renderToolCallHeader(
         "web_contents",
-        `${Array.isArray((args as { urls?: unknown[] }).urls) ? (args as { urls?: unknown[] }).urls?.length ?? 0 : 0} url(s)`,
+        `${Array.isArray((args as { urls?: unknown[] }).urls) ? ((args as { urls?: unknown[] }).urls?.length ?? 0) : 0} url(s)`,
         [
           `provider=${String((args as { provider?: string }).provider ?? "auto")}`,
         ],
@@ -243,8 +257,7 @@ function registerWebAnswerTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "web_answer",
     label: "Web Answer",
-    description:
-      "Get a provider-generated answer grounded in web results.",
+    description: "Get a provider-generated answer grounded in web results.",
     parameters: Type.Object({
       query: Type.String({ description: "Question to answer" }),
       options: jsonOptionsSchema("Provider-specific answer options."),
@@ -274,7 +287,9 @@ function registerWebAnswerTool(pi: ExtensionAPI): void {
       return renderToolCallHeader(
         "web_answer",
         `"${cleanSingleLine(String((args as { query?: string }).query ?? "")).slice(0, 80)}"`,
-        [`provider=${String((args as { provider?: string }).provider ?? "auto")}`],
+        [
+          `provider=${String((args as { provider?: string }).provider ?? "auto")}`,
+        ],
         theme,
       );
     },
@@ -328,7 +343,9 @@ function registerWebResearchTool(pi: ExtensionAPI): void {
       return renderToolCallHeader(
         "web_research",
         `"${cleanSingleLine(String((args as { input?: string }).input ?? "")).slice(0, 80)}"`,
-        [`provider=${String((args as { provider?: string }).provider ?? "auto")}`],
+        [
+          `provider=${String((args as { provider?: string }).provider ?? "auto")}`,
+        ],
         theme,
       );
     },
@@ -345,6 +362,7 @@ function registerWebResearchTool(pi: ExtensionAPI): void {
 }
 
 async function runWebProvidersConfig(
+  pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
 ): Promise<void> {
   const config = await loadConfig();
@@ -361,6 +379,62 @@ async function runWebProvidersConfig(
         activeProvider,
       ),
   );
+
+  await syncManagedToolAvailability(pi, ctx.cwd, { addAvailable: true });
+}
+
+function getAvailableManagedToolNames(
+  config: WebProvidersConfig,
+  cwd: string,
+): string[] {
+  const activeToolNames: string[] = [];
+
+  for (const capability of Object.keys(
+    CAPABILITY_TOOL_NAMES,
+  ) as ProviderCapability[]) {
+    try {
+      const provider =
+        capability === "search"
+          ? resolveProviderChoice(config, undefined, cwd)
+          : resolveProviderForCapability(config, undefined, cwd, capability);
+      if (getEffectiveProviderConfig(config, provider.id)) {
+        activeToolNames.push(CAPABILITY_TOOL_NAMES[capability]);
+      }
+    } catch {
+      // Keep the tool inactive when no provider is available for this capability.
+    }
+  }
+
+  return activeToolNames;
+}
+
+async function syncManagedToolAvailability(
+  pi: ExtensionAPI,
+  cwd: string,
+  options: { addAvailable: boolean },
+): Promise<void> {
+  const config = await loadConfig();
+  const availableToolNames = new Set(getAvailableManagedToolNames(config, cwd));
+  const activeTools = new Set(pi.getActiveTools());
+  let changed = false;
+
+  for (const toolName of MANAGED_TOOL_NAMES) {
+    if (availableToolNames.has(toolName)) {
+      if (options.addAvailable && !activeTools.has(toolName)) {
+        activeTools.add(toolName);
+        changed = true;
+      }
+      continue;
+    }
+
+    if (activeTools.delete(toolName)) {
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    pi.setActiveTools(Array.from(activeTools));
+  }
 }
 
 function getProviderIdsForCapability(
@@ -371,24 +445,27 @@ function getProviderIdsForCapability(
   ).map((provider) => provider.id);
 }
 
-function providerEnum(
-  providerIds: ProviderId[],
-  description: string,
-) {
+function providerEnum(providerIds: ProviderId[], description: string) {
   if (providerIds.length === 1) {
     return Type.Optional(Type.Literal(providerIds[0], { description }));
   }
   return Type.Optional(
-    Type.Union(providerIds.map((id) => Type.Literal(id)), { description }),
+    Type.Union(
+      providerIds.map((id) => Type.Literal(id)),
+      { description },
+    ),
   );
 }
 
 function jsonOptionsSchema(description: string) {
   return Type.Optional(
-    Type.Object({}, {
-      additionalProperties: true,
-      description,
-    }),
+    Type.Object(
+      {},
+      {
+        additionalProperties: true,
+        description,
+      },
+    ),
   );
 }
 
@@ -407,7 +484,10 @@ async function executeProviderTool({
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   onUpdate:
-    | ((update: { content: Array<{ type: "text"; text: string }>; details: {} }) => void)
+    | ((update: {
+        content: Array<{ type: "text"; text: string }>;
+        details: {};
+      }) => void)
     | undefined;
   invoke: (
     provider: (typeof PROVIDERS)[number],
@@ -425,7 +505,7 @@ async function executeProviderTool({
     ctx.cwd,
     capability,
   );
-  const providerConfig = config.providers?.[provider.id];
+  const providerConfig = getEffectiveProviderConfig(config, provider.id);
   if (!providerConfig) {
     throw new Error(`Provider '${provider.id}' is not configured.`);
   }
@@ -487,7 +567,8 @@ function renderToolCallHeader(
           width,
         );
         lines.push(
-          detailLine + " ".repeat(Math.max(0, width - visibleWidth(detailLine))),
+          detailLine +
+            " ".repeat(Math.max(0, width - visibleWidth(detailLine))),
         );
       }
 
@@ -522,7 +603,10 @@ function renderProviderToolResult(
   }
 
   const details = result.details as ProviderToolDetails | undefined;
-  const summary = details?.summary ?? getFirstLine(text) ?? `${details?.tool ?? "tool"} output available`;
+  const summary =
+    details?.summary ??
+    getFirstLine(text) ??
+    `${details?.tool ?? "tool"} output available`;
   let summaryText = theme.fg("success", summary);
   summaryText += theme.fg("muted", ` (${getExpandHint()})`);
   return new Text(summaryText, 0, 0);
@@ -799,7 +883,9 @@ class WebProvidersSettingsView implements Component {
 
     const lines: string[] = [];
     const providerItems = this.buildProviderSectionItems();
-    lines.push(...this.renderSection(width, "Provider", "provider", providerItems));
+    lines.push(
+      ...this.renderSection(width, "Provider", "provider", providerItems),
+    );
     lines.push("");
 
     const toolItems = this.buildToolSectionItems();
@@ -807,12 +893,17 @@ class WebProvidersSettingsView implements Component {
     lines.push("");
 
     const configItems = this.buildConfigSectionItems();
-    lines.push(...this.renderSection(width, "Provider config", "config", configItems));
+    lines.push(
+      ...this.renderSection(width, "Provider config", "config", configItems),
+    );
 
     const selected = this.getSelectedEntry();
     if (selected) {
       lines.push("");
-      for (const line of wrapTextWithAnsi(selected.description, Math.max(10, width - 2))) {
+      for (const line of wrapTextWithAnsi(
+        selected.description,
+        Math.max(10, width - 2),
+      )) {
         lines.push(truncateToWidth(this.theme.fg("dim", line), width));
       }
     }
@@ -873,8 +964,7 @@ class WebProvidersSettingsView implements Component {
         id: "provider",
         label: "Engine",
         currentValue: PROVIDER_MAP[this.activeProvider].label,
-        description:
-          "Active web provider. Enter cycles through providers.",
+        description: "Active web provider. Enter cycles through providers.",
         kind: "cycle",
         values: PROVIDERS.map((provider) => provider.label),
       },
@@ -952,10 +1042,10 @@ class WebProvidersSettingsView implements Component {
                 providerConfig as GeminiProviderConfig | undefined,
                 key,
               )
-          : getProviderStringValue(
-              providerConfig,
-              key as "apiKey" | "baseUrl",
-            );
+            : getProviderStringValue(
+                providerConfig,
+                key as "apiKey" | "baseUrl",
+              );
       const secret = key === "apiKey";
       return {
         id: key,
@@ -998,9 +1088,12 @@ class WebProvidersSettingsView implements Component {
       "tools",
       "config",
     ];
-    let index = sections.indexOf(this.activeSection);
+    const index = sections.indexOf(this.activeSection);
     for (let offset = 1; offset <= sections.length; offset++) {
-      const next = sections[(index + offset * direction + sections.length) % sections.length];
+      const next =
+        sections[
+          (index + offset * direction + sections.length) % sections.length
+        ];
       if (this.getSectionEntries(next).length > 0) {
         this.activeSection = next;
         return;
@@ -1063,10 +1156,13 @@ class WebProvidersSettingsView implements Component {
       Math.max(...entries.map((entry) => entry.label.length), 0),
     );
     for (const [index, entry] of entries.entries()) {
-      const selected = this.activeSection === section && this.selection[section] === index;
+      const selected =
+        this.activeSection === section && this.selection[section] === index;
       const prefix = selected ? this.theme.fg("accent", "→ ") : "  ";
       const paddedLabel = entry.label.padEnd(labelWidth, " ");
-      const label = selected ? this.theme.fg("accent", paddedLabel) : paddedLabel;
+      const label = selected
+        ? this.theme.fg("accent", paddedLabel)
+        : paddedLabel;
       const value = selected
         ? this.theme.fg("accent", entry.currentValue)
         : this.theme.fg("muted", entry.currentValue);
@@ -1104,7 +1200,6 @@ class WebProvidersSettingsView implements Component {
       );
       return;
     }
-
   }
 
   private getEntryRawValue(id: string): string | undefined {
@@ -1152,12 +1247,15 @@ class WebProvidersSettingsView implements Component {
       config.providers ??= {};
       const providerConfig = getEditableProviderConfig(
         this.activeProvider,
-        config.providers?.[this.activeProvider] as ProviderConfigUnion | undefined,
+        config.providers?.[this.activeProvider] as
+          | ProviderConfigUnion
+          | undefined,
       ) as Record<string, JsonObject | string | boolean | undefined>;
 
       if (id.startsWith("tool:")) {
         const toolId = id.slice("tool:".length) as ProviderToolId;
-        const typedProviderConfig = providerConfig as unknown as ProviderConfigUnion;
+        const typedProviderConfig =
+          providerConfig as unknown as ProviderConfigUnion;
         const tools = (typedProviderConfig.tools ?? {}) as Partial<
           Record<ProviderToolId, boolean>
         >;
@@ -1339,10 +1437,7 @@ function getResolvedProviderChoice(
 
 async function getPreferredProvider(cwd: string): Promise<ProviderId> {
   const current = await loadConfig();
-  return (
-    getResolvedProviderChoice(current, cwd) ??
-    "codex"
-  );
+  return getResolvedProviderChoice(current, cwd) ?? "codex";
 }
 
 function summarizeStringValue(
@@ -1404,8 +1499,12 @@ function getProviderChoiceValue(
       return typeof defaults?.type === "string" ? defaults.type : "default";
     }
     if (key === "exaTextContents") {
-      const contents = isJsonObject(defaults?.contents) ? defaults.contents : undefined;
-      return typeof contents?.text === "boolean" ? String(contents.text) : "default";
+      const contents = isJsonObject(defaults?.contents)
+        ? defaults.contents
+        : undefined;
+      return typeof contents?.text === "boolean"
+        ? String(contents.text)
+        : "default";
     }
   }
 
@@ -1437,7 +1536,9 @@ function getProviderChoiceValue(
   if (providerId === "parallel") {
     const defaults = (config as ParallelProviderConfig | undefined)?.defaults;
     const search = isJsonObject(defaults?.search) ? defaults.search : undefined;
-    const extract = isJsonObject(defaults?.extract) ? defaults.extract : undefined;
+    const extract = isJsonObject(defaults?.extract)
+      ? defaults.extract
+      : undefined;
     if (key === "parallelSearchMode") {
       return typeof search?.mode === "string" ? search.mode : "default";
     }
@@ -1500,7 +1601,10 @@ function applyCodexSettingChange(
   switch (key) {
     case "model":
       assignOptionalString(
-        target.defaults as Record<string, JsonObject | string | boolean | undefined>,
+        target.defaults as Record<
+          string,
+          JsonObject | string | boolean | undefined
+        >,
         "model",
         value,
       );
@@ -1547,9 +1651,7 @@ function applyExaSettingChange(
   key: string,
   value: string,
 ): boolean {
-  target.defaults = isJsonObject(target.defaults)
-    ? { ...target.defaults }
-    : {};
+  target.defaults = isJsonObject(target.defaults) ? { ...target.defaults } : {};
 
   switch (key) {
     case "exaSearchType":
@@ -1587,9 +1689,7 @@ function applyValyuSettingChange(
   key: string,
   value: string,
 ): boolean {
-  target.defaults = isJsonObject(target.defaults)
-    ? { ...target.defaults }
-    : {};
+  target.defaults = isJsonObject(target.defaults) ? { ...target.defaults } : {};
 
   switch (key) {
     case "valyuSearchType":
@@ -1631,7 +1731,10 @@ function applyGeminiSettingChange(
       return true;
     case "geminiSearchModel":
       assignOptionalString(
-        target.defaults as Record<string, JsonObject | string | boolean | undefined>,
+        target.defaults as Record<
+          string,
+          JsonObject | string | boolean | undefined
+        >,
         "searchModel",
         value,
       );
@@ -1639,7 +1742,10 @@ function applyGeminiSettingChange(
       return true;
     case "geminiAnswerModel":
       assignOptionalString(
-        target.defaults as Record<string, JsonObject | string | boolean | undefined>,
+        target.defaults as Record<
+          string,
+          JsonObject | string | boolean | undefined
+        >,
         "answerModel",
         value,
       );
@@ -1647,7 +1753,10 @@ function applyGeminiSettingChange(
       return true;
     case "geminiResearchAgent":
       assignOptionalString(
-        target.defaults as Record<string, JsonObject | string | boolean | undefined>,
+        target.defaults as Record<
+          string,
+          JsonObject | string | boolean | undefined
+        >,
         "researchAgent",
         value,
       );
@@ -1702,10 +1811,7 @@ function applyParallelSettingChange(
 }
 
 function cleanupCodexDefaults(target: CodexProviderConfig): void {
-  if (
-    target.defaults &&
-    Object.keys(target.defaults).length === 0
-  ) {
+  if (target.defaults && Object.keys(target.defaults).length === 0) {
     delete target.defaults;
   }
 }
@@ -1725,7 +1831,10 @@ function cleanupGeminiDefaults(target: GeminiProviderConfig): void {
 }
 
 function cleanupParallelDefaults(target: ParallelProviderConfig): void {
-  if (target.defaults?.search && Object.keys(target.defaults.search).length === 0) {
+  if (
+    target.defaults?.search &&
+    Object.keys(target.defaults.search).length === 0
+  ) {
     delete target.defaults.search;
   }
   if (
@@ -1734,10 +1843,7 @@ function cleanupParallelDefaults(target: ParallelProviderConfig): void {
   ) {
     delete target.defaults.extract;
   }
-  if (
-    target.defaults &&
-    Object.keys(target.defaults).length === 0
-  ) {
+  if (target.defaults && Object.keys(target.defaults).length === 0) {
     delete target.defaults;
   }
 }
@@ -1916,6 +2022,7 @@ function truncateInline(text: string, maxLength: number): string {
 
 export const __test__ = {
   extractTextContent,
+  getAvailableManagedToolNames,
   renderCallHeader,
   renderCollapsedSearchSummary,
 };

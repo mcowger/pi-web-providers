@@ -1,0 +1,255 @@
+import { Valyu } from "valyu-js";
+import type {
+  ProviderContext,
+  ProviderStatus,
+  ProviderToolOutput,
+  SearchResponse,
+  ValyuProviderConfig,
+  WebProvider,
+} from "../types.js";
+import { resolveConfigValue } from "../config.js";
+import { asJsonObject, formatJson, trimSnippet } from "./shared.js";
+
+export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
+  readonly id = "valyu";
+  readonly label = "Valyu";
+  readonly docsUrl = "https://docs.valyu.ai/sdk/typescript-sdk";
+
+  createTemplate(): ValyuProviderConfig {
+    return {
+      enabled: false,
+      tools: {
+        search: true,
+        contents: true,
+        answer: true,
+        research: true,
+      },
+      apiKey: "VALYU_API_KEY",
+      defaults: {
+        searchType: "all",
+        responseLength: "short",
+      },
+    };
+  }
+
+  getStatus(config: ValyuProviderConfig | undefined): ProviderStatus {
+    if (!config) {
+      return { available: false, summary: "not configured" };
+    }
+    if (config.enabled === false) {
+      return { available: false, summary: "disabled" };
+    }
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      return { available: false, summary: "missing apiKey" };
+    }
+    return { available: true, summary: "enabled" };
+  }
+
+  async search(
+    query: string,
+    maxResults: number,
+    config: ValyuProviderConfig,
+    context: ProviderContext,
+  ): Promise<SearchResponse> {
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      throw new Error("Valyu is missing an API key.");
+    }
+
+    const client = new Valyu(apiKey, config.baseUrl);
+    const options = {
+      ...asJsonObject(config.defaults),
+      maxNumResults: maxResults,
+    };
+
+    context.onProgress?.(`Searching Valyu for: ${query}`);
+    const response = await client.search(query, options as never);
+    if (!response.success) {
+      throw new Error(response.error || "Valyu search failed.");
+    }
+
+    return {
+      provider: this.id,
+      results: (response.results ?? []).slice(0, maxResults).map((result) => ({
+        title: result.title,
+        url: result.url,
+        snippet: trimSnippet(
+          result.description ??
+            (typeof result.content === "string" ? result.content : ""),
+        ),
+        score: result.relevance_score,
+      })),
+    };
+  }
+
+  async contents(
+    urls: string[],
+    options: Record<string, unknown> | undefined,
+    config: ValyuProviderConfig,
+    context: ProviderContext,
+  ): Promise<ProviderToolOutput> {
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      throw new Error("Valyu is missing an API key.");
+    }
+
+    const client = new Valyu(apiKey, config.baseUrl);
+    context.onProgress?.(`Fetching contents from Valyu for ${urls.length} URL(s)`);
+    const response = await client.contents(urls, options as never);
+    const finalResponse =
+      "jobId" in response
+        ? await client.waitForJob(response.jobId, {
+            onProgress: (status) =>
+              context.onProgress?.(
+                `Valyu contents: ${status.urlsProcessed}/${status.urlsTotal} processed`,
+              ),
+          })
+        : response;
+
+    if (!finalResponse.success) {
+      throw new Error(finalResponse.error || "Valyu contents failed.");
+    }
+
+    const results = finalResponse.results ?? [];
+    const lines: string[] = [];
+    for (const [index, result] of results.entries()) {
+      lines.push(`${index + 1}. ${result.url}`);
+      if (result.status === "failed") {
+        lines.push(`   Failed: ${result.error}`);
+      } else {
+        const snippet =
+          typeof result.summary === "string"
+            ? result.summary
+            : result.summary
+              ? formatJson(result.summary)
+              : typeof result.content === "string" || typeof result.content === "number"
+                ? String(result.content)
+                : formatJson(result.content);
+        if (result.title) {
+          lines.push(`   ${result.title}`);
+        }
+        lines.push(`   ${trimSnippet(snippet)}`);
+      }
+      lines.push("");
+    }
+
+    return {
+      provider: this.id,
+      text: lines.join("\n").trimEnd() || "No contents found.",
+      summary: `${results.length} content result(s) via Valyu`,
+      itemCount: results.length,
+    };
+  }
+
+  async answer(
+    query: string,
+    options: Record<string, unknown> | undefined,
+    config: ValyuProviderConfig,
+    context: ProviderContext,
+  ): Promise<ProviderToolOutput> {
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      throw new Error("Valyu is missing an API key.");
+    }
+
+    const client = new Valyu(apiKey, config.baseUrl);
+    context.onProgress?.(`Getting Valyu answer for: ${query}`);
+    const response = await client.answer(query, {
+      ...(options ?? {}),
+      streaming: false,
+    } as never);
+
+    if (!("success" in response) || !response.success) {
+      throw new Error(
+        ("error" in response && typeof response.error === "string"
+          ? response.error
+          : "Valyu answer failed."),
+      );
+    }
+
+    const lines: string[] = [];
+    const contents =
+      typeof response.contents === "string"
+        ? response.contents
+        : formatJson(response.contents);
+    lines.push(contents);
+
+    const sources = response.search_results ?? [];
+    if (sources.length > 0) {
+      lines.push("");
+      lines.push("Sources:");
+      for (const [index, result] of sources.entries()) {
+        lines.push(`${index + 1}. ${result.title}`);
+        lines.push(`   ${result.url}`);
+      }
+    }
+
+    return {
+      provider: this.id,
+      text: lines.join("\n").trimEnd(),
+      summary: `Answer via Valyu with ${sources.length} source(s)`,
+      itemCount: sources.length,
+    };
+  }
+
+  async research(
+    input: string,
+    options: Record<string, unknown> | undefined,
+    config: ValyuProviderConfig,
+    context: ProviderContext,
+  ): Promise<ProviderToolOutput> {
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      throw new Error("Valyu is missing an API key.");
+    }
+
+    const client = new Valyu(apiKey, config.baseUrl);
+    context.onProgress?.("Creating Valyu deep research task");
+    const task = await client.deepresearch.create({
+      input,
+      ...(options ?? {}),
+    } as never);
+
+    if (!task.success || !task.deepresearch_id) {
+      throw new Error(task.error || "Valyu deep research creation failed.");
+    }
+
+    const result = await client.deepresearch.wait(task.deepresearch_id, {
+      onProgress: (status) => {
+        const progress = status.progress;
+        if (progress) {
+          context.onProgress?.(
+            `Valyu deep research: ${progress.current_step}/${progress.total_steps}`,
+          );
+        }
+      },
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || "Valyu deep research failed.");
+    }
+
+    const lines: string[] = [];
+    lines.push(
+      typeof result.output === "string" ? result.output : formatJson(result.output),
+    );
+
+    const sources = result.sources ?? [];
+    if (sources.length > 0) {
+      lines.push("");
+      lines.push("Sources:");
+      for (const [index, source] of sources.entries()) {
+        lines.push(`${index + 1}. ${source.title}`);
+        lines.push(`   ${source.url}`);
+      }
+    }
+
+    return {
+      provider: this.id,
+      text: lines.join("\n").trimEnd(),
+      summary: `Research via Valyu with ${sources.length} source(s)`,
+      itemCount: sources.length,
+    };
+  }
+}

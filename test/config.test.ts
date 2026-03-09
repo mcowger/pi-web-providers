@@ -1,0 +1,113 @@
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  createDefaultConfig,
+  getConfigPath,
+  loadConfig,
+  parseConfig,
+  serializeConfig,
+} from "../src/config.js";
+
+const cleanupDirs: string[] = [];
+
+afterEach(async () => {
+  while (cleanupDirs.length > 0) {
+    const dir = cleanupDirs.pop();
+    if (!dir) continue;
+    await import("node:fs/promises").then(({ rm }) =>
+      rm(dir, { recursive: true, force: true }),
+    );
+  }
+  delete process.env.PI_CODING_AGENT_DIR;
+  delete process.env.GOOGLE_API_KEY;
+  delete process.env.PARALLEL_API_KEY;
+});
+
+describe("config parsing", () => {
+  it("rejects unknown providers", () => {
+    expect(() =>
+      parseConfig(
+        JSON.stringify({
+          version: 1,
+          providers: {
+            searxng: {},
+          },
+        }),
+        "test-config.json",
+      ),
+    ).toThrow(/Unknown providers/);
+  });
+
+  it("rejects unknown provider tools", () => {
+    expect(() =>
+      parseConfig(
+        JSON.stringify({
+          version: 1,
+          providers: {
+            codex: {
+              tools: {
+                answer: true,
+              },
+            },
+          },
+        }),
+        "test-config.json",
+      ),
+    ).toThrow(/Unknown tools for codex/);
+  });
+
+  it("loads the global config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-config-"));
+    cleanupDirs.push(root);
+
+    process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+    await mkdir(process.env.PI_CODING_AGENT_DIR, { recursive: true });
+
+    const config = createDefaultConfig();
+    config.providers!.codex!.defaults!.additionalDirectories = ["docs"];
+    config.providers!.exa = {
+      enabled: true,
+      apiKey: "EXA_API_KEY",
+      defaults: {
+        type: "auto",
+      },
+    };
+    config.providers!.parallel = {
+      enabled: false,
+      apiKey: "PARALLEL_API_KEY",
+      defaults: {
+        search: {
+          mode: "one-shot",
+        },
+      },
+    };
+    config.providers!.gemini = {
+      enabled: false,
+      apiKey: "GOOGLE_API_KEY",
+      defaults: {
+        apiVersion: "v1alpha",
+        searchModel: "gemini-2.5-flash",
+      },
+    };
+
+    config.providers!.codex!.defaults!.webSearchMode = "cached";
+    config.providers!.codex!.defaults!.additionalDirectories = ["notes"];
+
+    await writeFile(
+      getConfigPath(),
+      serializeConfig(config),
+      "utf-8",
+    );
+
+    const loaded = await loadConfig();
+    expect(loaded.providers?.codex?.defaults?.webSearchMode).toBe("cached");
+    expect(loaded.providers?.codex?.defaults?.additionalDirectories).toEqual([
+      "notes",
+    ]);
+    expect(loaded.providers?.exa?.enabled).toBe(true);
+    expect(loaded.providers?.gemini?.defaults?.apiVersion).toBe("v1alpha");
+    expect(loaded.providers?.parallel?.defaults?.search?.mode).toBe("one-shot");
+  });
+});

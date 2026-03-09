@@ -1,0 +1,66 @@
+{
+  "name": "pi-web-providers",
+  "version": "0.1.0",
+  "description": "Web access extension for pi with configurable Codex, Exa, Gemini, Parallel, and Valyu providers.",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "coding-agent",
+    "web-search",
+    "codex",
+    "exa",
+    "gemini",
+    "parallel",
+    "valyu"
+  ],
+  "author": "mavam",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mavam/pi-web-providers.git"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "scripts": {
+    "build": "rm -rf dist && esbuild src/index.ts --bundle --format=esm --platform=node --outfile=dist/index.js --external:@mariozechner/pi-coding-agent --external:@mariozechner/pi-ai --external:@mariozechner/pi-tui --external:@sinclair/typebox --external:@google/genai --external:@openai/codex-sdk --external:exa-js --external:parallel-web --external:valyu-js",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "check": "tsc --noEmit",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@google/genai": "^1.44.0",
+    "@openai/codex-sdk": "^0.111.0",
+    "exa-js": "^2.7.0",
+    "parallel-web": "^0.3.1",
+    "valyu-js": "^2.5.9"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.6",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*",
+    "@types/node": "^24.3.0",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

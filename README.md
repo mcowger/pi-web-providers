@@ -27,7 +27,7 @@ Switch to a provider that supports it and the tool appears automatically.
 - **One config command** (`/web-providers`) with a TUI that adapts to the
   selected provider
 - **Transparent fallback** — search falls back to Codex when no provider is
-  explicitly enabled, unless Codex was explicitly disabled
+  explicitly enabled and the local Codex CLI is installed and authenticated
 - **Per-provider tool toggles** — disable individual capabilities you don't need
   without switching providers
 - **Truncated output with temp-file spillover** for large results
@@ -149,7 +149,8 @@ summarises which capabilities each provider exposes:
 - Each provider can also enable or disable its individual tools through a `tools`
   block
 - If no provider is explicitly enabled for search, the extension falls back to
-  Codex unless it was explicitly configured as disabled
+  Codex only when the local Codex CLI is installed and authenticated, unless
+  Codex was explicitly configured as disabled
 - Tools stay inactive when no provider is available for their capability, so
   they are not injected into the LLM prompt
 - Secret-like values can be:

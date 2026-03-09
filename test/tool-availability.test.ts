@@ -1,13 +1,39 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { __test__ } from "../src/index.js";
 import type { WebProvidersConfig } from "../src/types.js";
 
+const originalHome = process.env.HOME;
+const cleanupDirs: string[] = [];
+
+beforeEach(() => {
+  const home = mkdtempSync(join(tmpdir(), "pi-web-providers-home-"));
+  cleanupDirs.push(home);
+  process.env.HOME = home;
+});
+
 afterEach(() => {
   delete process.env.EXA_API_KEY;
+  delete process.env.CODEX_API_KEY;
+  if (originalHome === undefined) {
+    delete process.env.HOME;
+  } else {
+    process.env.HOME = originalHome;
+  }
+  while (cleanupDirs.length > 0) {
+    const dir = cleanupDirs.pop();
+    if (dir) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 describe("managed tool availability", () => {
   it("only exposes available provider overrides to the model", () => {
+    process.env.CODEX_API_KEY = "test-key";
+
     const config: WebProvidersConfig = {
       version: 1,
       providers: {
@@ -31,6 +57,8 @@ describe("managed tool availability", () => {
   });
 
   it("keeps web_search available via implicit Codex fallback", () => {
+    process.env.CODEX_API_KEY = "test-key";
+
     const config: WebProvidersConfig = { version: 1 };
 
     expect(
@@ -51,6 +79,14 @@ describe("managed tool availability", () => {
         },
       },
     };
+
+    expect(
+      __test__.getAvailableManagedToolNames(config, process.cwd()),
+    ).toEqual([]);
+  });
+
+  it("hides the implicit Codex fallback when Codex auth is missing", () => {
+    const config: WebProvidersConfig = { version: 1 };
 
     expect(
       __test__.getAvailableManagedToolNames(config, process.cwd()),

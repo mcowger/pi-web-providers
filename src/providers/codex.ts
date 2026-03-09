@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Codex, type ThreadEvent } from "@openai/codex-sdk";
 import type {
   CodexProviderConfig,
@@ -66,6 +69,20 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
     }
     if (config.enabled === false) {
       return { available: false, summary: "disabled" };
+    }
+    try {
+      new Codex({
+        codexPathOverride: config.codexPath,
+        config: config.config as never,
+      });
+    } catch (error) {
+      return {
+        available: false,
+        summary: (error as Error).message,
+      };
+    }
+    if (!hasCodexCredentials(config)) {
+      return { available: false, summary: "missing Codex auth" };
     }
     return { available: true, summary: "enabled" };
   }
@@ -140,6 +157,46 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
       })),
     };
   }
+}
+
+function hasCodexCredentials(config: CodexProviderConfig): boolean {
+  if (hasConfiguredReference(config.apiKey)) {
+    return true;
+  }
+
+  if (
+    hasConfiguredReference(config.env?.CODEX_API_KEY) ||
+    hasConfiguredReference(config.env?.OPENAI_API_KEY)
+  ) {
+    return true;
+  }
+
+  if (!config.env) {
+    const inheritedKey =
+      process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY;
+    if (typeof inheritedKey === "string" && inheritedKey.trim().length > 0) {
+      return true;
+    }
+  }
+
+  return existsSync(join(homedir(), ".codex", "auth.json"));
+}
+
+function hasConfiguredReference(reference: string | undefined): boolean {
+  if (!reference) {
+    return false;
+  }
+  if (reference.startsWith("!")) {
+    return reference.slice(1).trim().length > 0;
+  }
+  const envValue = process.env[reference];
+  if (typeof envValue === "string") {
+    return envValue.trim().length > 0;
+  }
+  if (/^[A-Z][A-Z0-9_]*$/.test(reference)) {
+    return false;
+  }
+  return reference.trim().length > 0;
 }
 
 function handleProgressEvent(

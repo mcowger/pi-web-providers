@@ -55,6 +55,27 @@ describe("managed tool availability", () => {
     );
   });
 
+  it("keeps web_contents description valid when search is disabled", () => {
+    const tools: Array<{ name: string; description: string }> = [];
+
+    webProvidersExtension({
+      registerTool(tool: { name: string; description: string }) {
+        tools.push(tool);
+      },
+      registerCommand() {},
+      on() {},
+      getActiveTools() {
+        return [];
+      },
+      setActiveTools() {},
+    } as unknown as ExtensionAPI);
+
+    const webContents = tools.find((tool) => tool.name === "web_contents");
+
+    expect(webContents?.description).not.toContain("web_search");
+    expect(webContents?.description).toContain("full page content");
+  });
+
   it("only exposes available provider overrides to the model", () => {
     process.env.CODEX_API_KEY = "test-key";
 

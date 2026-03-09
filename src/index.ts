@@ -228,7 +228,7 @@ function registerWebContentsTool(
     label: "Web Contents",
     description:
       "Fetch extracted contents for one or more URLs using a configured provider. " +
-      "Use after web_search to read full page content from the most relevant URLs.",
+      "Use to read full page content from URLs you already have.",
     parameters: Type.Object({
       urls: Type.Array(Type.String({ minLength: 1 }), {
         minItems: 1,

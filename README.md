@@ -66,25 +66,9 @@ Which of the tools below are registered depends on the capabilities of the
 available providers. If no provider supports a given capability, the
 corresponding tool is never exposed to the agent.
 
-Prompt guidance also follows the active tool set, not only provider
-availability. For example, `web_search` mentions `web_contents`,
-`web_answer`, or `web_research` only when those sibling tools are active in the
-session.
-
 ### `web_search`
 
 Search the web and return titles, URLs, and snippets.
-
-Prompt behavior depends on which sibling tools are active:
-
-- If `web_contents` is active, `web_search` tells the agent to fetch the most
-  relevant URLs before synthesizing an answer.
-- If `web_contents` is inactive, `web_search` tells the agent to answer from
-  snippets and avoid repeated searches unless the first result is insufficient.
-- If `web_answer` is active, `web_search` points quick factual questions to
-  `web_answer`.
-- If `web_research` is active, `web_search` points deep-dive questions to
-  `web_research`.
 
 | Parameter    | Type    | Default  | Description                                                         |
 | ------------ | ------- | -------- | ------------------------------------------------------------------- |
@@ -179,8 +163,6 @@ summarises which capabilities each provider exposes:
   they are not injected into the LLM prompt
 - Before each agent run, the extension removes newly unavailable managed tools
   and keeps manually pruned managed tools inactive instead of re-adding them
-- `web_search` only advertises sibling tools in its prompt when those tools are
-  active in the session
 - Secret-like values can be:
   - literal strings
   - environment variable names such as `EXA_API_KEY`

@@ -31,6 +31,10 @@ const LEGACY_TOOL_ALIASES: Partial<
 
 const CONFIG_FILE_NAME = "web-providers.json";
 const VERSION = 1 as const;
+const commandValueCache = new Map<
+  string,
+  { value?: string; errorMessage?: string }
+>();
 
 export function getConfigPath(): string {
   return join(getAgentDir(), CONFIG_FILE_NAME);
@@ -196,11 +200,27 @@ export function resolveConfigValue(
 ): string | undefined {
   if (!reference) return undefined;
   if (reference.startsWith("!")) {
-    const output = execSync(reference.slice(1), {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    return output.length > 0 ? output : undefined;
+    const cached = commandValueCache.get(reference);
+    if (cached) {
+      if (cached.errorMessage) {
+        throw new Error(cached.errorMessage);
+      }
+      return cached.value;
+    }
+
+    try {
+      const output = execSync(reference.slice(1), {
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim();
+      const value = output.length > 0 ? output : undefined;
+      commandValueCache.set(reference, { value });
+      return value;
+    } catch (error) {
+      const errorMessage = (error as Error).message;
+      commandValueCache.set(reference, { errorMessage });
+      throw error;
+    }
   }
   const envValue = process.env[reference];
   if (envValue !== undefined) {

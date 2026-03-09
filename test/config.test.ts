@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import {
   getConfigPath,
   loadConfig,
   parseConfig,
+  resolveConfigValue,
   serializeConfig,
 } from "../src/config.js";
 
@@ -109,5 +110,28 @@ describe("config parsing", () => {
     expect(loaded.providers?.exa?.enabled).toBe(true);
     expect(loaded.providers?.gemini?.defaults?.apiVersion).toBe("v1alpha");
     expect(loaded.providers?.parallel?.defaults?.search?.mode).toBe("one-shot");
+  });
+
+  it("caches command-backed config values within the process", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-config-"));
+    cleanupDirs.push(root);
+
+    const markerPath = join(root, "marker.txt");
+    const scriptPath = join(root, "secret.js");
+    await writeFile(
+      scriptPath,
+      [
+        'const { appendFileSync } = require("node:fs");',
+        'appendFileSync(process.argv[2], "x");',
+        'process.stdout.write("secret-key");',
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const command = `!node ${JSON.stringify(scriptPath)} ${JSON.stringify(markerPath)}`;
+
+    expect(resolveConfigValue(command)).toBe("secret-key");
+    expect(resolveConfigValue(command)).toBe("secret-key");
+    expect(await readFile(markerPath, "utf-8")).toBe("x");
   });
 });

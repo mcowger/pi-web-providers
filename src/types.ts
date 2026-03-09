@@ -1,6 +1,12 @@
 import type { ModelReasoningEffort, WebSearchMode } from "@openai/codex-sdk";
 
-export const PROVIDER_IDS = ["codex", "exa", "gemini", "parallel", "valyu"] as const;
+export const PROVIDER_IDS = [
+  "codex",
+  "exa",
+  "gemini",
+  "parallel",
+  "valyu",
+] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 

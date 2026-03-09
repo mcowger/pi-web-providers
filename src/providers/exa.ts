@@ -85,7 +85,7 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
                   : "",
           ),
           score: typeof result.score === "number" ? result.score : undefined,
-      })),
+        })),
     };
   }
 
@@ -101,12 +101,16 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
     }
 
     const client = new Exa(apiKey, config.baseUrl);
-    context.onProgress?.(`Fetching contents from Exa for ${urls.length} URL(s)`);
+    context.onProgress?.(
+      `Fetching contents from Exa for ${urls.length} URL(s)`,
+    );
     const response = await client.getContents(urls, options as never);
 
     const lines: string[] = [];
     for (const [index, result] of (response.results ?? []).entries()) {
-      lines.push(`${index + 1}. ${String(result.title ?? result.url ?? "Untitled")}`);
+      lines.push(
+        `${index + 1}. ${String(result.title ?? result.url ?? "Untitled")}`,
+      );
       lines.push(`   ${String(result.url ?? "")}`);
 
       const summary =
@@ -163,7 +167,9 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
       lines.push("");
       lines.push("Sources:");
       for (const [index, citation] of citations.entries()) {
-        lines.push(`${index + 1}. ${String(citation.title ?? citation.url ?? "Untitled")}`);
+        lines.push(
+          `${index + 1}. ${String(citation.title ?? citation.url ?? "Untitled")}`,
+        );
         lines.push(`   ${String(citation.url ?? "")}`);
       }
     }

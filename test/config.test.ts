@@ -96,11 +96,7 @@ describe("config parsing", () => {
     config.providers!.codex!.defaults!.webSearchMode = "cached";
     config.providers!.codex!.defaults!.additionalDirectories = ["notes"];
 
-    await writeFile(
-      getConfigPath(),
-      serializeConfig(config),
-      "utf-8",
-    );
+    await writeFile(getConfigPath(), serializeConfig(config), "utf-8");
 
     const loaded = await loadConfig();
     expect(loaded.providers?.codex?.defaults?.webSearchMode).toBe("cached");

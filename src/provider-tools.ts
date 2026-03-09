@@ -68,6 +68,8 @@ export function isProviderToolEnabled(
   if (!supportsProviderTool(providerId, toolId)) {
     return false;
   }
-  const tools = config?.tools as Partial<Record<ProviderToolId, boolean>> | undefined;
+  const tools = config?.tools as
+    | Partial<Record<ProviderToolId, boolean>>
+    | undefined;
   return tools?.[toolId] ?? true;
 }

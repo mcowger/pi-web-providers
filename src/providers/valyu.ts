@@ -95,7 +95,9 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
     }
 
     const client = new Valyu(apiKey, config.baseUrl);
-    context.onProgress?.(`Fetching contents from Valyu for ${urls.length} URL(s)`);
+    context.onProgress?.(
+      `Fetching contents from Valyu for ${urls.length} URL(s)`,
+    );
     const response = await client.contents(urls, options as never);
     const finalResponse =
       "jobId" in response
@@ -123,7 +125,8 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
             ? result.summary
             : result.summary
               ? formatJson(result.summary)
-              : typeof result.content === "string" || typeof result.content === "number"
+              : typeof result.content === "string" ||
+                  typeof result.content === "number"
                 ? String(result.content)
                 : formatJson(result.content);
         if (result.title) {
@@ -162,9 +165,9 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
 
     if (!("success" in response) || !response.success) {
       throw new Error(
-        ("error" in response && typeof response.error === "string"
+        "error" in response && typeof response.error === "string"
           ? response.error
-          : "Valyu answer failed."),
+          : "Valyu answer failed.",
       );
     }
 
@@ -232,7 +235,9 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
 
     const lines: string[] = [];
     lines.push(
-      typeof result.output === "string" ? result.output : formatJson(result.output),
+      typeof result.output === "string"
+        ? result.output
+        : formatJson(result.output),
     );
 
     const sources = result.sources ?? [];

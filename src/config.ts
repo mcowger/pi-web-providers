@@ -124,7 +124,9 @@ export async function loadConfig(): Promise<WebProvidersConfig> {
   return readConfigFile(getConfigPath());
 }
 
-export async function readConfigFile(path: string): Promise<WebProvidersConfig> {
+export async function readConfigFile(
+  path: string,
+): Promise<WebProvidersConfig> {
   try {
     const content = await readFile(path, "utf-8");
     return parseConfig(content, path);
@@ -136,7 +138,9 @@ export async function readConfigFile(path: string): Promise<WebProvidersConfig> 
   }
 }
 
-export async function writeConfigFile(config: WebProvidersConfig): Promise<string> {
+export async function writeConfigFile(
+  config: WebProvidersConfig,
+): Promise<string> {
   const path = getConfigPath();
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, serializeConfig(config), "utf-8");
@@ -161,7 +165,12 @@ export function parseProviderConfig(
   providerId: ProviderId,
   text: string,
   source = CONFIG_FILE_NAME,
-): CodexProviderConfig | ExaProviderConfig | GeminiProviderConfig | ParallelProviderConfig | ValyuProviderConfig {
+):
+  | CodexProviderConfig
+  | ExaProviderConfig
+  | GeminiProviderConfig
+  | ParallelProviderConfig
+  | ValyuProviderConfig {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -614,19 +623,18 @@ function parseOptionalProviderTools(
       continue;
     }
     if (!supportsProviderTool(providerId, normalizedKey)) {
-      throw new Error(
-        `Unknown tools for ${providerId} in ${source}: ${key}.`,
-      );
+      throw new Error(`Unknown tools for ${providerId} in ${source}: ${key}.`);
     }
     parsed[normalizedKey] = parseBoolean(entry, source, `${field}.${key}`);
   }
 
-  const unknownTools = Object.keys(value).filter(
-    (toolId) => {
-      const normalizedKey = normalizeProviderToolKey(providerId, toolId);
-      return normalizedKey !== null && !PROVIDER_TOOLS[providerId].includes(normalizedKey);
-    },
-  );
+  const unknownTools = Object.keys(value).filter((toolId) => {
+    const normalizedKey = normalizeProviderToolKey(providerId, toolId);
+    return (
+      normalizedKey !== null &&
+      !PROVIDER_TOOLS[providerId].includes(normalizedKey)
+    );
+  });
   if (unknownTools.length > 0) {
     throw new Error(
       `Unknown tools for ${providerId} in ${source}: ${unknownTools.join(", ")}.`,
@@ -692,11 +700,7 @@ function parseOptionalBoolean(
   return value;
 }
 
-function parseBoolean(
-  value: unknown,
-  source: string,
-  field: string,
-): boolean {
+function parseBoolean(value: unknown, source: string, field: string): boolean {
   if (typeof value !== "boolean") {
     throw new Error(`'${field}' in ${source} must be a boolean.`);
   }

@@ -1,8 +1,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { __test__ } from "../src/index.js";
+import webProvidersExtension, { __test__ } from "../src/index.js";
 import type { WebProvidersConfig } from "../src/types.js";
 
 const originalHome = process.env.HOME;
@@ -31,6 +32,29 @@ afterEach(() => {
 });
 
 describe("managed tool availability", () => {
+  it("keeps web_search routing guidance in the description", () => {
+    const tools: Array<{ name: string; description: string }> = [];
+
+    webProvidersExtension({
+      registerTool(tool: { name: string; description: string }) {
+        tools.push(tool);
+      },
+      registerCommand() {},
+      on() {},
+      getActiveTools() {
+        return [];
+      },
+      setActiveTools() {},
+    } as unknown as ExtensionAPI);
+
+    const webSearch = tools.find((tool) => tool.name === "web_search");
+
+    expect(webSearch?.description).toContain("Prefer one search per question");
+    expect(webSearch?.description).toContain(
+      "answer from the retrieved sources",
+    );
+  });
+
   it("only exposes available provider overrides to the model", () => {
     process.env.CODEX_API_KEY = "test-key";
 
@@ -118,5 +142,38 @@ describe("managed tool availability", () => {
     expect(
       __test__.getAvailableManagedToolNames(config, process.cwd()),
     ).toEqual(["web_contents", "web_research"]);
+  });
+
+  it("does not activate unavailable tools before agent start", () => {
+    process.env.CODEX_API_KEY = "test-key";
+    process.env.EXA_API_KEY = "test-key";
+
+    const config: WebProvidersConfig = {
+      version: 1,
+      providers: {
+        codex: {
+          enabled: true,
+        },
+        exa: {
+          enabled: true,
+          apiKey: "EXA_API_KEY",
+          tools: {
+            search: false,
+            contents: true,
+            answer: true,
+            research: true,
+          },
+        },
+      },
+    };
+
+    const activeTools = __test__.getSyncedActiveTools(
+      config,
+      process.cwd(),
+      ["web_search"],
+      { addAvailable: false },
+    );
+
+    expect(Array.from(activeTools)).toEqual(["web_search"]);
   });
 });

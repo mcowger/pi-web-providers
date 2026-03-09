@@ -68,10 +68,6 @@ const MANAGED_TOOL_NAMES = Object.values(CAPABILITY_TOOL_NAMES);
 const PROVIDER_OVERRIDE_GUIDELINES = [
   "Do not set provider unless the user asks for one.",
 ];
-const WEB_SEARCH_PROMPT_GUIDELINES = [
-  ...PROVIDER_OVERRIDE_GUIDELINES,
-  "Use at most one web_search per question unless the first result is clearly insufficient or off-topic.",
-];
 
 export default function webProvidersExtension(pi: ExtensionAPI) {
   registerManagedTools(pi);
@@ -130,9 +126,9 @@ function registerWebSearchTool(
     label: "Web Search",
     description:
       "Search the public web and return results with titles, URLs, and snippets. " +
+      "Prefer one search per question, then answer from the retrieved sources unless the results are clearly insufficient or off-topic. " +
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} when needed.`,
-    promptSnippet: "Search once; answer from the sources.",
-    promptGuidelines: WEB_SEARCH_PROMPT_GUIDELINES,
+    promptGuidelines: PROVIDER_OVERRIDE_GUIDELINES,
     parameters: Type.Object({
       query: Type.String({ description: "What to search for on the web" }),
       maxResults: Type.Optional(
@@ -231,7 +227,8 @@ function registerWebContentsTool(
     name: "web_contents",
     label: "Web Contents",
     description:
-      "Fetch extracted contents for one or more URLs using a configured provider.",
+      "Fetch extracted contents for one or more URLs using a configured provider. " +
+      "Use after web_search to read full page content from the most relevant URLs.",
     parameters: Type.Object({
       urls: Type.Array(Type.String({ minLength: 1 }), {
         minItems: 1,
@@ -292,7 +289,9 @@ function registerWebAnswerTool(
   pi.registerTool({
     name: "web_answer",
     label: "Web Answer",
-    description: "Get a provider-generated answer grounded in web results.",
+    description:
+      "Get a provider-generated answer grounded in web results. " +
+      "Best for quick factual questions that need a single grounded answer.",
     parameters: Type.Object({
       query: Type.String({ description: "Question to answer" }),
       options: jsonOptionsSchema("Provider-specific answer options."),
@@ -351,7 +350,8 @@ function registerWebResearchTool(
     name: "web_research",
     label: "Web Research",
     description:
-      "Run a longer-form research task using a provider that supports research.",
+      "Run a longer-form research task using a provider that supports research. " +
+      "Prefer over multiple web_search calls for deep-dive or multi-source questions.",
     parameters: Type.Object({
       input: Type.String({ description: "Research brief or question" }),
       options: jsonOptionsSchema("Provider-specific research options."),
@@ -454,12 +454,41 @@ function getAvailableManagedToolNames(
     .map((capability) => CAPABILITY_TOOL_NAMES[capability]);
 }
 
+function getSyncedActiveTools(
+  config: WebProvidersConfig,
+  cwd: string,
+  activeToolNames: readonly string[],
+  options: { addAvailable: boolean },
+): Set<string> {
+  const availableToolNames = new Set(getAvailableManagedToolNames(config, cwd));
+  const nextActiveTools = new Set(activeToolNames);
+
+  for (const toolName of MANAGED_TOOL_NAMES) {
+    if (availableToolNames.has(toolName)) {
+      if (options.addAvailable) {
+        nextActiveTools.add(toolName);
+      }
+      continue;
+    }
+
+    nextActiveTools.delete(toolName);
+  }
+
+  return nextActiveTools;
+}
+
 async function refreshManagedTools(
   pi: ExtensionAPI,
   cwd: string,
   options: { addAvailable: boolean },
 ): Promise<void> {
   const config = await loadConfig();
+  const nextActiveTools = getSyncedActiveTools(
+    config,
+    cwd,
+    pi.getActiveTools(),
+    options,
+  );
 
   registerManagedTools(pi, {
     search: getAvailableProviderIdsForCapability(config, cwd, "search"),
@@ -468,35 +497,20 @@ async function refreshManagedTools(
     research: getAvailableProviderIdsForCapability(config, cwd, "research"),
   });
 
-  await syncManagedToolAvailability(pi, config, cwd, options);
+  await syncManagedToolAvailability(pi, nextActiveTools);
 }
 
 async function syncManagedToolAvailability(
   pi: ExtensionAPI,
-  config: WebProvidersConfig,
-  cwd: string,
-  options: { addAvailable: boolean },
+  nextActiveTools: ReadonlySet<string>,
 ): Promise<void> {
-  const availableToolNames = new Set(getAvailableManagedToolNames(config, cwd));
-  const activeTools = new Set(pi.getActiveTools());
-  let changed = false;
-
-  for (const toolName of MANAGED_TOOL_NAMES) {
-    if (availableToolNames.has(toolName)) {
-      if (options.addAvailable && !activeTools.has(toolName)) {
-        activeTools.add(toolName);
-        changed = true;
-      }
-      continue;
-    }
-
-    if (activeTools.delete(toolName)) {
-      changed = true;
-    }
-  }
+  const activeTools = pi.getActiveTools();
+  const changed =
+    activeTools.length !== nextActiveTools.size ||
+    activeTools.some((toolName) => !nextActiveTools.has(toolName));
 
   if (changed) {
-    pi.setActiveTools(Array.from(activeTools));
+    pi.setActiveTools(Array.from(nextActiveTools));
   }
 }
 
@@ -2089,6 +2103,7 @@ export const __test__ = {
   extractTextContent,
   getAvailableManagedToolNames,
   getAvailableProviderIdsForCapability,
+  getSyncedActiveTools,
   renderCallHeader,
   renderCollapsedSearchSummary,
 };

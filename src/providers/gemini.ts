@@ -164,7 +164,10 @@ export class GeminiProvider implements WebProvider<GeminiProviderConfig> {
         };
       }
 
-      if (interaction.status === "failed" || interaction.status === "cancelled") {
+      if (
+        interaction.status === "failed" ||
+        interaction.status === "cancelled"
+      ) {
         throw new Error(`Gemini research ${interaction.status}.`);
       }
 
@@ -188,7 +191,11 @@ export class GeminiProvider implements WebProvider<GeminiProviderConfig> {
 function extractGoogleSearchResults(
   outputs: unknown,
 ): Array<{ title?: string; url?: string; rendered_content?: string }> {
-  const results: Array<{ title?: string; url?: string; rendered_content?: string }> = [];
+  const results: Array<{
+    title?: string;
+    url?: string;
+    rendered_content?: string;
+  }> = [];
   if (!Array.isArray(outputs)) {
     return results;
   }
@@ -254,9 +261,7 @@ function extractGroundingSources(
   return sources;
 }
 
-function formatInteractionOutputs(
-  outputs: unknown,
-): string {
+function formatInteractionOutputs(outputs: unknown): string {
   const lines: string[] = [];
 
   if (!Array.isArray(outputs)) {
@@ -282,7 +287,10 @@ function formatInteractionOutputs(
   return lines.join("\n\n").trim();
 }
 
-async function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+async function sleep(
+  ms: number,
+  signal: AbortSignal | undefined,
+): Promise<void> {
   if (signal?.aborted) {
     throw new Error("Operation aborted.");
   }

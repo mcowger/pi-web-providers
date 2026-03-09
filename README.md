@@ -18,6 +18,12 @@ only the tools that make sense. If your active provider offers search and
 content extraction but not deep research, the agent never sees a research tool.
 Switch to a provider that supports it and the tool appears automatically.
 
+The extension also separates **available tools** from the **active tool set**.
+When a session starts, it can add every available managed tool. Before each
+agent run, it removes tools that are no longer available but keeps any managed
+tools that you explicitly removed from the active set disabled. That keeps the
+tool prompt aligned with the tools that the agent can actually call.
+
 ## ✨ Features
 
 - **Provider-driven tool surface** — tools are injected based on what the active
@@ -60,9 +66,25 @@ Which of the tools below are registered depends on the capabilities of the
 available providers. If no provider supports a given capability, the
 corresponding tool is never exposed to the agent.
 
+Prompt guidance also follows the active tool set, not only provider
+availability. For example, `web_search` mentions `web_contents`,
+`web_answer`, or `web_research` only when those sibling tools are active in the
+session.
+
 ### `web_search`
 
 Search the web and return titles, URLs, and snippets.
+
+Prompt behavior depends on which sibling tools are active:
+
+- If `web_contents` is active, `web_search` tells the agent to fetch the most
+  relevant URLs before synthesizing an answer.
+- If `web_contents` is inactive, `web_search` tells the agent to answer from
+  snippets and avoid repeated searches unless the first result is insufficient.
+- If `web_answer` is active, `web_search` points quick factual questions to
+  `web_answer`.
+- If `web_research` is active, `web_search` points deep-dive questions to
+  `web_research`.
 
 | Parameter    | Type    | Default  | Description                                                         |
 | ------------ | ------- | -------- | ------------------------------------------------------------------- |
@@ -148,11 +170,17 @@ summarises which capabilities each provider exposes:
   for the selected provider and `enabled: false` for the others
 - Each provider can also enable or disable its individual tools through a `tools`
   block
+- Managed tools are registered from available provider capabilities, but the
+  active tool set can still be narrower if you removed a tool from the session
 - If no provider is explicitly enabled for search, the extension falls back to
   Codex only when the local Codex CLI is installed and authenticated, unless
   Codex was explicitly configured as disabled
 - Tools stay inactive when no provider is available for their capability, so
   they are not injected into the LLM prompt
+- Before each agent run, the extension removes newly unavailable managed tools
+  and keeps manually pruned managed tools inactive instead of re-adding them
+- `web_search` only advertises sibling tools in its prompt when those tools are
+  active in the session
 - Secret-like values can be:
   - literal strings
   - environment variable names such as `EXA_API_KEY`

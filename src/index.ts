@@ -126,8 +126,7 @@ function registerWebSearchTool(
     name: "web_search",
     label: "Web Search",
     description:
-      "Search the public web and return results with titles, URLs, and snippets. " +
-      "Prefer one search per question, then answer from the retrieved sources unless the results are clearly insufficient or off-topic. " +
+      "Find likely sources on the public web and return titles, URLs, and snippets. " +
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} when needed.`,
     promptGuidelines: PROVIDER_OVERRIDE_GUIDELINES,
     parameters: Type.Object({
@@ -227,9 +226,7 @@ function registerWebContentsTool(
   pi.registerTool({
     name: "web_contents",
     label: "Web Contents",
-    description:
-      "Fetch extracted contents for one or more URLs using a configured provider. " +
-      "Use to read full page content from URLs you already have.",
+    description: "Read and extract the main contents of one or more web pages.",
     parameters: Type.Object({
       urls: Type.Array(Type.String({ minLength: 1 }), {
         minItems: 1,
@@ -290,9 +287,7 @@ function registerWebAnswerTool(
   pi.registerTool({
     name: "web_answer",
     label: "Web Answer",
-    description:
-      "Get a provider-generated answer grounded in web results. " +
-      "Best for quick factual questions that need a single grounded answer.",
+    description: "Answer a question using web-grounded evidence.",
     parameters: Type.Object({
       query: Type.String({ description: "Question to answer" }),
       options: jsonOptionsSchema("Provider-specific answer options."),
@@ -351,8 +346,7 @@ function registerWebResearchTool(
     name: "web_research",
     label: "Web Research",
     description:
-      "Run a longer-form research task using a provider that supports research. " +
-      "Prefer over multiple web_search calls for deep-dive or multi-source questions.",
+      "Investigate a topic across web sources and produce a longer report.",
     parameters: Type.Object({
       input: Type.String({ description: "Research brief or question" }),
       options: jsonOptionsSchema("Provider-specific research options."),
@@ -596,15 +590,11 @@ async function executeProviderTool({
 
   let response: ProviderToolOutput;
   try {
-    response = await invoke(
-      provider,
-      providerConfig as ProviderConfigUnion,
-      {
-        cwd: ctx.cwd,
-        signal: signal ?? undefined,
-        onProgress: progress.report,
-      },
-    );
+    response = await invoke(provider, providerConfig as ProviderConfigUnion, {
+      cwd: ctx.cwd,
+      signal: signal ?? undefined,
+      onProgress: progress.report,
+    });
   } finally {
     progress.stop();
   }

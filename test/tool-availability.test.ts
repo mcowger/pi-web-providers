@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe("managed tool availability", () => {
-  it("keeps web_search routing guidance in the description", () => {
+  it("keeps tool descriptions concise and capability-specific", () => {
     const tools: Array<{ name: string; description: string }> = [];
 
     webProvidersExtension({
@@ -48,32 +48,24 @@ describe("managed tool availability", () => {
     } as unknown as ExtensionAPI);
 
     const webSearch = tools.find((tool) => tool.name === "web_search");
-
-    expect(webSearch?.description).toContain("Prefer one search per question");
-    expect(webSearch?.description).toContain(
-      "answer from the retrieved sources",
-    );
-  });
-
-  it("keeps web_contents description valid when search is disabled", () => {
-    const tools: Array<{ name: string; description: string }> = [];
-
-    webProvidersExtension({
-      registerTool(tool: { name: string; description: string }) {
-        tools.push(tool);
-      },
-      registerCommand() {},
-      on() {},
-      getActiveTools() {
-        return [];
-      },
-      setActiveTools() {},
-    } as unknown as ExtensionAPI);
-
     const webContents = tools.find((tool) => tool.name === "web_contents");
+    const webAnswer = tools.find((tool) => tool.name === "web_answer");
+    const webResearch = tools.find((tool) => tool.name === "web_research");
 
+    expect(webSearch?.description).toContain(
+      "Find likely sources on the public web",
+    );
+    expect(webSearch?.description).toContain("titles, URLs, and snippets");
+    expect(webContents?.description).toBe(
+      "Read and extract the main contents of one or more web pages.",
+    );
     expect(webContents?.description).not.toContain("web_search");
-    expect(webContents?.description).toContain("full page content");
+    expect(webAnswer?.description).toBe(
+      "Answer a question using web-grounded evidence.",
+    );
+    expect(webResearch?.description).toBe(
+      "Investigate a topic across web sources and produce a longer report.",
+    );
   });
 
   it("only exposes available provider overrides to the model", () => {

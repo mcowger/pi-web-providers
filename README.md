@@ -68,7 +68,7 @@ corresponding tool is never exposed to the agent.
 
 ### `web_search`
 
-Search the web and return titles, URLs, and snippets.
+Find likely sources on the public web and return titles, URLs, and snippets.
 
 | Parameter    | Type    | Default  | Description                                                         |
 | ------------ | ------- | -------- | ------------------------------------------------------------------- |
@@ -78,7 +78,7 @@ Search the web and return titles, URLs, and snippets.
 
 ### `web_contents`
 
-Extract contents for one or more URLs.
+Read and extract the main contents of one or more web pages.
 
 | Parameter  | Type     | Default  | Description                                             |
 | ---------- | -------- | -------- | ------------------------------------------------------- |
@@ -88,7 +88,7 @@ Extract contents for one or more URLs.
 
 ### `web_answer`
 
-Get a provider-generated answer grounded in search results.
+Answer a question using web-grounded evidence.
 
 | Parameter  | Type   | Default  | Description                                            |
 | ---------- | ------ | -------- | ------------------------------------------------------ |
@@ -98,7 +98,7 @@ Get a provider-generated answer grounded in search results.
 
 ### `web_research`
 
-Run a longer-form research task.
+Investigate a topic across web sources and produce a longer report.
 
 | Parameter  | Type   | Default  | Description                                             |
 | ---------- | ------ | -------- | ------------------------------------------------------- |

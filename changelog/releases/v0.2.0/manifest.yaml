@@ -1,0 +1,7 @@
+created: 2026-03-10
+title: Claude provider and smarter tool routing
+intro: >-
+  Web tools now support Claude as a provider for search and answers, and default to
+  Codex when no search provider is configured. Each tool carries self-describing prompts,
+  unavailable tools stay hidden, and Gemini-backed tools return cleaner, more reliable
+  results.

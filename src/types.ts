@@ -106,6 +106,7 @@ export interface GeminiProviderConfig {
   enabled?: boolean;
   tools?: {
     search?: boolean;
+    contents?: boolean;
     answer?: boolean;
     research?: boolean;
   };
@@ -113,6 +114,7 @@ export interface GeminiProviderConfig {
   defaults?: {
     apiVersion?: string;
     searchModel?: string;
+    contentsModel?: string;
     answerModel?: string;
     researchAgent?: string;
   };

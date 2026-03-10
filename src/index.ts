@@ -758,6 +758,7 @@ interface ProviderMenuOption {
     | "exaTextContents"
     | "geminiApiVersion"
     | "geminiSearchModel"
+    | "geminiContentsModel"
     | "geminiAnswerModel"
     | "geminiResearchAgent"
     | "parallelSearchMode"
@@ -810,6 +811,7 @@ function buildProviderMenuOptions(
       | "claudeMaxTurns"
       | "additionalDirectories"
       | "geminiSearchModel"
+      | "geminiContentsModel"
       | "geminiAnswerModel"
       | "geminiResearchAgent",
     label: string,
@@ -961,6 +963,11 @@ function buildProviderMenuOptions(
       "geminiSearchModel",
       "Search model",
       "Model used for Gemini search interactions.",
+    );
+    pushText(
+      "geminiContentsModel",
+      "Contents model",
+      "Model used for Gemini URL content extraction via URL Context.",
     );
     pushText(
       "geminiAnswerModel",
@@ -1205,6 +1212,7 @@ class WebProvidersSettingsView implements Component {
                 key,
               )
             : key === "geminiSearchModel" ||
+                key === "geminiContentsModel" ||
                 key === "geminiAnswerModel" ||
                 key === "geminiResearchAgent"
               ? getGeminiTextSettingValue(
@@ -1395,6 +1403,7 @@ class WebProvidersSettingsView implements Component {
     }
     if (
       id === "geminiSearchModel" ||
+      id === "geminiContentsModel" ||
       id === "geminiAnswerModel" ||
       id === "geminiResearchAgent"
     ) {
@@ -1784,11 +1793,16 @@ function getCodexTextSettingValue(
 
 function getGeminiTextSettingValue(
   config: GeminiProviderConfig | undefined,
-  key: "geminiSearchModel" | "geminiAnswerModel" | "geminiResearchAgent",
+  key:
+    | "geminiSearchModel"
+    | "geminiContentsModel"
+    | "geminiAnswerModel"
+    | "geminiResearchAgent",
 ): string | undefined {
   const defaults = config?.defaults;
   if (!defaults) return undefined;
   if (key === "geminiSearchModel") return defaults.searchModel;
+  if (key === "geminiContentsModel") return defaults.contentsModel;
   if (key === "geminiAnswerModel") return defaults.answerModel;
   return defaults.researchAgent;
 }
@@ -2005,6 +2019,17 @@ function applyGeminiSettingChange(
           JsonObject | string | boolean | undefined
         >,
         "searchModel",
+        value,
+      );
+      cleanupGeminiDefaults(target);
+      return true;
+    case "geminiContentsModel":
+      assignOptionalString(
+        target.defaults as Record<
+          string,
+          JsonObject | string | boolean | undefined
+        >,
+        "contentsModel",
         value,
       );
       cleanupGeminiDefaults(target);

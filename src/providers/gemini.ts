@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { resolveConfigValue } from "../config.js";
 import type {
   GeminiProviderConfig,
+  JsonObject,
   ProviderContext,
   ProviderStatus,
   ProviderToolOutput,
@@ -10,6 +11,7 @@ import type {
 } from "../types.js";
 
 const DEFAULT_SEARCH_MODEL = "gemini-2.5-flash";
+const DEFAULT_CONTENTS_MODEL = "gemini-2.5-flash";
 const DEFAULT_ANSWER_MODEL = "gemini-2.5-flash";
 const DEFAULT_RESEARCH_AGENT = "deep-research-pro-preview-12-2025";
 const DEFAULT_POLL_INTERVAL_MS = 3000;
@@ -24,12 +26,14 @@ export class GeminiProvider implements WebProvider<GeminiProviderConfig> {
       enabled: false,
       tools: {
         search: true,
+        contents: true,
         answer: true,
         research: true,
       },
       apiKey: "GOOGLE_API_KEY",
       defaults: {
         searchModel: DEFAULT_SEARCH_MODEL,
+        contentsModel: DEFAULT_CONTENTS_MODEL,
         answerModel: DEFAULT_ANSWER_MODEL,
         researchAgent: DEFAULT_RESEARCH_AGENT,
       },
@@ -78,6 +82,71 @@ export class GeminiProvider implements WebProvider<GeminiProviderConfig> {
     return {
       provider: this.id,
       results,
+    };
+  }
+
+  async contents(
+    urls: string[],
+    options: JsonObject | undefined,
+    config: GeminiProviderConfig,
+    context: ProviderContext,
+  ): Promise<ProviderToolOutput> {
+    const ai = this.createClient(config);
+    const model = config.defaults?.contentsModel ?? DEFAULT_CONTENTS_MODEL;
+
+    context.onProgress?.(
+      `Fetching contents from Gemini for ${urls.length} URL(s)`,
+    );
+
+    const urlList = urls.map((url) => `- ${url}`).join("\n");
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        `Extract the main textual content from each of the following URLs. ` +
+          `For each URL, return the page title followed by the cleaned body text. ` +
+          `Preserve the original structure (headings, paragraphs, lists) but remove ` +
+          `navigation, ads, and boilerplate.\n\n${urlList}`,
+      ],
+      config: {
+        ...(options ?? {}),
+        tools: [{ urlContext: {} }],
+      },
+    });
+
+    const text = response.text?.trim() || "";
+    const metadata = extractUrlContextMetadata(response.candidates);
+    const lines: string[] = [];
+
+    if (text) {
+      lines.push(text);
+    }
+
+    if (metadata.length > 0) {
+      const failures = metadata.filter(
+        (entry) =>
+          entry.status !== "URL_RETRIEVAL_STATUS_SUCCESS" &&
+          entry.status !== undefined,
+      );
+      if (failures.length > 0) {
+        lines.push("");
+        lines.push("Retrieval issues:");
+        for (const failure of failures) {
+          lines.push(`- ${failure.url}: ${failure.status}`);
+        }
+      }
+    }
+
+    const successCount = metadata.filter(
+      (entry) =>
+        entry.status === "URL_RETRIEVAL_STATUS_SUCCESS" ||
+        entry.status === undefined,
+    ).length;
+
+    return {
+      provider: this.id,
+      text: lines.join("\n").trimEnd() || "No contents extracted.",
+      summary: `${successCount} of ${urls.length} URL(s) extracted via Gemini`,
+      itemCount: successCount,
     };
   }
 
@@ -282,6 +351,49 @@ function extractGroundingSources(
   }
 
   return sources;
+}
+
+function extractUrlContextMetadata(
+  candidates: unknown,
+): Array<{ url: string; status: string | undefined }> {
+  const results: Array<{ url: string; status: string | undefined }> = [];
+
+  if (!Array.isArray(candidates)) {
+    return results;
+  }
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "object" || candidate === null) {
+      continue;
+    }
+
+    const metadata = (candidate as Record<string, unknown>)
+      .urlContextMetadata as
+      | { urlMetadata?: Array<Record<string, unknown>> }
+      | undefined;
+    if (!metadata?.urlMetadata || !Array.isArray(metadata.urlMetadata)) {
+      continue;
+    }
+
+    for (const entry of metadata.urlMetadata) {
+      if (typeof entry !== "object" || entry === null) {
+        continue;
+      }
+
+      results.push({
+        url:
+          typeof entry.retrievedUrl === "string"
+            ? entry.retrievedUrl
+            : "unknown",
+        status:
+          typeof entry.urlRetrievalStatus === "string"
+            ? entry.urlRetrievalStatus
+            : undefined,
+      });
+    }
+  }
+
+  return results;
 }
 
 function formatInteractionOutputs(outputs: unknown): string {

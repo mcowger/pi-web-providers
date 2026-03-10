@@ -21,7 +21,7 @@ export const PROVIDER_TOOLS: Record<ProviderId, readonly ProviderToolId[]> = {
   claude: ["search", "answer"],
   codex: ["search"],
   exa: ["search", "contents", "answer", "research"],
-  gemini: ["search", "answer", "research"],
+  gemini: ["search", "contents", "answer", "research"],
   parallel: ["search", "contents"],
   valyu: ["search", "contents", "answer", "research"],
 };

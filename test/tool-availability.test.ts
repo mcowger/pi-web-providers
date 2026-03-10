@@ -2,8 +2,25 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { execFileSyncMock } = vi.hoisted(() => ({
+  execFileSyncMock: vi.fn(),
+}));
+
+vi.mock("node:child_process", async () => {
+  const actual =
+    await vi.importActual<typeof import("node:child_process")>(
+      "node:child_process",
+    );
+  return {
+    ...actual,
+    execFileSync: execFileSyncMock,
+  };
+});
+
 import webProvidersExtension, { __test__ } from "../src/index.js";
+import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
 import type { WebProvidersConfig } from "../src/types.js";
 
 const originalHome = process.env.HOME;
@@ -18,6 +35,8 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.EXA_API_KEY;
   delete process.env.CODEX_API_KEY;
+  execFileSyncMock.mockReset();
+  resetClaudeProviderCachesForTests();
   if (originalHome === undefined) {
     delete process.env.HOME;
   } else {
@@ -103,6 +122,16 @@ describe("managed tool availability", () => {
     ).toEqual(["web_search"]);
   });
 
+  it("does not expose Claude-managed tools via implicit fallback", () => {
+    mockClaudeAvailable();
+
+    const config: WebProvidersConfig = { version: 1 };
+
+    expect(
+      __test__.getAvailableManagedToolNames(config, process.cwd()),
+    ).toEqual([]);
+  });
+
   it("hides managed tools when no provider is available", () => {
     const config: WebProvidersConfig = {
       version: 1,
@@ -113,6 +142,24 @@ describe("managed tool availability", () => {
         exa: {
           enabled: false,
           apiKey: "EXA_API_KEY",
+        },
+      },
+    };
+
+    expect(
+      __test__.getAvailableManagedToolNames(config, process.cwd()),
+    ).toEqual([]);
+  });
+
+  it("hides Claude-managed tools when Claude auth is missing", () => {
+    const config: WebProvidersConfig = {
+      version: 1,
+      providers: {
+        claude: {
+          enabled: true,
+        },
+        codex: {
+          enabled: false,
         },
       },
     };
@@ -190,3 +237,12 @@ describe("managed tool availability", () => {
     expect(Array.from(activeTools)).toEqual(["web_search"]);
   });
 });
+
+function mockClaudeAvailable(): void {
+  execFileSyncMock.mockImplementation((_command, args: string[]) => {
+    if (args.includes("auth") && args.includes("status")) {
+      return '{"loggedIn":true,"authMethod":"claude.ai"}';
+    }
+    throw new Error(`Unexpected Claude command: ${args.join(" ")}`);
+  });
+}

@@ -6,6 +6,8 @@ import {
 import { PROVIDER_MAP, PROVIDERS } from "./providers/index.js";
 import type { ProviderId, WebProvidersConfig } from "./types.js";
 
+const IMPLICIT_PROVIDER_FALLBACKS: readonly ProviderId[] = ["codex"] as const;
+
 export function resolveProviderChoice(
   config: WebProvidersConfig,
   explicit: ProviderId | undefined,
@@ -24,8 +26,11 @@ export function getEffectiveProviderConfig(
   if (configured) {
     return configured;
   }
-  if (providerId === "codex") {
-    return PROVIDER_MAP.codex.createTemplate() as ProviderConfigUnion;
+  if (IMPLICIT_PROVIDER_FALLBACKS.includes(providerId)) {
+    return {
+      ...PROVIDER_MAP[providerId].createTemplate(),
+      enabled: true,
+    } as ProviderConfigUnion;
   }
   return undefined;
 }
@@ -75,7 +80,8 @@ export function resolveProviderForCapability(
     if (status.available) return provider;
   }
 
-  for (const provider of PROVIDERS) {
+  for (const providerId of IMPLICIT_PROVIDER_FALLBACKS) {
+    const provider = PROVIDER_MAP[providerId];
     if (typeof provider[capability] !== "function") continue;
     const providerConfig = getEffectiveProviderConfig(config, provider.id);
     if (!isProviderToolEnabled(provider.id, providerConfig, capability)) {

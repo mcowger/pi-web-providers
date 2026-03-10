@@ -1,11 +1,28 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { execFileSyncMock } = vi.hoisted(() => ({
+  execFileSyncMock: vi.fn(),
+}));
+
+vi.mock("node:child_process", async () => {
+  const actual =
+    await vi.importActual<typeof import("node:child_process")>(
+      "node:child_process",
+    );
+  return {
+    ...actual,
+    execFileSync: execFileSyncMock,
+  };
+});
+
 import {
   resolveProviderChoice,
   resolveProviderForCapability,
 } from "../src/provider-resolution.js";
+import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
 import type { WebProvidersConfig } from "../src/types.js";
 
 const originalHome = process.env.HOME;
@@ -23,6 +40,8 @@ afterEach(() => {
   delete process.env.GOOGLE_API_KEY;
   delete process.env.PARALLEL_API_KEY;
   delete process.env.VALYU_API_KEY;
+  execFileSyncMock.mockReset();
+  resetClaudeProviderCachesForTests();
   if (originalHome === undefined) {
     delete process.env.HOME;
   } else {
@@ -52,6 +71,21 @@ describe("provider resolution", () => {
 
     const provider = resolveProviderChoice(config, "exa", process.cwd());
     expect(provider.id).toBe("exa");
+  });
+
+  it("rejects Claude when it is explicitly enabled without local auth", () => {
+    const config: WebProvidersConfig = {
+      version: 1,
+      providers: {
+        claude: {
+          enabled: true,
+        },
+      },
+    };
+
+    expect(() =>
+      resolveProviderChoice(config, "claude", process.cwd()),
+    ).toThrow(/Provider 'claude' is not available: missing Claude auth/);
   });
 
   it("prefers explicitly enabled providers in alphabetical order", () => {
@@ -135,6 +169,14 @@ describe("provider resolution", () => {
     ).toThrow(/No provider is configured for 'search'/);
   });
 
+  it("does not implicitly fall back to Claude when Codex auth is missing", () => {
+    mockClaudeWithoutQueryAccess();
+
+    expect(() =>
+      resolveProviderChoice({ version: 1 }, undefined, process.cwd()),
+    ).toThrow(/No provider is configured for 'search'/);
+  });
+
   it("skips providers that have the requested tool disabled", () => {
     process.env.EXA_API_KEY = "test-key";
     process.env.PARALLEL_API_KEY = "test-key";
@@ -176,3 +218,21 @@ describe("provider resolution", () => {
     expect(provider.id).toBe("parallel");
   });
 });
+
+function mockClaudeAvailable(): void {
+  execFileSyncMock.mockImplementation((_command, args: string[]) => {
+    if (args.includes("auth") && args.includes("status")) {
+      return '{"loggedIn":true,"authMethod":"claude.ai"}';
+    }
+    throw new Error(`Unexpected Claude command: ${args.join(" ")}`);
+  });
+}
+
+function mockClaudeWithoutQueryAccess(): void {
+  execFileSyncMock.mockImplementation((_command, args: string[]) => {
+    if (args.includes("auth") && args.includes("status")) {
+      return '{"loggedIn":true,"authMethod":"claude.ai"}';
+    }
+    throw new Error(`Unexpected Claude command: ${args.join(" ")}`);
+  });
+}

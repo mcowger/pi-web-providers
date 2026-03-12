@@ -203,9 +203,88 @@ describe("GeminiProvider search", () => {
       },
     ]);
   });
+
+  it("forwards only model and generation_config for Gemini search", async () => {
+    const create = vi.fn().mockResolvedValue({
+      outputs: [
+        {
+          type: "google_search_result",
+          result: [
+            {
+              title: "Configured",
+              url: "https://example.com/configured",
+            },
+          ],
+        },
+      ],
+    });
+
+    const provider = createProvider({ interactions: { create } });
+    await provider.search(
+      "configured query",
+      5,
+      {
+        model: "gemini-2.5-pro",
+        generation_config: {
+          temperature: 0.1,
+          tool_choice: "none",
+        },
+        background: true,
+        store: true,
+      },
+      createConfig(),
+      createContext(),
+    );
+
+    expect(create).toHaveBeenCalledWith({
+      model: "gemini-2.5-pro",
+      input: "configured query",
+      tools: [{ type: "google_search" }],
+      generation_config: {
+        temperature: 0.1,
+        tool_choice: "any",
+      },
+    });
+  });
 });
 
 describe("GeminiProvider answer", () => {
+  it("supports provider-native request options for answers while keeping Google Search grounding enabled", async () => {
+    const generateContent = vi.fn().mockResolvedValue({
+      text: "Grounded answer",
+      candidates: [],
+    });
+
+    const provider = createProvider({ models: { generateContent } });
+    await provider.answer(
+      "What changed?",
+      {
+        model: "gemini-2.5-pro",
+        config: {
+          labels: {
+            route: "answer",
+          },
+          temperature: 0.1,
+          tools: [{ urlContext: {} }],
+        },
+      },
+      createConfig(),
+      createContext(),
+    );
+
+    expect(generateContent).toHaveBeenCalledWith({
+      model: "gemini-2.5-pro",
+      contents: "What changed?",
+      config: {
+        labels: {
+          route: "answer",
+        },
+        temperature: 0.1,
+        tools: [{ googleSearch: {} }],
+      },
+    });
+  });
+
   it("suppresses opaque grounding redirect URLs and dedupes source display", async () => {
     const provider = createProvider({
       models: {
@@ -406,7 +485,7 @@ describe("GeminiProvider contents", () => {
     );
   });
 
-  it("passes extra options to generateContent config", async () => {
+  it("passes provider-native generateContent config for contents", async () => {
     const generateContent = vi.fn().mockResolvedValue({
       text: "Result.",
       candidates: [],
@@ -415,7 +494,11 @@ describe("GeminiProvider contents", () => {
     const provider = createProvider({ models: { generateContent } });
     await provider.contents(
       ["https://example.com"],
-      { temperature: 0.2 },
+      {
+        config: {
+          temperature: 0.2,
+        },
+      },
       createConfig(),
       createContext(),
     );
@@ -428,6 +511,42 @@ describe("GeminiProvider contents", () => {
         },
       }),
     );
+  });
+
+  it("supports provider-native request options for contents while preserving urlContext", async () => {
+    const generateContent = vi.fn().mockResolvedValue({
+      text: "Result.",
+      candidates: [],
+    });
+
+    const provider = createProvider({ models: { generateContent } });
+    await provider.contents(
+      ["https://example.com"],
+      {
+        model: "gemini-2.5-pro",
+        config: {
+          labels: {
+            request_id: "contents-1",
+          },
+          topK: 3,
+          tools: [{ googleSearch: {} }],
+        },
+      },
+      createConfig(),
+      createContext(),
+    );
+
+    expect(generateContent).toHaveBeenCalledWith({
+      model: "gemini-2.5-pro",
+      contents: [expect.stringContaining("https://example.com")],
+      config: {
+        labels: {
+          request_id: "contents-1",
+        },
+        topK: 3,
+        tools: [{ urlContext: {} }],
+      },
+    });
   });
 
   it("returns fallback text when response is empty", async () => {
@@ -505,6 +624,59 @@ describe("GeminiProvider research", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("forwards Gemini research request options and strips pollIntervalMs", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "research-1" });
+    const get = vi.fn().mockResolvedValue({
+      status: "completed",
+      outputs: [{ type: "text", text: "Research result" }],
+    });
+
+    const provider = createProvider({
+      interactions: {
+        create,
+        get,
+      },
+    });
+
+    await provider.research(
+      "Investigate Tenzir use cases",
+      {
+        agent_config: {
+          response_length: "short",
+        },
+        store: true,
+        response_format: {
+          type: "json_schema",
+        },
+        response_modalities: ["TEXT"],
+        system_instruction: "Focus on official sources.",
+        pollIntervalMs: 5000,
+        agent: "override-agent",
+        background: false,
+        input: "override",
+        tools: [{ urlContext: {} }],
+      },
+      createConfig(),
+      createContext(),
+    );
+
+    expect(create).toHaveBeenCalledWith({
+      agent_config: {
+        response_length: "short",
+      },
+      store: true,
+      response_format: {
+        type: "json_schema",
+      },
+      response_modalities: ["TEXT"],
+      system_instruction: "Focus on official sources.",
+      tools: [{ urlContext: {} }],
+      input: "Investigate Tenzir use cases",
+      agent: "deep-research-pro-preview-12-2025",
+      background: true,
+    });
   });
 });
 

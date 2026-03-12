@@ -3,6 +3,7 @@ title: Gemini web contents via URL Context
 type: feature
 authors:
   - mavam
+pr: 3
 created: 2026-03-10T09:15:15.000000Z
 ---
 

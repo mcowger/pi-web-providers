@@ -1,12 +1,14 @@
 {
   "name": "pi-web-providers",
   "version": "1.0.0",
-  "description": "Configurable web access extension for pi with per-tool provider routing for search, contents, answers, and research across Claude, Codex, Exa, Gemini, Perplexity, Parallel, and Valyu.",
+  "description": "Configurable web access extension for pi with per-tool provider routing for search, contents, answers, and research across Claude, Codex, Custom CLI, Exa, Gemini, Perplexity, Parallel, and Valyu.",
   "type": "module",
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "example-config.json",
+    "examples"
   ],
   "keywords": [
     "pi-package",
@@ -15,6 +17,7 @@
     "web-search",
     "claude",
     "codex",
+    "custom-cli",
     "exa",
     "gemini",
     "perplexity",

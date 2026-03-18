@@ -12,8 +12,8 @@ off entirely.
 
 ## ✨ Features
 
-- **Multiple providers** — Claude, Codex, Exa, Gemini, Perplexity, Parallel,
-  Valyu
+- **Multiple providers** — Claude, Codex, Custom CLI, Exa, Gemini,
+  Perplexity, Parallel, Valyu
 - **Batched search and answers** — run several related queries in a single
   `web_search` or `web_answer` call and get grouped results back in one response
 - **Async contents prefetch** — optionally start background `web_contents`
@@ -49,6 +49,10 @@ Each tool can be routed to any compatible provider:
 | **Parallel**   |   ✔    |    ✔     |        |          | `PARALLEL_API_KEY`     |
 | **Valyu**      |   ✔    |    ✔     |   ✔    |    ✔     | `VALYU_API_KEY`        |
 
+Advanced option: `custom-cli` is a configurable adapter provider that can route
+any managed tool through a local wrapper command using a JSON stdin/stdout
+contract.
+
 See [`example-config.json`](example-config.json) for a full default
 configuration.
 
@@ -61,14 +65,17 @@ and that provider is currently available. Tool-specific settings live under
 
 #### `web_search`
 
-Find likely sources on the public web for up to 10 queries in a single call
-and return titles, URLs, and snippets grouped by query.
+Search the public web for up to 10 queries in one call. It returns grouped
+titles, URLs, and snippets for each query.
 
-| Parameter    | Type     | Default  | Description                                                          |
-| ------------ | -------- | -------- | -------------------------------------------------------------------- |
-| `queries`    | string[] | required | One or more search queries to run (max 10)                           |
-| `maxResults` | integer  | `5`      | Result count per query, clamped to `1–20`                            |
-| `options`    | object   | —        | Provider-specific search options plus local `prefetch` orchestration |
+<details>
+<summary><strong>Parameters and behavior</strong></summary>
+
+| Parameter    | Type     | Default  | Description                                                    |
+| ------------ | -------- | -------- | -------------------------------------------------------------- |
+| `queries`    | string[] | required | One or more search queries to run (max 10)                     |
+| `maxResults` | integer  | `5`      | Result count per query, clamped to `1–20`                      |
+| `options`    | object   | —        | Provider-specific search options and local `prefetch` settings |
 
 `web_search.options.prefetch` is local-only and not forwarded into the provider
 SDK. It accepts `provider`, `maxUrls`, `ttlMs`, and `contentsOptions`, and
@@ -76,9 +83,15 @@ starts a background page-extraction workflow only when `prefetch.provider` is
 set. `/web-providers` can also persist default search prefetch settings under
 `toolSettings.search.prefetch`.
 
+</details>
+
 #### `web_contents`
 
-Read and extract the main contents of one or more web pages.
+Read the main text from one or more web pages. It reuses cached pages when they
+match and fetches only missing or stale URLs.
+
+<details>
+<summary><strong>Parameters and behavior</strong></summary>
 
 | Parameter | Type     | Default  | Description                          |
 | --------- | -------- | -------- | ------------------------------------ |
@@ -89,20 +102,34 @@ Read and extract the main contents of one or more web pages.
 content store—whether they came from prefetch or an earlier read—and only
 fetches missing or stale URLs.
 
+</details>
+
 #### `web_answer`
 
-Answer one or more questions using web-grounded evidence.
+Answer one or more questions using web-grounded evidence. When you ask more
+than one question, the response is grouped into per-question sections.
+
+<details>
+<summary><strong>Parameters and behavior</strong></summary>
 
 | Parameter | Type     | Default  | Description                                          |
 | --------- | -------- | -------- | ---------------------------------------------------- |
 | `queries` | string[] | required | One or more questions to answer in one call (max 10) |
 | `options` | object   | —        | Provider-specific options                            |
 
-Responses are grouped into per-question sections when more than one question is provided.
+Responses are grouped into per-question sections when more than one question is
+provided.
+
+</details>
 
 #### `web_research`
 
-Investigate a topic across web sources and produce a longer report.
+Investigate a topic across web sources and produce a longer report. The
+provider-specific `options` stay native to each SDK, and runtime options
+override provider configuration when both are set.
+
+<details>
+<summary><strong>Parameters and behavior</strong></summary>
 
 | Parameter | Type   | Default  | Description                |
 | --------- | ------ | -------- | -------------------------- |
@@ -113,6 +140,8 @@ Investigate a topic across web sources and produce a longer report.
 different field names across SDKs—for example Perplexity uses `country`, Exa
 uses `userLocation`, and Valyu uses `countryCode`. Runtime `options` override
 provider-native config, but managed tool inputs and tool wiring stay fixed.
+
+</details>
 
 <details>
 <summary><strong>Timeout, retry, and delivery modes</strong></summary>
@@ -140,13 +169,7 @@ Providers deliver results in one of three modes:
 
 ### Providers
 
-Every provider is a thin adapter around an official SDK. Each provider has an
-`enabled` toggle that controls whether it is eligible for tool mappings.
-Provider config is split into `native` settings (forwarded to the SDK) and
-`policy` settings (local overrides that take precedence over generic settings);
-legacy `defaults` blocks are still accepted when reading. Secret-like values
-can be literal strings, environment variable names (e.g., `EXA_API_KEY`), or
-shell commands prefixed with `!`.
+The built-in providers below are thin adapters around official SDKs.
 
 <details>
 <summary><strong>Claude</strong></summary>
@@ -234,6 +257,87 @@ shell commands prefixed with `!`.
 
 </details>
 
+### Custom CLI provider
+
+The `custom-cli` provider lets you bring your own wrapper command for any
+managed tool. Each capability can point at a different local command under
+`providers["custom-cli"].native`.
+
+The repo includes actual wrapper examples under
+[`examples/custom-cli/wrappers/`](examples/custom-cli/wrappers/). They are
+small bash scripts that use `jq` for JSON handling. Each one uses a different
+backend pattern:
+
+- `codex --search exec` for `web_search`
+- Gemini API via `curl` for `web_contents`
+- `claude -p` for `web_answer`
+- Perplexity API via `curl` for `web_research`
+
+<details>
+<summary><strong>Configuration example</strong></summary>
+
+Copy the example wrappers into a local `./wrappers/` directory, then configure:
+
+```json
+{
+  "tools": {
+    "search": "custom-cli",
+    "contents": "custom-cli",
+    "answer": "custom-cli",
+    "research": "custom-cli"
+  },
+  "providers": {
+    "custom-cli": {
+      "enabled": true,
+      "native": {
+        "search": {
+          "argv": ["bash", "./wrappers/codex-search.sh"]
+        },
+        "contents": {
+          "argv": ["bash", "./wrappers/gemini-contents.sh"]
+        },
+        "answer": {
+          "argv": ["bash", "./wrappers/claude-answer.sh"]
+        },
+        "research": {
+          "argv": ["bash", "./wrappers/perplexity-research.sh"]
+        }
+      }
+    }
+  }
+}
+```
+
+Those example wrappers deliberately use different local CLIs and APIs so you
+can see several wrapper styles in one setup without extra glue code.
+
+Each capability can also set an optional `cwd` and `env` block. Use `cwd` when
+one wrapper must run from a specific directory. Use `env` for per-command
+variables; each value can be a literal string, an environment variable name, or
+`!command`.
+
+`web_research` runs as a foreground wrapper command, so local polling controls
+(`pollIntervalMs`, `timeoutMs`, `maxConsecutivePollErrors`) and `resumeId` do
+not apply to `custom-cli`.
+
+Wrapper contract:
+
+- `stdin`: one JSON request object with `capability` plus the per-call managed
+  inputs (`query`, `urls`, `input`, `maxResults`, `options`, `cwd`)
+- `stdout`: one JSON response object
+  - `search`: `{ "results": [{ "title", "url", "snippet" }] }`
+  - `contents` / `answer` / `research`: `{ "text": "...", "summary"?: "...", "itemCount"?: 1, "metadata"?: {} }`
+- `stderr`: optional progress lines
+- exit code `0`: success
+- non-zero exit code: failure
+
+</details>
+
+See [`examples/custom-cli/README.md`](examples/custom-cli/README.md) for a
+copy-and-pasteable setup, and see
+[`examples/custom-cli/wrappers/`](examples/custom-cli/wrappers/) for the actual
+wrapper files.
+
 ### Generic settings
 
 The `genericSettings` block sets shared execution defaults that apply to all
@@ -247,13 +351,6 @@ providers unless overridden in a provider's `policy` block:
 | `researchPollIntervalMs`           | `3000`     | How often to poll long-running research jobs   |
 | `researchTimeoutMs`                | `21600000` | Overall deadline for research before returning |
 | `researchMaxConsecutivePollErrors` | `3`        | Consecutive poll failures before stopping      |
-
-## 🛠️ Development
-
-```bash
-npm run check
-npm test
-```
 
 ## 📄 License
 

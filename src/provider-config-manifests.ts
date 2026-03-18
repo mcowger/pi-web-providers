@@ -3,6 +3,8 @@ import type {
   ClaudeProviderNativeConfig,
   CodexProviderConfig,
   CodexProviderNativeConfig,
+  CustomCliProviderConfig,
+  CustomCliProviderNativeConfig,
   ExaProviderConfig,
   ExecutionPolicyDefaults,
   GeminiProviderConfig,
@@ -214,6 +216,135 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           cleanupEmpty(config, "native");
         },
       }),
+    ],
+  },
+  "custom-cli": {
+    settings: [
+      jsonArraySetting<CustomCliProviderConfig>({
+        id: "customCliSearchArgv",
+        label: "Search argv",
+        help: `Optional JSON string array for the command to run for web_search, for example ["node","./scripts/codex-search.mjs"].`,
+        getValue: (config) =>
+          getCustomCliNative(config)?.search?.argv
+            ? JSON.stringify(getCustomCliNative(config)?.search?.argv)
+            : undefined,
+        setValue: (config, value) => {
+          setCustomCliArgv(config, "search", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliSearchCwd",
+        label: "Search cwd",
+        help: "Optional working directory for the web_search command. Relative paths resolve from the active project directory.",
+        getValue: (config) => getCustomCliNative(config)?.search?.cwd,
+        setValue: (config, value) => {
+          setCustomCliCwd(config, "search", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliSearchEnv",
+        label: "Search env",
+        help: "Optional JSON object of string environment variables for the web_search command. Values can be literal strings, env var names, or !command.",
+        getValue: (config) =>
+          formatCustomCliEnv(getCustomCliNative(config)?.search?.env),
+        setValue: (config, value) => {
+          setCustomCliEnv(config, "search", value);
+        },
+      }),
+      jsonArraySetting<CustomCliProviderConfig>({
+        id: "customCliContentsArgv",
+        label: "Contents argv",
+        help: "Optional JSON string array for the command to run for web_contents.",
+        getValue: (config) =>
+          getCustomCliNative(config)?.contents?.argv
+            ? JSON.stringify(getCustomCliNative(config)?.contents?.argv)
+            : undefined,
+        setValue: (config, value) => {
+          setCustomCliArgv(config, "contents", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliContentsCwd",
+        label: "Contents cwd",
+        help: "Optional working directory for the web_contents command. Relative paths resolve from the active project directory.",
+        getValue: (config) => getCustomCliNative(config)?.contents?.cwd,
+        setValue: (config, value) => {
+          setCustomCliCwd(config, "contents", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliContentsEnv",
+        label: "Contents env",
+        help: "Optional JSON object of string environment variables for the web_contents command. Values can be literal strings, env var names, or !command.",
+        getValue: (config) =>
+          formatCustomCliEnv(getCustomCliNative(config)?.contents?.env),
+        setValue: (config, value) => {
+          setCustomCliEnv(config, "contents", value);
+        },
+      }),
+      jsonArraySetting<CustomCliProviderConfig>({
+        id: "customCliAnswerArgv",
+        label: "Answer argv",
+        help: "Optional JSON string array for the command to run for web_answer.",
+        getValue: (config) =>
+          getCustomCliNative(config)?.answer?.argv
+            ? JSON.stringify(getCustomCliNative(config)?.answer?.argv)
+            : undefined,
+        setValue: (config, value) => {
+          setCustomCliArgv(config, "answer", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliAnswerCwd",
+        label: "Answer cwd",
+        help: "Optional working directory for the web_answer command. Relative paths resolve from the active project directory.",
+        getValue: (config) => getCustomCliNative(config)?.answer?.cwd,
+        setValue: (config, value) => {
+          setCustomCliCwd(config, "answer", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliAnswerEnv",
+        label: "Answer env",
+        help: "Optional JSON object of string environment variables for the web_answer command. Values can be literal strings, env var names, or !command.",
+        getValue: (config) =>
+          formatCustomCliEnv(getCustomCliNative(config)?.answer?.env),
+        setValue: (config, value) => {
+          setCustomCliEnv(config, "answer", value);
+        },
+      }),
+      jsonArraySetting<CustomCliProviderConfig>({
+        id: "customCliResearchArgv",
+        label: "Research argv",
+        help: "Optional JSON string array for the command to run for web_research.",
+        getValue: (config) =>
+          getCustomCliNative(config)?.research?.argv
+            ? JSON.stringify(getCustomCliNative(config)?.research?.argv)
+            : undefined,
+        setValue: (config, value) => {
+          setCustomCliArgv(config, "research", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliResearchCwd",
+        label: "Research cwd",
+        help: "Optional working directory for the web_research command. Relative paths resolve from the active project directory.",
+        getValue: (config) => getCustomCliNative(config)?.research?.cwd,
+        setValue: (config, value) => {
+          setCustomCliCwd(config, "research", value);
+        },
+      }),
+      stringSetting<CustomCliProviderConfig>({
+        id: "customCliResearchEnv",
+        label: "Research env",
+        help: "Optional JSON object of string environment variables for the web_research command. Values can be literal strings, env var names, or !command.",
+        getValue: (config) =>
+          formatCustomCliEnv(getCustomCliNative(config)?.research?.env),
+        setValue: (config, value) => {
+          setCustomCliEnv(config, "research", value);
+        },
+      }),
+      ...requestPolicySettings<CustomCliProviderConfig>(),
     ],
   },
   exa: {
@@ -477,6 +608,15 @@ function valuesSetting<TConfig>(
   };
 }
 
+function jsonArraySetting<TConfig>(
+  setting: Omit<ProviderTextSettingDescriptor<TConfig>, "kind">,
+): ProviderTextSettingDescriptor<TConfig> {
+  return {
+    kind: "text",
+    ...setting,
+  };
+}
+
 function apiKeySetting<TConfig extends { apiKey?: string }>() {
   return stringSetting<TConfig>({
     id: "apiKey",
@@ -514,6 +654,65 @@ function baseUrlSetting<TConfig extends { baseUrl?: string }>() {
       );
     },
   });
+}
+
+function requestPolicySettings<
+  TConfig extends { policy?: ExecutionPolicyDefaults },
+>() {
+  return [
+    integerSetting<TConfig>({
+      id: "requestTimeoutMs",
+      label: "Request timeout (ms)",
+      help: "Maximum time to wait for each command before failing that attempt for this provider. Leave empty to inherit the generic setting.",
+      minimum: 1,
+      errorMessage: "Request timeout must be a positive integer.",
+      getValue: (config) => getIntegerString(config?.policy?.requestTimeoutMs),
+      setValue: (config, value) => {
+        assignOptionalInteger(
+          ensurePolicy(config),
+          "requestTimeoutMs",
+          value,
+          "Request timeout must be a positive integer.",
+        );
+        cleanupEmpty(config, "policy");
+      },
+    }),
+    integerSetting<TConfig>({
+      id: "retryCount",
+      label: "Retry count",
+      help: "How many times to retry transient command failures for this provider. Leave empty to inherit the generic setting.",
+      minimum: 0,
+      errorMessage: "Retry count must be a non-negative integer.",
+      getValue: (config) => getIntegerString(config?.policy?.retryCount),
+      setValue: (config, value) => {
+        assignOptionalInteger(
+          ensurePolicy(config),
+          "retryCount",
+          value,
+          "Retry count must be a non-negative integer.",
+          { allowZero: true },
+        );
+        cleanupEmpty(config, "policy");
+      },
+    }),
+    integerSetting<TConfig>({
+      id: "retryDelayMs",
+      label: "Retry delay (ms)",
+      help: "Initial delay before retrying command failures for this provider. Leave empty to inherit the generic setting.",
+      minimum: 1,
+      errorMessage: "Retry delay must be a positive integer.",
+      getValue: (config) => getIntegerString(config?.policy?.retryDelayMs),
+      setValue: (config, value) => {
+        assignOptionalInteger(
+          ensurePolicy(config),
+          "retryDelayMs",
+          value,
+          "Retry delay must be a positive integer.",
+        );
+        cleanupEmpty(config, "policy");
+      },
+    }),
+  ] as const;
 }
 
 function lifecyclePolicySettings<
@@ -739,6 +938,158 @@ function ensureGeminiNative(
     string,
     string | number | boolean | JsonObject | undefined
   >;
+}
+
+function getCustomCliNative(config: CustomCliProviderConfig | undefined) {
+  return config?.native ?? config?.defaults;
+}
+
+function ensureCustomCliNative(
+  config: CustomCliProviderConfig,
+): CustomCliProviderNativeConfig {
+  const native = getCustomCliNative(config);
+  config.native = {
+    ...(native?.search ? { search: { ...native.search } } : {}),
+    ...(native?.contents ? { contents: { ...native.contents } } : {}),
+    ...(native?.answer ? { answer: { ...native.answer } } : {}),
+    ...(native?.research ? { research: { ...native.research } } : {}),
+  };
+  delete config.defaults;
+  return config.native;
+}
+
+function formatCustomCliEnv(
+  env: Record<string, string> | undefined,
+): string | undefined {
+  return env ? JSON.stringify(env) : undefined;
+}
+
+function setCustomCliArgv(
+  config: CustomCliProviderConfig,
+  capability: keyof CustomCliProviderNativeConfig,
+  value: string,
+): void {
+  const trimmed = value.trim();
+  const native = ensureCustomCliNative(config);
+  if (!trimmed) {
+    delete native[capability];
+    cleanupCustomCliNative(config);
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(
+      `Custom CLI ${capability} argv must be a JSON string array: ${(error as Error).message}`,
+    );
+  }
+
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length === 0 ||
+    parsed.some(
+      (entry) => typeof entry !== "string" || entry.trim().length === 0,
+    )
+  ) {
+    throw new Error(
+      `Custom CLI ${capability} argv must be a non-empty JSON string array.`,
+    );
+  }
+
+  native[capability] = {
+    ...(native[capability] ?? {}),
+    argv: parsed,
+  };
+  cleanupCustomCliNative(config);
+}
+
+function setCustomCliCwd(
+  config: CustomCliProviderConfig,
+  capability: keyof CustomCliProviderNativeConfig,
+  value: string,
+): void {
+  const native = ensureCustomCliNative(config);
+  const command = { ...(native[capability] ?? {}) };
+  assignOptionalString(
+    command as Record<
+      string,
+      string | number | boolean | JsonObject | undefined
+    >,
+    "cwd",
+    value,
+  );
+  native[capability] = command;
+  cleanupCustomCliNative(config);
+}
+
+function setCustomCliEnv(
+  config: CustomCliProviderConfig,
+  capability: keyof CustomCliProviderNativeConfig,
+  value: string,
+): void {
+  const trimmed = value.trim();
+  const native = ensureCustomCliNative(config);
+  const command = { ...(native[capability] ?? {}) };
+
+  if (!trimmed) {
+    delete command.env;
+  } else {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (error) {
+      throw new Error(
+        `Custom CLI ${capability} env must be a JSON object of strings: ${(error as Error).message}`,
+      );
+    }
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed) ||
+      Object.values(parsed).some((entry) => typeof entry !== "string")
+    ) {
+      throw new Error(
+        `Custom CLI ${capability} env must be a JSON object of strings.`,
+      );
+    }
+
+    command.env = parsed as Record<string, string>;
+  }
+
+  native[capability] = command;
+  cleanupCustomCliNative(config);
+}
+
+function cleanupCustomCliNative(config: CustomCliProviderConfig): void {
+  const native = config.native;
+  if (!native) {
+    return;
+  }
+
+  for (const capability of [
+    "search",
+    "contents",
+    "answer",
+    "research",
+  ] as const) {
+    const entry = native[capability];
+    if (!entry) {
+      continue;
+    }
+
+    if (
+      entry.argv === undefined &&
+      entry.cwd === undefined &&
+      (entry.env === undefined || Object.keys(entry.env).length === 0)
+    ) {
+      delete native[capability];
+    }
+  }
+
+  cleanupEmpty(config, "native");
 }
 
 function getParallelNative(config: ParallelProviderConfig | undefined) {

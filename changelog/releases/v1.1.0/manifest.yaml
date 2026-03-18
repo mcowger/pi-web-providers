@@ -1,0 +1,7 @@
+created: 2026-03-18
+title: Custom CLI provider for local wrapper commands
+intro: >-
+  A new custom-cli provider routes any managed tool through local wrapper commands,
+  making it easy to integrate additional agent SDKs without adding a first-class provider.
+  In-flight progress messages now also use consistent naming and capitalization across
+  all providers.

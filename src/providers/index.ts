@@ -19,6 +19,15 @@ import { ParallelProvider } from "./parallel.js";
 import { PerplexityProvider } from "./perplexity.js";
 import { ValyuProvider } from "./valyu.js";
 
+const claudeProvider = new ClaudeProvider();
+const codexProvider = new CodexProvider();
+const exaProvider = new ExaProvider();
+const geminiProvider = new GeminiProvider();
+const perplexityProvider = new PerplexityProvider();
+const parallelProvider = new ParallelProvider();
+const valyuProvider = new ValyuProvider();
+const customCliProvider = new CustomCliProvider();
+
 export const PROVIDERS: ReadonlyArray<
   WebProvider<
     | ClaudeProviderConfig
@@ -31,14 +40,14 @@ export const PROVIDERS: ReadonlyArray<
     | ValyuProviderConfig
   >
 > = [
-  new ClaudeProvider(),
-  new CodexProvider(),
-  new CustomCliProvider(),
-  new ExaProvider(),
-  new GeminiProvider(),
-  new PerplexityProvider(),
-  new ParallelProvider(),
-  new ValyuProvider(),
+  claudeProvider,
+  codexProvider,
+  exaProvider,
+  geminiProvider,
+  perplexityProvider,
+  parallelProvider,
+  valyuProvider,
+  customCliProvider,
 ];
 
 export const PROVIDER_MAP: Record<
@@ -54,12 +63,12 @@ export const PROVIDER_MAP: Record<
     | ValyuProviderConfig
   >
 > = {
-  claude: PROVIDERS[0],
-  codex: PROVIDERS[1],
-  "custom-cli": PROVIDERS[2],
-  exa: PROVIDERS[3],
-  gemini: PROVIDERS[4],
-  perplexity: PROVIDERS[5],
-  parallel: PROVIDERS[6],
-  valyu: PROVIDERS[7],
+  claude: claudeProvider,
+  codex: codexProvider,
+  "custom-cli": customCliProvider,
+  exa: exaProvider,
+  gemini: geminiProvider,
+  perplexity: perplexityProvider,
+  parallel: parallelProvider,
+  valyu: valyuProvider,
 };

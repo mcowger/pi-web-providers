@@ -1430,19 +1430,34 @@ function getEnabledCompatibleProvidersForTool(
   cwd: string,
   toolId: ProviderToolId,
 ): ProviderId[] {
-  return getCompatibleProvidersForTool(toolId).filter((providerId) => {
-    const providerConfig = config.providers?.[providerId] as
-      | ProviderConfigUnion
-      | undefined;
-    if (providerConfig?.enabled !== true) {
-      return false;
-    }
-    return PROVIDER_MAP[providerId].getStatus(
-      providerConfig as never,
-      cwd,
-      toolId,
-    ).available;
-  });
+  return sortProviderIdsForSettings(
+    getCompatibleProvidersForTool(toolId).filter((providerId) => {
+      const providerConfig = config.providers?.[providerId] as
+        | ProviderConfigUnion
+        | undefined;
+      if (providerConfig?.enabled !== true) {
+        return false;
+      }
+      return PROVIDER_MAP[providerId].getStatus(
+        providerConfig as never,
+        cwd,
+        toolId,
+      ).available;
+    }),
+  );
+}
+
+function sortProviderIdsForSettings(
+  providerIds: readonly ProviderId[],
+): ProviderId[] {
+  const displayOrder = new Map(
+    PROVIDERS.map((provider, index) => [provider.id, index] as const),
+  );
+  return [...providerIds].sort(
+    (left, right) =>
+      (displayOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+      (displayOrder.get(right) ?? Number.MAX_SAFE_INTEGER),
+  );
 }
 
 function getSearchToolSettings(

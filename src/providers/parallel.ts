@@ -67,9 +67,9 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "contents":
@@ -79,7 +79,7 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.contents(request.urls, request.options, config, context),
+            this.contents(request.urls, config, context, request.options),
         });
       default:
         return null;
@@ -89,9 +89,9 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
   async search(
     query: string,
     maxResults: number,
-    options: Record<string, unknown> | undefined,
     config: Parallel,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const client = this.createClient(config);
     const providerOptions = config.options;
@@ -120,9 +120,9 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
 
   async contents(
     urls: string[],
-    options: Record<string, unknown> | undefined,
     config: Parallel,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
     const providerOptions = config.options;

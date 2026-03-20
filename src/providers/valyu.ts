@@ -68,9 +68,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "contents":
@@ -80,7 +80,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.contents(request.urls, request.options, config, context),
+            this.contents(request.urls, config, context, request.options),
         });
       case "answer":
         return createSilentForegroundPlan({
@@ -89,7 +89,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.answer(request.query, request.options, config, context),
+            this.answer(request.query, config, context, request.options),
         });
       case "research":
         return createBackgroundResearchPlan({
@@ -113,9 +113,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
             },
           },
           start: (context: ProviderContext) =>
-            this.startResearch(request.input, request.options, config, context),
+            this.startResearch(request.input, config, context, request.options),
           poll: (id: string, context: ProviderContext) =>
-            this.pollResearch(id, request.options, config, context),
+            this.pollResearch(id, config, context, request.options),
         });
       default:
         return null;
@@ -125,9 +125,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
   async search(
     query: string,
     maxResults: number,
-    searchOptions: Record<string, unknown> | undefined,
     config: Valyu,
     context: ProviderContext,
+    searchOptions?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const client = this.createClient(config);
     const providerOptions = config.options;
@@ -158,9 +158,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
 
   async contents(
     urls: string[],
-    options: Record<string, unknown> | undefined,
     config: Valyu,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
     const response = await client.contents(urls, options as never);
@@ -232,9 +232,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
 
   async answer(
     query: string,
-    options: Record<string, unknown> | undefined,
     config: Valyu,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
     const response = await client.answer(query, {
@@ -276,9 +276,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
 
   async startResearch(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Valyu,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ResearchJob> {
     const client = this.createClient(config);
     const task = await client.deepresearch.create({
@@ -295,9 +295,9 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
 
   async pollResearch(
     id: string,
-    _options: Record<string, unknown> | undefined,
     config: Valyu,
     context: ProviderContext,
+    _options?: Record<string, unknown>,
   ): Promise<ResearchPollResult> {
     const client = this.createClient(config);
     const result = await client.deepresearch.status(id);

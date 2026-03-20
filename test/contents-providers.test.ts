@@ -77,12 +77,12 @@ describe("contents providers", () => {
 
     const result = await provider.contents(
       ["https://example.com"],
-      undefined,
       {
         enabled: true,
         apiKey: "literal-key",
       },
       { cwd: process.cwd() },
+      undefined,
     );
 
     expect(result.text).toContain(longParagraph);
@@ -114,9 +114,9 @@ describe("contents providers", () => {
 
     const result = await provider.contents(
       ["https://parallel.ai/docs"],
-      undefined,
       config,
       { cwd: process.cwd() },
+      undefined,
     );
 
     expect(parallelExtractMock).toHaveBeenCalledWith(
@@ -150,12 +150,12 @@ describe("contents providers", () => {
 
     const result = await provider.contents(
       ["https://valyu.ai/docs"],
-      undefined,
       {
         enabled: true,
         apiKey: "literal-key",
       },
       { cwd: process.cwd() },
+      undefined,
     );
 
     expect(result.text).toContain("Intro");

@@ -70,9 +70,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "contents":
@@ -82,7 +82,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.contents(request.urls, request.options, config, context),
+            this.contents(request.urls, config, context, request.options),
         });
       case "answer":
         return createSilentForegroundPlan({
@@ -91,7 +91,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.answer(request.query, request.options, config, context),
+            this.answer(request.query, config, context, request.options),
         });
       case "research":
         return createBackgroundResearchPlan({
@@ -115,9 +115,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
             },
           },
           start: (context: ProviderContext) =>
-            this.startResearch(request.input, request.options, config, context),
+            this.startResearch(request.input, config, context, request.options),
           poll: (id: string, context: ProviderContext) =>
-            this.pollResearch(id, request.options, config, context),
+            this.pollResearch(id, config, context, request.options),
         });
       default:
         return null;
@@ -127,9 +127,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
   async search(
     query: string,
     maxResults: number,
-    searchOptions: Record<string, unknown> | undefined,
     config: Exa,
     context: ProviderContext,
+    searchOptions?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const client = this.createClient(config);
     const providerOptions = config.options;
@@ -164,9 +164,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
 
   async contents(
     urls: string[],
-    options: Record<string, unknown> | undefined,
     config: Exa,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
     const response = await client.getContents(urls, options as never);
@@ -225,9 +225,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
 
   async answer(
     query: string,
-    options: Record<string, unknown> | undefined,
     config: Exa,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
     const response = await client.answer(query, options as never);
@@ -260,9 +260,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
 
   async startResearch(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Exa,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ResearchJob> {
     const client = this.createClient(config);
     const task = await client.research.create({
@@ -275,9 +275,9 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
 
   async pollResearch(
     id: string,
-    _options: Record<string, unknown> | undefined,
     config: Exa,
     _context: ProviderContext,
+    _options?: Record<string, unknown>,
   ): Promise<ResearchPollResult> {
     const client = this.createClient(config);
     const result = await client.research.get(id, { events: false });

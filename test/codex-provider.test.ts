@@ -81,18 +81,6 @@ describe("CodexAdapter", () => {
       "latest docs",
       5,
       {
-        model: "gpt-5-codex",
-        modelReasoningEffort: "high",
-        webSearchMode: "cached",
-        sandboxMode: "danger-full-access",
-        workingDirectory: "/tmp/override",
-        skipGitRepoCheck: false,
-        approvalPolicy: "on-request",
-        networkAccessEnabled: false,
-        webSearchEnabled: false,
-        additionalDirectories: ["tmp"],
-      },
-      {
         enabled: true,
         apiKey: "literal-key",
         options: {
@@ -106,6 +94,18 @@ describe("CodexAdapter", () => {
       },
       {
         cwd: "/repo",
+      },
+      {
+        model: "gpt-5-codex",
+        modelReasoningEffort: "high",
+        webSearchMode: "cached",
+        sandboxMode: "danger-full-access",
+        workingDirectory: "/tmp/override",
+        skipGitRepoCheck: false,
+        approvalPolicy: "on-request",
+        networkAccessEnabled: false,
+        webSearchEnabled: false,
+        additionalDirectories: ["tmp"],
       },
     );
 

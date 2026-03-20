@@ -33,9 +33,9 @@ describe("GeminiAdapter search", () => {
     const response = await provider.search(
       "example query",
       5,
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(create).toHaveBeenCalledWith(
@@ -96,9 +96,9 @@ describe("GeminiAdapter search", () => {
     const response = await provider.search(
       "tenzir",
       5,
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.results).toEqual([
@@ -137,9 +137,9 @@ describe("GeminiAdapter search", () => {
     const response = await provider.search(
       "fallback query",
       5,
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(create).toHaveBeenCalledTimes(2);
@@ -201,9 +201,9 @@ describe("GeminiAdapter search", () => {
     const response = await provider.search(
       "example query",
       1,
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.results).toEqual([
@@ -234,6 +234,8 @@ describe("GeminiAdapter search", () => {
     await provider.search(
       "configured query",
       5,
+      createConfig(),
+      createContext(),
       {
         model: "gemini-2.5-pro",
         generation_config: {
@@ -243,8 +245,6 @@ describe("GeminiAdapter search", () => {
         background: true,
         store: true,
       },
-      createConfig(),
-      createContext(),
     );
 
     expect(create).toHaveBeenCalledWith(
@@ -270,21 +270,16 @@ describe("GeminiAdapter answer", () => {
     });
 
     const provider = createProvider({ models: { generateContent } });
-    await provider.answer(
-      "What changed?",
-      {
-        model: "gemini-2.5-pro",
-        config: {
-          labels: {
-            route: "answer",
-          },
-          temperature: 0.1,
-          tools: [{ urlContext: {} }],
+    await provider.answer("What changed?", createConfig(), createContext(), {
+      model: "gemini-2.5-pro",
+      config: {
+        labels: {
+          route: "answer",
         },
+        temperature: 0.1,
+        tools: [{ urlContext: {} }],
       },
-      createConfig(),
-      createContext(),
-    );
+    });
 
     expect(generateContent).toHaveBeenCalledWith({
       model: "gemini-2.5-pro",
@@ -336,9 +331,9 @@ describe("GeminiAdapter answer", () => {
 
     const response = await provider.answer(
       "Tenzir use cases",
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.text).toContain(
@@ -374,9 +369,9 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     const response = await provider.contents(
       ["https://example.com"],
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(generateContent).toHaveBeenCalledWith({
@@ -411,9 +406,9 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     const response = await provider.contents(
       ["https://paywall.example.com"],
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.text).toContain("Retrieval issues:");
@@ -471,9 +466,9 @@ describe("GeminiAdapter contents", () => {
         "https://example.com/b",
         "https://example.com/c",
       ],
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.text).toContain("1. Page A");
@@ -545,9 +540,9 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     const response = await provider.contents(
       ["https://example.com/a", "https://example.com/b"],
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.text).toContain("1. Page A");
@@ -584,13 +579,13 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     await provider.contents(
       ["https://example.com"],
+      createConfig(),
+      createContext(),
       {
         config: {
           temperature: 0.2,
         },
       },
-      createConfig(),
-      createContext(),
     );
 
     expect(generateContent).toHaveBeenCalledWith(
@@ -612,6 +607,8 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     await provider.contents(
       ["https://example.com"],
+      createConfig(),
+      createContext(),
       {
         model: "gemini-2.5-pro",
         config: {
@@ -622,8 +619,6 @@ describe("GeminiAdapter contents", () => {
           tools: [{ googleSearch: {} }],
         },
       },
-      createConfig(),
-      createContext(),
     );
 
     expect(generateContent).toHaveBeenCalledWith({
@@ -665,9 +660,9 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     const response = await provider.contents(
       ["https://example.com"],
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(generateContent).toHaveBeenCalledTimes(2);
@@ -686,9 +681,9 @@ describe("GeminiAdapter contents", () => {
     await expect(
       provider.contents(
         ["https://example.com"],
-        undefined,
         createConfig(),
         createContext(),
+        undefined,
       ),
     ).rejects.toThrow(
       "Gemini returned an empty URL Context response. Retrying may succeed.",
@@ -718,9 +713,9 @@ describe("GeminiAdapter contents", () => {
     await expect(
       provider.contents(
         ["https://example.com"],
-        undefined,
         createConfig(),
         createContext(),
+        undefined,
       ),
     ).rejects.toThrow(
       "Gemini returned an empty URL Context response. Retrying may succeed.",
@@ -748,9 +743,9 @@ describe("GeminiAdapter contents", () => {
     const provider = createProvider({ models: { generateContent } });
     const response = await provider.contents(
       ["https://paywall.example.com"],
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(response.text).toContain("Retrieval issues:");
@@ -773,6 +768,8 @@ describe("GeminiAdapter research", () => {
 
     const job = await provider.startResearch!(
       "Investigate Tenzir use cases",
+      createConfig(),
+      { ...createContext(), idempotencyKey: "stable-key" },
       {
         agent_config: {
           response_length: "short",
@@ -788,8 +785,6 @@ describe("GeminiAdapter research", () => {
         background: false,
         input: "override",
       },
-      createConfig(),
-      { ...createContext(), idempotencyKey: "stable-key" },
     );
 
     expect(job).toEqual({ id: "research-1" });
@@ -824,9 +819,9 @@ describe("GeminiAdapter research", () => {
 
     const result = await provider.pollResearch!(
       "research-1",
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(get).toHaveBeenCalledWith("research-1", undefined, undefined);
@@ -847,9 +842,9 @@ describe("GeminiAdapter research", () => {
 
     const result = await provider.pollResearch!(
       "research-1",
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(result).toEqual({
@@ -872,9 +867,9 @@ describe("GeminiAdapter research", () => {
 
     const result = await provider.pollResearch!(
       "research-1",
-      undefined,
       createConfig(),
       createContext(),
+      undefined,
     );
 
     expect(result).toEqual({

@@ -49,7 +49,6 @@ describe("CustomAdapter", () => {
     const result = await provider.search(
       "custom query",
       3,
-      { mode: "demo" },
       {
         enabled: true,
         options: {
@@ -62,6 +61,7 @@ describe("CustomAdapter", () => {
         cwd: process.cwd(),
         onProgress: (message) => progress.push(message),
       },
+      { mode: "demo" },
     );
 
     expect(result).toEqual({
@@ -105,7 +105,6 @@ describe("CustomAdapter", () => {
     const provider = new CustomAdapter();
     const result = await provider.answer(
       "what is this?",
-      undefined,
       {
         enabled: true,
         options: {
@@ -117,6 +116,7 @@ describe("CustomAdapter", () => {
       {
         cwd: process.cwd(),
       },
+      undefined,
     );
 
     expect(result).toEqual({
@@ -146,7 +146,6 @@ describe("CustomAdapter", () => {
       provider.search(
         "broken",
         1,
-        undefined,
         {
           enabled: true,
           options: {
@@ -158,6 +157,7 @@ describe("CustomAdapter", () => {
         {
           cwd: process.cwd(),
         },
+        undefined,
       ),
     ).rejects.toThrow(/results\[0\]\.url/);
   });

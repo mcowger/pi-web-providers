@@ -147,11 +147,11 @@ describe("ClaudeAdapter", () => {
     await provider.search(
       "latest Claude docs",
       1,
-      undefined,
       { enabled: true },
       {
         cwd: process.cwd(),
       },
+      undefined,
     );
 
     expect(queryMock).toHaveBeenCalledWith(
@@ -194,12 +194,12 @@ describe("ClaudeAdapter", () => {
     const searchPromise = provider.search(
       "latest Claude docs",
       1,
-      undefined,
       { enabled: true },
       {
         cwd: process.cwd(),
         signal: controller.signal,
       },
+      undefined,
     );
 
     await Promise.resolve();
@@ -235,17 +235,6 @@ describe("ClaudeAdapter", () => {
       "latest Claude docs",
       1,
       {
-        model: "claude-opus-4-6",
-        thinking: { type: "adaptive" },
-        effort: "max",
-        maxThinkingTokens: 1234,
-        maxTurns: 7,
-        maxBudgetUsd: 3.5,
-        cwd: "/tmp/override",
-        permissionMode: "default",
-        plugins: [{ type: "local", path: "/tmp/plugin" }],
-      },
-      {
         enabled: true,
         options: {
           model: "claude-sonnet-4-6",
@@ -255,6 +244,17 @@ describe("ClaudeAdapter", () => {
       },
       {
         cwd: process.cwd(),
+      },
+      {
+        model: "claude-opus-4-6",
+        thinking: { type: "adaptive" },
+        effort: "max",
+        maxThinkingTokens: 1234,
+        maxTurns: 7,
+        maxBudgetUsd: 3.5,
+        cwd: "/tmp/override",
+        permissionMode: "default",
+        plugins: [{ type: "local", path: "/tmp/plugin" }],
       },
     );
 
@@ -293,11 +293,6 @@ describe("ClaudeAdapter", () => {
     const response = await provider.answer(
       "What changed?",
       {
-        model: "claude-opus-4-6",
-        maxTurns: 5,
-        allowedTools: ["Bash"],
-      },
-      {
         enabled: true,
         options: {
           model: "claude-sonnet-4-6",
@@ -306,6 +301,11 @@ describe("ClaudeAdapter", () => {
       },
       {
         cwd: process.cwd(),
+      },
+      {
+        model: "claude-opus-4-6",
+        maxTurns: 5,
+        allowedTools: ["Bash"],
       },
     );
 

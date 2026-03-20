@@ -52,10 +52,6 @@ describe("PerplexityAdapter", () => {
       "government policies on renewable energy",
       5,
       {
-        country: "US",
-        max_results: 99,
-      },
-      {
         enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
         options: {
@@ -65,6 +61,10 @@ describe("PerplexityAdapter", () => {
         },
       },
       { cwd: process.cwd() },
+      {
+        country: "US",
+        max_results: 99,
+      },
     );
 
     expect(perplexityCtorMock).toHaveBeenCalledWith({
@@ -119,12 +119,12 @@ describe("PerplexityAdapter", () => {
     const provider = new PerplexityAdapter();
     const response = await provider.answer(
       "What changed?",
-      { country: "US" },
       {
         enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
       },
       { cwd: process.cwd() },
+      { country: "US" },
     );
 
     expect(chatCreateMock).toHaveBeenCalledWith(
@@ -181,7 +181,6 @@ describe("PerplexityAdapter", () => {
     const provider = new PerplexityAdapter();
     const response = await provider.research(
       "Investigate the topic",
-      undefined,
       {
         enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
@@ -189,6 +188,7 @@ describe("PerplexityAdapter", () => {
       {
         cwd: process.cwd(),
       },
+      undefined,
     );
 
     expect(chatCreateMock).toHaveBeenCalledWith(
@@ -223,12 +223,12 @@ describe("PerplexityAdapter", () => {
     const provider = new PerplexityAdapter();
     const response = await provider.answer(
       "What changed?",
-      undefined,
       {
         enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
       },
       { cwd: process.cwd() },
+      undefined,
     );
 
     expect(response.text).toBe(

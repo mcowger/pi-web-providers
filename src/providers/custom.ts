@@ -63,9 +63,9 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "contents":
@@ -75,7 +75,7 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.contents(request.urls, request.options, config, context),
+            this.contents(request.urls, config, context, request.options),
         });
       case "answer":
         return createSilentForegroundPlan({
@@ -84,7 +84,7 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.answer(request.query, request.options, config, context),
+            this.answer(request.query, config, context, request.options),
         });
       case "research":
         return createSilentForegroundPlan({
@@ -93,7 +93,7 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.research(request.input, request.options, config, context),
+            this.research(request.input, config, context, request.options),
         });
       default:
         return null;
@@ -103,9 +103,9 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
   async search(
     query: string,
     maxResults: number,
-    options: Record<string, unknown> | undefined,
     config: Custom,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const output = await this.runCommand<unknown>({
       capability: "search",
@@ -124,9 +124,9 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
 
   async contents(
     urls: string[],
-    options: Record<string, unknown> | undefined,
     config: Custom,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const output = await this.runCommand<unknown>({
       capability: "contents",
@@ -144,9 +144,9 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
 
   async answer(
     query: string,
-    options: Record<string, unknown> | undefined,
     config: Custom,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const output = await this.runCommand<unknown>({
       capability: "answer",
@@ -164,9 +164,9 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
 
   async research(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Custom,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const output = await this.runCommand<unknown>({
       capability: "research",

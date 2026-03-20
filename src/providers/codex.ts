@@ -98,9 +98,9 @@ export class CodexAdapter implements ProviderAdapter<Codex> {
         this.search(
           request.query,
           request.maxResults,
-          request.options,
           config,
           context,
+          request.options,
         ),
     });
   }
@@ -108,9 +108,9 @@ export class CodexAdapter implements ProviderAdapter<Codex> {
   async search(
     query: string,
     maxResults: number,
-    options: Record<string, unknown> | undefined,
     config: Codex,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const codex = new CodexClient({
       codexPathOverride: config.codexPath,

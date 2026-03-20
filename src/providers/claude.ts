@@ -2,19 +2,16 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, extname, join } from "node:path";
-import {
-  query,
-  type SDKResultMessage,
-} from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
   Claude,
+  ProviderAdapter,
   ProviderContext,
   ProviderOperationRequest,
   ProviderStatus,
-  ToolOutput,
   SearchResponse,
-  ProviderAdapter,
+  ToolOutput,
 } from "../types.js";
 import { trimSnippet } from "./shared.js";
 
@@ -121,9 +118,9 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "answer":
@@ -133,7 +130,7 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.answer(request.query, request.options, config, context),
+            this.answer(request.query, config, context, request.options),
         });
       default:
         return null;
@@ -143,9 +140,9 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
   async search(
     queryText: string,
     maxResults: number,
-    options: Record<string, unknown> | undefined,
     config: Claude,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const output = parseClaudeSearchOutput(
       await this.runStructuredQuery<ClaudeSearchOutput>({
@@ -180,9 +177,9 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
 
   async answer(
     queryText: string,
-    options: Record<string, unknown> | undefined,
     config: Claude,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const output = parseClaudeAnswerOutput(
       await this.runStructuredQuery<ClaudeAnswerOutput>({

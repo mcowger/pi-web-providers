@@ -78,9 +78,9 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "answer":
@@ -90,7 +90,7 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.answer(request.query, request.options, config, context),
+            this.answer(request.query, config, context, request.options),
         });
       case "research":
         return createStreamingForegroundPlan({
@@ -110,7 +110,7 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
             },
           },
           execute: (context: ProviderContext) =>
-            this.research(request.input, request.options, config, context),
+            this.research(request.input, config, context, request.options),
         });
       default:
         return null;
@@ -120,9 +120,9 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
   async search(
     query: string,
     maxResults: number,
-    options: Record<string, unknown> | undefined,
     config: Perplexity,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const client = this.createClient(config);
     const providerOptions = config.options;
@@ -160,43 +160,43 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
 
   async answer(
     query: string,
-    options: Record<string, unknown> | undefined,
     config: Perplexity,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     return this.runSilentForegroundChatTool(
       query,
-      options,
       config,
       context,
       DEFAULT_ANSWER_MODEL,
       "Answer",
+      options,
     );
   }
 
   async research(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Perplexity,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     return this.runStreamingForegroundChatTool(
       input,
-      options,
       config,
       context,
       DEFAULT_RESEARCH_MODEL,
       "Research",
+      options,
     );
   }
 
   private async runSilentForegroundChatTool(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Perplexity,
     context: ProviderContext,
     fallbackModel: string,
     label: "Answer" | "Research",
+    options?: Record<string, unknown>,
     isResearch = false,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
@@ -248,11 +248,11 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
   // durable job id to resume later.
   private async runStreamingForegroundChatTool(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Perplexity,
     context: ProviderContext,
     fallbackModel: string,
     label: "Answer" | "Research",
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const client = this.createClient(config);
     const providerOptions = config.options;

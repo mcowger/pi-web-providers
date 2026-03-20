@@ -75,9 +75,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
             this.search(
               request.query,
               request.maxResults,
-              request.options,
               config,
               context,
+              request.options,
             ),
         });
       case "contents":
@@ -87,7 +87,7 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.contents(request.urls, request.options, config, context),
+            this.contents(request.urls, config, context, request.options),
         });
       case "answer":
         return createSilentForegroundPlan({
@@ -96,7 +96,7 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
           providerId: this.id,
           providerLabel: this.label,
           execute: (context: ProviderContext) =>
-            this.answer(request.query, request.options, config, context),
+            this.answer(request.query, config, context, request.options),
         });
       case "research":
         return createBackgroundResearchPlan({
@@ -120,9 +120,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
             },
           },
           start: (context: ProviderContext) =>
-            this.startResearch(request.input, request.options, config, context),
+            this.startResearch(request.input, config, context, request.options),
           poll: (id: string, context: ProviderContext) =>
-            this.pollResearch(id, request.options, config, context),
+            this.pollResearch(id, config, context, request.options),
         });
       default:
         return null;
@@ -132,9 +132,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
   async search(
     query: string,
     maxResults: number,
-    options: Record<string, unknown> | undefined,
     config: Gemini,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const ai = this.createClient(config);
     const providerOptions = getGeminiOptions(config);
@@ -174,9 +174,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
   async contents(
     urls: string[],
-    options: Record<string, unknown> | undefined,
     config: Gemini,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const ai = this.createClient(config);
 
@@ -287,9 +287,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
   async answer(
     query: string,
-    options: Record<string, unknown> | undefined,
     config: Gemini,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ToolOutput> {
     const ai = this.createClient(config);
     const providerOptions = getGeminiOptions(config);
@@ -332,9 +332,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
   async startResearch(
     input: string,
-    options: Record<string, unknown> | undefined,
     config: Gemini,
     context: ProviderContext,
+    options?: Record<string, unknown>,
   ): Promise<ResearchJob> {
     const ai = this.createClient(config);
     const requestOptions = getGeminiResearchRequestOptions(options);
@@ -354,9 +354,9 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
   async pollResearch(
     id: string,
-    _options: Record<string, unknown> | undefined,
     config: Gemini,
     context: ProviderContext,
+    _options?: Record<string, unknown>,
   ): Promise<ResearchPollResult> {
     const ai = this.createClient(config);
     const interaction = await runWithoutGeminiInteractionsWarning(() =>

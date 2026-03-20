@@ -740,6 +740,7 @@ async function executeSingleSearchQuery({
       options: stripLocalExecutionOptions(options),
     });
 
+  onProgress?.(`Searching via ${provider.label}: ${query}`);
   const result = await executeOperationPlan(plan, options, {
     ...providerContext,
     onProgress,
@@ -979,6 +980,19 @@ async function executeProviderOperation({
       onProgress,
     });
     return resolved.output;
+  }
+
+  if (capability === "contents") {
+    onProgress?.(
+      `Fetching contents via ${provider.label} for ${(urls ?? []).length} URL(s)`,
+    );
+  } else if (capability === "answer") {
+    onProgress?.(`Answering via ${provider.label}: ${query ?? ""}`);
+  } else if (
+    capability === "research" &&
+    plan.deliveryMode !== "background-research"
+  ) {
+    onProgress?.(`Researching via ${provider.label}`);
   }
 
   const result = await executeOperationPlan(plan, options, {

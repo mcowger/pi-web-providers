@@ -142,7 +142,6 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
       maxNumResults: maxResults,
     };
 
-    context.onProgress?.(`Searching Valyu for: ${query}`);
     const response = await client.search(query, options as never);
     if (!response.success) {
       throw new Error(response.error || "Valyu search failed.");
@@ -174,18 +173,10 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     }
 
     const client = new ValyuClient(apiKey, config.baseUrl);
-    context.onProgress?.(
-      `Fetching contents from Valyu for ${urls.length} URL(s)`,
-    );
     const response = await client.contents(urls, options as never);
     const finalResponse =
       "jobId" in response
-        ? await client.waitForJob(response.jobId, {
-            onProgress: (status) =>
-              context.onProgress?.(
-                `Fetching contents from Valyu: ${status.urlsProcessed}/${status.urlsTotal} processed`,
-              ),
-          })
+        ? await client.waitForJob(response.jobId, {})
         : response;
 
     if (!finalResponse.success) {
@@ -263,7 +254,6 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     }
 
     const client = new ValyuClient(apiKey, config.baseUrl);
-    context.onProgress?.(`Getting Valyu answer for: ${query}`);
     const response = await client.answer(query, {
       ...(options ?? {}),
       streaming: false,
@@ -342,13 +332,6 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
 
     if (!result.success) {
       throw new Error(result.error || "Valyu deep research failed.");
-    }
-
-    const progress = result.progress;
-    if (progress) {
-      context.onProgress?.(
-        `Researching via Valyu: step ${progress.current_step}/${progress.total_steps}`,
-      );
     }
 
     if (result.status === "completed") {

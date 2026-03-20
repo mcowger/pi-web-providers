@@ -555,8 +555,7 @@ describe("provider tool output", () => {
           providerId: "perplexity",
           providerLabel: "Perplexity",
           deliveryMode: "streaming-foreground",
-          execute: async (context) => {
-            context.onProgress?.("Starting research");
+          execute: async () => {
             await new Promise((resolve) => setTimeout(resolve, 20000));
             return {
               provider: "perplexity",
@@ -571,7 +570,7 @@ describe("provider tool output", () => {
       const result = await resultPromise;
 
       expect(result.content[0]?.text).toBe("Research complete");
-      expect(updates).toContain("Starting research");
+      expect(updates).toContain("Researching via Perplexity");
       expect(updates).toContain("Researching via Perplexity (15s elapsed)");
     } finally {
       vi.useRealTimers();

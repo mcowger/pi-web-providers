@@ -25,7 +25,6 @@ export async function runCliJsonCommand<TOutput>({
     let settled = false;
     let stdout = "";
     let stderr = "";
-    let stderrBuffer = "";
     let abortTimer: ReturnType<typeof setTimeout> | undefined;
 
     const child = spawn(argv[0], argv.slice(1), {
@@ -58,20 +57,6 @@ export async function runCliJsonCommand<TOutput>({
       resolvePromise(value);
     };
 
-    const emitProgressLine = (line: string) => {
-      const message = line.trim();
-      if (message.length > 0) {
-        context.onProgress?.(message);
-      }
-    };
-
-    const flushStderrBuffer = () => {
-      if (stderrBuffer.trim().length > 0) {
-        emitProgressLine(stderrBuffer);
-      }
-      stderrBuffer = "";
-    };
-
     const onAbort = () => {
       child.kill("SIGTERM");
       abortTimer = setTimeout(() => {
@@ -93,12 +78,6 @@ export async function runCliJsonCommand<TOutput>({
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk;
-      stderrBuffer += chunk;
-      const lines = stderrBuffer.split(/\r?\n/);
-      stderrBuffer = lines.pop() ?? "";
-      for (const line of lines) {
-        emitProgressLine(line);
-      }
     });
 
     child.on("error", (error) => {
@@ -110,8 +89,6 @@ export async function runCliJsonCommand<TOutput>({
     });
 
     child.on("close", (code, signal) => {
-      flushStderrBuffer();
-
       if (context.signal?.aborted) {
         rejectOnce(new Error(`${label} was aborted.`));
         return;

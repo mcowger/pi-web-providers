@@ -98,7 +98,6 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
     const defaults =
       stripLocalExecutionOptions(asJsonObject(providerOptions?.search)) ?? {};
 
-    context.onProgress?.(`Searching Parallel for: ${query}`);
     const response = await client.beta.search(
       {
         ...defaults,
@@ -130,9 +129,6 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
     const defaults =
       stripLocalExecutionOptions(asJsonObject(providerOptions?.extract)) ?? {};
 
-    context.onProgress?.(
-      `Fetching contents from Parallel for ${urls.length} URL(s)`,
-    );
     const response = await client.beta.extract(
       {
         ...defaults,

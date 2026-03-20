@@ -144,7 +144,6 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
       options,
     );
 
-    context.onProgress?.(`Searching Gemini for: ${query}`);
     const interaction = await createSearchInteraction(
       ai,
       request,
@@ -180,10 +179,6 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
     context: ProviderContext,
   ): Promise<ToolOutput> {
     const ai = this.createClient(config);
-
-    context.onProgress?.(
-      `Fetching contents from Gemini for ${urls.length} URL(s)`,
-    );
 
     const urlList = urls.map((url) => `- ${url}`).join("\n");
     const defaultModel = DEFAULT_CONTENTS_MODEL;
@@ -306,7 +301,6 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
       toolConfig: { googleSearch: {} },
     });
 
-    context.onProgress?.(`Getting Gemini answer for: ${query}`);
     const response = await ai.models.generateContent({
       model: request.model,
       contents: request.contents,

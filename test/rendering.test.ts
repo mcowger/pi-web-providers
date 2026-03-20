@@ -207,7 +207,7 @@ describe("partial tool rendering", () => {
     const rendered = renderComponentText(
       __test__.renderSearchToolResult(
         {
-          content: [{ type: "text", text: "Searching Exa for: exa sdk" }],
+          content: [{ type: "text", text: "Searching via Exa: exa sdk" }],
           details: {},
         },
         false,
@@ -217,7 +217,7 @@ describe("partial tool rendering", () => {
       120,
     );
 
-    expect(rendered).toContain("Searching Exa for: exa sdk");
+    expect(rendered).toContain("Searching via Exa: exa sdk");
   });
 
   it("shows provider tool progress updates in warning text", () => {
@@ -225,7 +225,7 @@ describe("partial tool rendering", () => {
       __test__.renderProviderToolResult(
         {
           content: [
-            { type: "text", text: "Fetching contents from Exa for 2 URL(s)" },
+            { type: "text", text: "Fetching contents via Exa for 2 URL(s)" },
           ],
           details: {},
         },
@@ -237,7 +237,7 @@ describe("partial tool rendering", () => {
       120,
     );
 
-    expect(rendered).toContain("Fetching contents from Exa for 2 URL(s)");
+    expect(rendered).toContain("Fetching contents via Exa for 2 URL(s)");
   });
 });
 

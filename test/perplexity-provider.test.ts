@@ -145,7 +145,6 @@ describe("PerplexityAdapter", () => {
 
   it("streams research calls with sonar-deep-research", async () => {
     process.env.PERPLEXITY_API_KEY = "test-key";
-    const progress: string[] = [];
     chatCreateMock.mockResolvedValue({
       async *[Symbol.asyncIterator]() {
         yield {
@@ -190,7 +189,6 @@ describe("PerplexityAdapter", () => {
       },
       {
         cwd: process.cwd(),
-        onProgress: (message) => progress.push(message),
       },
     );
 
@@ -202,8 +200,6 @@ describe("PerplexityAdapter", () => {
       },
       undefined,
     );
-    expect(progress).toContain("Research");
-    expect(progress).toContain("Research result");
     expect(response.text).toBe(
       "Research result\n\nSources:\n1. https://example.com/research\n   https://example.com/research",
     );

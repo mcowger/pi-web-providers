@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Codex as CodexClient, type ThreadEvent } from "@openai/codex-sdk";
+import { Codex as CodexClient } from "@openai/codex-sdk";
 import { resolveConfigValue, resolveEnvMap } from "../config.js";
 import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
@@ -141,10 +141,8 @@ export class CodexAdapter implements ProviderAdapter<Codex> {
     });
 
     let finalResponse = "";
-    const seenQueries = new Set<string>();
 
     for await (const event of streamed.events) {
-      handleProgressEvent(event, seenQueries, context.onProgress);
       if (
         event.type === "item.completed" &&
         event.item.type === "agent_message"
@@ -279,23 +277,6 @@ function hasConfiguredReference(reference: string | undefined): boolean {
     return false;
   }
   return reference.trim().length > 0;
-}
-
-function handleProgressEvent(
-  event: ThreadEvent,
-  seenQueries: Set<string>,
-  onProgress: ((message: string) => void) | undefined,
-): void {
-  if (!onProgress) return;
-
-  if (
-    event.type === "item.completed" &&
-    event.item.type === "web_search" &&
-    !seenQueries.has(event.item.query)
-  ) {
-    seenQueries.add(event.item.query);
-    onProgress(`Searching Codex for: ${event.item.query}`);
-  }
 }
 
 function parseOutput(raw: string): CodexOutput {

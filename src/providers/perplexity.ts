@@ -134,7 +134,6 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
       max_results: maxResults,
     };
 
-    context.onProgress?.(`Searching Perplexity for: ${query}`);
     const response = await client.search.create(
       request as never,
       buildRequestOptions(context),
@@ -165,7 +164,6 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
     config: Perplexity,
     context: ProviderContext,
   ): Promise<ToolOutput> {
-    context.onProgress?.(`Getting Perplexity answer for: ${query}`);
     return this.runSilentForegroundChatTool(
       query,
       options,
@@ -182,7 +180,6 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
     config: Perplexity,
     context: ProviderContext,
   ): Promise<ToolOutput> {
-    context.onProgress?.("Starting Perplexity research");
     return this.runStreamingForegroundChatTool(
       input,
       options,
@@ -286,7 +283,6 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
       const deltaText = extractDeltaText(chunk.choices[0]?.delta?.content);
       if (deltaText) {
         partialText = `${partialText}${deltaText}`;
-        context.onProgress?.(partialText.trim());
       }
       sources.push(...extractSources(chunk));
     }

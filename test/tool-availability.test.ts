@@ -282,7 +282,7 @@ describe("managed tool availability", () => {
 
     const partialSearchRender = webSearch?.renderResult?.(
       {
-        content: [{ type: "text", text: "Searching Exa for: exa sdk" }],
+        content: [{ type: "text", text: "Searching via Exa: exa sdk" }],
       },
       { expanded: false, isPartial: true },
       createTheme(),
@@ -290,7 +290,7 @@ describe("managed tool availability", () => {
     const partialContentsRender = webContents?.renderResult?.(
       {
         content: [
-          { type: "text", text: "Fetching contents from Exa for 2 URL(s)" },
+          { type: "text", text: "Fetching contents via Exa for 2 URL(s)" },
         ],
       },
       { expanded: false, isPartial: true },

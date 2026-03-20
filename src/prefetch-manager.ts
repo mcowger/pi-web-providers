@@ -782,6 +782,9 @@ async function ensureBatchContentsStored({
     });
 
     try {
+      onProgress?.(
+        `Fetching contents via ${provider.label} for ${normalizedUrls.length} URL(s)`,
+      );
       const plan = provider.buildPlan(
         {
           capability: "contents",
@@ -936,6 +939,7 @@ async function ensureContentsStored({
     });
 
     try {
+      onProgress?.(`Fetching contents via ${provider.label} for 1 URL(s)`);
       const plan = provider.buildPlan(
         {
           capability: "contents",

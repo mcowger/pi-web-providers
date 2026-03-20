@@ -76,8 +76,7 @@ describe("CustomAdapter", () => {
         },
       ],
     });
-    expect(progress).toContain("Running Custom search");
-    expect(progress).toContain("searching custom query");
+    expect(progress).toEqual([]);
   });
 
   it("parses provider tool output for non-search capabilities", async () => {

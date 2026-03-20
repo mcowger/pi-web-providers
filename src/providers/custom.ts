@@ -198,7 +198,6 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
       throw new Error(`Custom has no command configured for ${capability}.`);
     }
 
-    context.onProgress?.(`Running Custom ${capability}`);
     return await runCliJsonCommand<TOutput>({
       command,
       payload: {

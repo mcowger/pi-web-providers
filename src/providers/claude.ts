@@ -4,7 +4,6 @@ import { createRequire } from "node:module";
 import { dirname, extname, join } from "node:path";
 import {
   query,
-  type SDKMessage,
   type SDKResultMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createSilentForegroundPlan } from "../provider-plans.js";
@@ -273,12 +272,10 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
       },
     });
 
-    const seenToolUseIds = new Set<string>();
     let finalResult: SDKResultMessage | undefined;
 
     try {
       for await (const message of stream) {
-        handleProgressMessage(message, seenToolUseIds, context.onProgress);
         if (message.type === "result") {
           finalResult = message;
         }
@@ -409,28 +406,6 @@ function parseClaudeAuthStatus(raw: string): ClaudeAuthStatus {
   } catch {
     return { loggedIn: false };
   }
-}
-
-function handleProgressMessage(
-  message: SDKMessage,
-  seenToolUseIds: Set<string>,
-  onProgress: ((message: string) => void) | undefined,
-): void {
-  if (!onProgress || message.type !== "tool_progress") {
-    return;
-  }
-  if (seenToolUseIds.has(message.tool_use_id)) {
-    return;
-  }
-
-  seenToolUseIds.add(message.tool_use_id);
-  onProgress(formatToolProgressMessage(message.tool_name));
-}
-
-function formatToolProgressMessage(toolName: string): string {
-  if (toolName === "WebSearch") return "Searching via Claude";
-  if (toolName === "WebFetch") return "Fetching via Claude";
-  return `Claude: ${toolName}`;
 }
 
 function parseStructuredOutput<T>(result: SDKResultMessage): T {

@@ -144,7 +144,6 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
       numResults: maxResults,
     };
 
-    context.onProgress?.(`Searching Exa for: ${query}`);
     const response = await client.search(query, options as never);
 
     return {
@@ -180,9 +179,6 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     }
 
     const client = new ExaClient(apiKey, config.baseUrl);
-    context.onProgress?.(
-      `Fetching contents from Exa for ${urls.length} URL(s)`,
-    );
     const response = await client.getContents(urls, options as never);
 
     const results = response.results ?? [];
@@ -251,7 +247,6 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     }
 
     const client = new ExaClient(apiKey, config.baseUrl);
-    context.onProgress?.(`Getting Exa answer for: ${query}`);
     const response = await client.answer(query, options as never);
 
     const lines: string[] = [];

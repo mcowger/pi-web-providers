@@ -266,10 +266,10 @@ export async function executeResearchWithLifecycle({
   try {
     if (jobId) {
       lifecycleContext.onProgress?.(
-        `Resuming ${providerLabel} research: ${jobId}`,
+        `Resuming research via ${providerLabel}: ${jobId}`,
       );
     } else {
-      lifecycleContext.onProgress?.(`Starting ${providerLabel} research`);
+      lifecycleContext.onProgress?.(`Starting research via ${providerLabel}`);
       if (startRetryNotice) {
         lifecycleContext.onProgress?.(startRetryNotice);
       }
@@ -320,7 +320,7 @@ export async function executeResearchWithLifecycle({
 
         if (result.status !== lastStatus) {
           lifecycleContext.onProgress?.(
-            `${providerLabel} research status: ${result.status} (${formatElapsed(Date.now() - lifecycleStartedAt)} elapsed)`,
+            `Research via ${providerLabel}: ${result.status} (${formatElapsed(Date.now() - lifecycleStartedAt)} elapsed)`,
           );
           lastStatus = result.status;
         }

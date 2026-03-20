@@ -3,7 +3,7 @@ import type { ModelReasoningEffort, WebSearchMode } from "@openai/codex-sdk";
 export const PROVIDER_IDS = [
   "claude",
   "codex",
-  "custom-cli",
+  "custom",
   "exa",
   "gemini",
   "perplexity",
@@ -12,41 +12,22 @@ export const PROVIDER_IDS = [
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
-export type ProviderCapability = "search" | "contents" | "answer" | "research";
-export type ToolProviderMapping = Partial<
-  Record<ProviderCapability, ProviderId | null>
->;
+export const TOOLS = ["search", "contents", "answer", "research"] as const;
+export type Tool = (typeof TOOLS)[number];
+export type Tools = Partial<Record<Tool, ProviderId | null>>;
 
-export interface SearchPrefetchSettings {
+export interface SearchSettings {
   provider?: ProviderId | null;
   maxUrls?: number;
   ttlMs?: number;
 }
-
-export interface SearchToolSettings {
-  prefetch?: SearchPrefetchSettings;
-}
-
-export interface ToolSettingsConfig {
-  search?: SearchToolSettings;
-}
-
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
-
-export type JsonObject = { [key: string]: JsonValue };
 
 export interface SearchResult {
   title: string;
   url: string;
   snippet: string;
   score?: number;
-  metadata?: JsonObject;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SearchResponse {
@@ -54,29 +35,21 @@ export interface SearchResponse {
   results: SearchResult[];
 }
 
-export interface ProviderContentsMetadataEntry {
-  url: string;
-  title?: string;
-  body: string;
-  summary?: string;
-  status?: "ready" | "failed";
-}
-
-export interface ProviderToolOutput {
+export interface ToolOutput {
   provider: ProviderId;
   text: string;
   summary?: string;
   itemCount?: number;
-  metadata?: JsonObject;
+  metadata?: Record<string, unknown>;
 }
 
-export interface ProviderResearchJob {
+export interface ResearchJob {
   id: string;
 }
 
-export interface ProviderResearchPollResult {
+export interface ResearchPollResult {
   status: "in_progress" | "completed" | "failed" | "cancelled";
-  output?: ProviderToolOutput;
+  output?: ToolOutput;
   error?: string;
 }
 
@@ -88,7 +61,7 @@ export interface WebSearchDetails {
   resultCount: number;
 }
 
-export interface ProviderToolDetails {
+export interface ToolDetails {
   tool: string;
   provider: ProviderId;
   summary?: string;
@@ -97,13 +70,13 @@ export interface ProviderToolDetails {
   failedQueryCount?: number;
 }
 
-export interface ClaudeProviderNativeConfig {
+export interface ClaudeOptions {
   model?: string;
   effort?: "low" | "medium" | "high" | "max";
   maxTurns?: number;
 }
 
-export interface CodexProviderNativeConfig {
+export interface CodexOptions {
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   networkAccessEnabled?: boolean;
@@ -112,130 +85,110 @@ export interface CodexProviderNativeConfig {
   additionalDirectories?: string[];
 }
 
-export interface GeminiProviderNativeConfig {
+export interface GeminiOptions {
   apiVersion?: string;
   searchModel?: string;
   answerModel?: string;
   researchAgent?: string;
 }
 
-export interface PerplexityProviderNativeConfig {
-  search?: JsonObject;
-  answer?: JsonObject;
-  research?: JsonObject;
+export interface PerplexityOptions {
+  search?: Record<string, unknown>;
+  answer?: Record<string, unknown>;
+  research?: Record<string, unknown>;
 }
 
-export interface ParallelProviderNativeConfig {
-  search?: JsonObject;
-  extract?: JsonObject;
+export interface ParallelOptions {
+  search?: Record<string, unknown>;
+  extract?: Record<string, unknown>;
 }
 
-export interface CustomCliCommandConfig {
+export interface CustomCommandConfig {
   argv?: string[];
   cwd?: string;
   env?: Record<string, string>;
 }
 
-export interface CustomCliProviderNativeConfig {
-  search?: CustomCliCommandConfig;
-  contents?: CustomCliCommandConfig;
-  answer?: CustomCliCommandConfig;
-  research?: CustomCliCommandConfig;
+export interface CustomOptions {
+  search?: CustomCommandConfig;
+  contents?: CustomCommandConfig;
+  answer?: CustomCommandConfig;
+  research?: CustomCommandConfig;
 }
 
-// Legacy routing fields are tolerated in TypeScript shapes for internal tests,
-// but config parsing rejects them in persisted config files.
-export interface LegacyProviderRoutingConfig {
+export interface Provider<TOptions> {
   enabled?: boolean;
-  tools?: Partial<Record<ProviderCapability, boolean>>;
+  options?: TOptions;
+  settings?: ExecutionSettings;
 }
 
-export interface ClaudeProviderConfig extends LegacyProviderRoutingConfig {
+export interface Claude extends Provider<ClaudeOptions> {
   pathToClaudeCodeExecutable?: string;
-  native?: ClaudeProviderNativeConfig;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: ClaudeProviderNativeConfig;
 }
 
-export interface CodexProviderConfig extends LegacyProviderRoutingConfig {
+export interface Codex extends Provider<CodexOptions> {
   codexPath?: string;
   baseUrl?: string;
   apiKey?: string;
   env?: Record<string, string>;
-  config?: JsonObject;
-  native?: CodexProviderNativeConfig;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: CodexProviderNativeConfig;
+  config?: Record<string, unknown>;
 }
 
-export interface ExaProviderConfig extends LegacyProviderRoutingConfig {
+export interface Exa extends Provider<Record<string, unknown>> {
   apiKey?: string;
   baseUrl?: string;
-  native?: JsonObject;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: JsonObject;
 }
 
-export interface GeminiProviderConfig extends LegacyProviderRoutingConfig {
+export interface Gemini extends Provider<GeminiOptions> {
   apiKey?: string;
-  native?: GeminiProviderNativeConfig;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: GeminiProviderNativeConfig & ExecutionPolicyDefaults;
 }
 
-export interface PerplexityProviderConfig extends LegacyProviderRoutingConfig {
+export interface Perplexity extends Provider<PerplexityOptions> {
   apiKey?: string;
   baseUrl?: string;
-  native?: PerplexityProviderNativeConfig;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: PerplexityProviderNativeConfig;
 }
 
-export interface ParallelProviderConfig extends LegacyProviderRoutingConfig {
+export interface Parallel extends Provider<ParallelOptions> {
   apiKey?: string;
   baseUrl?: string;
-  native?: ParallelProviderNativeConfig;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: ParallelProviderNativeConfig;
 }
 
-export interface CustomCliProviderConfig extends LegacyProviderRoutingConfig {
-  native?: CustomCliProviderNativeConfig;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: CustomCliProviderNativeConfig;
-}
+export interface Custom extends Provider<CustomOptions> {}
 
-export interface ValyuProviderConfig extends LegacyProviderRoutingConfig {
+export interface Valyu extends Provider<Record<string, unknown>> {
   apiKey?: string;
   baseUrl?: string;
-  native?: JsonObject;
-  policy?: ExecutionPolicyDefaults;
-  defaults?: JsonObject;
 }
 
-export interface GenericSettingsConfig {
-  requestTimeoutMs?: number;
-  retryCount?: number;
-  retryDelayMs?: number;
-  researchPollIntervalMs?: number;
-  researchTimeoutMs?: number;
-  researchMaxConsecutivePollErrors?: number;
+export interface Settings extends ExecutionSettings {
+  search?: SearchSettings;
 }
 
-export interface WebProvidersConfig {
-  tools?: ToolProviderMapping;
-  toolSettings?: ToolSettingsConfig;
-  genericSettings?: GenericSettingsConfig;
-  providers?: {
-    claude?: ClaudeProviderConfig;
-    codex?: CodexProviderConfig;
-    "custom-cli"?: CustomCliProviderConfig;
-    exa?: ExaProviderConfig;
-    gemini?: GeminiProviderConfig;
-    perplexity?: PerplexityProviderConfig;
-    parallel?: ParallelProviderConfig;
-    valyu?: ValyuProviderConfig;
-  };
+export interface Providers {
+  claude?: Claude;
+  codex?: Codex;
+  custom?: Custom;
+  exa?: Exa;
+  gemini?: Gemini;
+  perplexity?: Perplexity;
+  parallel?: Parallel;
+  valyu?: Valyu;
+}
+
+export type AnyProvider =
+  | Claude
+  | Codex
+  | Custom
+  | Exa
+  | Gemini
+  | Perplexity
+  | Parallel
+  | Valyu;
+
+export interface WebProviders {
+  tools?: Tools;
+  settings?: Settings;
+  providers?: Providers;
 }
 
 export interface ProviderStatus {
@@ -250,7 +203,7 @@ export interface ProviderContext {
   idempotencyKey?: string;
 }
 
-export interface ExecutionPolicyDefaults {
+export interface ExecutionSettings {
   requestTimeoutMs?: number;
   retryCount?: number;
   retryDelayMs?: number;
@@ -263,25 +216,25 @@ export interface SearchOperationRequest {
   capability: "search";
   query: string;
   maxResults: number;
-  options?: JsonObject;
+  options?: Record<string, unknown>;
 }
 
 export interface ContentsOperationRequest {
   capability: "contents";
   urls: string[];
-  options?: JsonObject;
+  options?: Record<string, unknown>;
 }
 
 export interface AnswerOperationRequest {
   capability: "answer";
   query: string;
-  options?: JsonObject;
+  options?: Record<string, unknown>;
 }
 
 export interface ResearchOperationRequest {
   capability: "research";
   input: string;
-  options?: JsonObject;
+  options?: Record<string, unknown>;
 }
 
 export type ProviderOperationRequest =
@@ -318,7 +271,7 @@ export interface ExecutionSupport {
 }
 
 export interface ProviderPlanTraits {
-  policyDefaults?: ExecutionPolicyDefaults;
+  settings?: ExecutionSettings;
   executionSupport?: ExecutionSupport;
   researchLifecycle?: ProviderResearchLifecycleTraits;
 }
@@ -330,7 +283,7 @@ export type ProviderDeliveryMode =
   | "background-research";
 
 export interface SingleProviderOperationPlan<TResult> {
-  capability: ProviderCapability;
+  capability: Tool;
   providerId: ProviderId;
   providerLabel: string;
   deliveryMode: "silent-foreground" | "streaming-foreground";
@@ -344,28 +297,25 @@ export interface BackgroundResearchOperationPlan {
   providerLabel: string;
   deliveryMode: "background-research";
   traits?: ProviderPlanTraits;
-  start: (context: ProviderContext) => Promise<ProviderResearchJob>;
-  poll: (
-    id: string,
-    context: ProviderContext,
-  ) => Promise<ProviderResearchPollResult>;
+  start: (context: ProviderContext) => Promise<ResearchJob>;
+  poll: (id: string, context: ProviderContext) => Promise<ResearchPollResult>;
 }
 
-export type ProviderOperationPlan<
-  TResult = SearchResponse | ProviderToolOutput,
-> = SingleProviderOperationPlan<TResult> | BackgroundResearchOperationPlan;
+export type ProviderOperationPlan<TResult = SearchResponse | ToolOutput> =
+  | SingleProviderOperationPlan<TResult>
+  | BackgroundResearchOperationPlan;
 
-export interface WebProvider<TConfig> {
+export interface ProviderAdapter<TConfig> {
   readonly id: ProviderId;
   readonly label: string;
   readonly docsUrl: string;
-  readonly capabilities: readonly ProviderCapability[];
+  readonly tools: readonly Tool[];
 
   createTemplate(): TConfig;
   getStatus(
     config: TConfig | undefined,
     cwd: string,
-    capability?: ProviderCapability,
+    tool?: Tool,
   ): ProviderStatus;
   buildPlan(
     request: ProviderOperationRequest,

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CustomCliProvider } from "../src/providers/custom-cli.js";
+import { CustomAdapter } from "../src/providers/custom.js";
 
 const cleanupDirs: string[] = [];
 
@@ -15,9 +15,9 @@ afterEach(async () => {
   }
 });
 
-describe("CustomCliProvider", () => {
+describe("CustomAdapter", () => {
   it("executes a configured search command and parses structured JSON", async () => {
-    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-cli-"));
+    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-"));
     cleanupDirs.push(root);
 
     const scriptPath = join(root, "search.mjs");
@@ -44,7 +44,7 @@ describe("CustomCliProvider", () => {
       "utf8",
     );
 
-    const provider = new CustomCliProvider();
+    const provider = new CustomAdapter();
     const progress: string[] = [];
     const result = await provider.search(
       "custom query",
@@ -52,7 +52,7 @@ describe("CustomCliProvider", () => {
       { mode: "demo" },
       {
         enabled: true,
-        native: {
+        options: {
           search: {
             argv: [process.execPath, scriptPath],
           },
@@ -65,7 +65,7 @@ describe("CustomCliProvider", () => {
     );
 
     expect(result).toEqual({
-      provider: "custom-cli",
+      provider: "custom",
       results: [
         {
           title: "Result for custom query",
@@ -76,12 +76,12 @@ describe("CustomCliProvider", () => {
         },
       ],
     });
-    expect(progress).toContain("Running Custom CLI search");
+    expect(progress).toContain("Running Custom search");
     expect(progress).toContain("searching custom query");
   });
 
   it("parses provider tool output for non-search capabilities", async () => {
-    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-cli-"));
+    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-"));
     cleanupDirs.push(root);
 
     const scriptPath = join(root, "answer.mjs");
@@ -104,13 +104,13 @@ describe("CustomCliProvider", () => {
       "utf8",
     );
 
-    const provider = new CustomCliProvider();
+    const provider = new CustomAdapter();
     const result = await provider.answer(
       "what is this?",
       undefined,
       {
         enabled: true,
-        native: {
+        options: {
           answer: {
             argv: [process.execPath, scriptPath],
           },
@@ -122,7 +122,7 @@ describe("CustomCliProvider", () => {
     );
 
     expect(result).toEqual({
-      provider: "custom-cli",
+      provider: "custom",
       text: "Answer for: what is this?",
       summary: "answered via wrapper",
       itemCount: 2,
@@ -131,7 +131,7 @@ describe("CustomCliProvider", () => {
   });
 
   it("rejects invalid search payloads from the wrapped command", async () => {
-    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-cli-"));
+    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-"));
     cleanupDirs.push(root);
 
     const scriptPath = join(root, "invalid.mjs");
@@ -143,7 +143,7 @@ describe("CustomCliProvider", () => {
       "utf8",
     );
 
-    const provider = new CustomCliProvider();
+    const provider = new CustomAdapter();
 
     await expect(
       provider.search(
@@ -152,7 +152,7 @@ describe("CustomCliProvider", () => {
         undefined,
         {
           enabled: true,
-          native: {
+          options: {
             search: {
               argv: [process.execPath, scriptPath],
             },

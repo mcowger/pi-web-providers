@@ -12,11 +12,11 @@ off entirely.
 
 ## ✨ Features
 
-- **Multiple providers** — Claude, Codex, Custom CLI, Exa, Gemini,
-  Perplexity, Parallel, Valyu
-- **Batched search and answers** — run several related queries in a single
+- **Multiple providers**: Claude, Codex, Exa, Gemini, Perplexity, Parallel,
+  Valyu
+- **Batched search and answers**: run several related queries in a single
   `web_search` or `web_answer` call and get grouped results back in one response
-- **Async contents prefetch** — optionally start background `web_contents`
+- **Async contents prefetch**: optionally start background `web_contents`
   extraction from `web_search` results and reuse the cached pages later
 
 ## 📦 Install
@@ -34,8 +34,7 @@ Run:
 ```
 
 This edits the global config file `~/.pi/agent/web-providers.json`. The
-settings UI mirrors the three sections below: tools, providers, and generic
-settings.
+settings UI mirrors the three sections below: tools, providers, and settings.
 
 Each tool can be routed to any compatible provider:
 
@@ -49,7 +48,7 @@ Each tool can be routed to any compatible provider:
 | **Parallel**   |   ✔    |    ✔     |        |          | `PARALLEL_API_KEY`     |
 | **Valyu**      |   ✔    |    ✔     |   ✔    |    ✔     | `VALYU_API_KEY`        |
 
-Advanced option: `custom-cli` is a configurable adapter provider that can route
+Advanced option: `custom` is a configurable adapter provider that can route
 any managed tool through a local wrapper command using a JSON stdin/stdout
 contract.
 
@@ -60,8 +59,9 @@ configuration.
 
 Each managed tool maps to one provider id or `null` for off under the top-level
 `tools` key. A tool is only exposed when it is mapped to a compatible provider
-and that provider is currently available. Tool-specific settings live under
-`toolSettings`; today this covers `toolSettings.search.prefetch`.
+and that provider is currently available. Shared defaults and tool-specific
+settings live under `settings`; today search-specific settings live under
+`settings.search`.
 
 #### `web_search`
 
@@ -81,7 +81,7 @@ titles, URLs, and snippets for each query.
 SDK. It accepts `provider`, `maxUrls`, `ttlMs`, and `contentsOptions`, and
 starts a background page-extraction workflow only when `prefetch.provider` is
 set. `/web-providers` can also persist default search prefetch settings under
-`toolSettings.search.prefetch`.
+`settings.search`.
 
 </details>
 
@@ -125,7 +125,7 @@ provided.
 #### `web_research`
 
 Investigate a topic across web sources and produce a longer report. The
-provider-specific `options` stay native to each SDK, and runtime options
+provider-specific `options` stay specific to each SDK, and runtime options
 override provider configuration when both are set.
 
 <details>
@@ -136,10 +136,10 @@ override provider configuration when both are set.
 | `input`   | string | required | Research brief or question |
 | `options` | object | —        | Provider-specific options  |
 
-`options` are provider-native and provider-specific. Equivalent concepts can use
+`options` are provider-specific. Equivalent concepts can use
 different field names across SDKs—for example Perplexity uses `country`, Exa
 uses `userLocation`, and Valyu uses `countryCode`. Runtime `options` override
-provider-native config, but managed tool inputs and tool wiring stay fixed.
+provider config, but managed tool inputs and tool wiring stay fixed.
 
 </details>
 
@@ -215,7 +215,7 @@ The built-in providers below are thin adapters around official SDKs.
 - Research runs in **background research** mode and supports `resumeId`
 - Google Search grounding for answers
 - Deep-research agents via Google's Gemini API
-- Supports provider-native request options such as `model`, `config`,
+- Supports provider-specific request options such as `model`, `config`,
   `generation_config`, and `agent_config` depending on the tool
 
 </details>
@@ -240,7 +240,7 @@ The built-in providers below are thin adapters around official SDKs.
 - Runs in **silent foreground** mode
 - Agentic and one-shot search modes
 - Page content extraction with excerpt and full-content toggles
-- Supports provider-native search and extraction options from the Parallel SDK
+- Supports provider-specific search and extraction options from the Parallel SDK
 
 </details>
 
@@ -251,20 +251,20 @@ The built-in providers below are thin adapters around official SDKs.
 - Search, contents, and answer run in **silent foreground** mode
 - Research runs in **background research** mode and supports `resumeId`
 - Web, proprietary, and news search types
-- Supports provider-native options such as `countryCode`, `responseLength`, and
+- Supports provider-specific options such as `countryCode`, `responseLength`, and
   search/source filters
 - Configurable response length for answers and research
 
 </details>
 
-### Custom CLI provider
+### Custom provider
 
-The `custom-cli` provider lets you bring your own wrapper command for any
+The `custom` provider lets you bring your own wrapper command for any
 managed tool. Each capability can point at a different local command under
-`providers["custom-cli"].native`.
+`providers["custom"].options`.
 
 The repo includes actual wrapper examples under
-[`examples/custom-cli/wrappers/`](examples/custom-cli/wrappers/). They are
+[`examples/custom/wrappers/`](examples/custom/wrappers/). They are
 small bash scripts that use `jq` for JSON handling. Each one uses a different
 backend pattern:
 
@@ -281,15 +281,15 @@ Copy the example wrappers into a local `./wrappers/` directory, then configure:
 ```json
 {
   "tools": {
-    "search": "custom-cli",
-    "contents": "custom-cli",
-    "answer": "custom-cli",
-    "research": "custom-cli"
+    "search": "custom",
+    "contents": "custom",
+    "answer": "custom",
+    "research": "custom"
   },
   "providers": {
-    "custom-cli": {
+    "custom": {
       "enabled": true,
-      "native": {
+      "options": {
         "search": {
           "argv": ["bash", "./wrappers/codex-search.sh"]
         },
@@ -318,7 +318,7 @@ variables; each value can be a literal string, an environment variable name, or
 
 `web_research` runs as a foreground wrapper command, so local polling controls
 (`pollIntervalMs`, `timeoutMs`, `maxConsecutivePollErrors`) and `resumeId` do
-not apply to `custom-cli`.
+not apply to `custom`.
 
 Wrapper contract:
 
@@ -333,15 +333,15 @@ Wrapper contract:
 
 </details>
 
-See [`examples/custom-cli/README.md`](examples/custom-cli/README.md) for a
+See [`examples/custom/README.md`](examples/custom/README.md) for a
 copy-and-pasteable setup, and see
-[`examples/custom-cli/wrappers/`](examples/custom-cli/wrappers/) for the actual
+[`examples/custom/wrappers/`](examples/custom/wrappers/) for the actual
 wrapper files.
 
-### Generic settings
+### Settings
 
-The `genericSettings` block sets shared execution defaults that apply to all
-providers unless overridden in a provider's `policy` block:
+The `settings` block holds shared execution defaults that apply to all
+providers unless overridden in a provider's own `settings` block:
 
 | Field                              | Default    | Description                                    |
 | ---------------------------------- | ---------- | ---------------------------------------------- |

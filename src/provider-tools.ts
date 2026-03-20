@@ -1,30 +1,14 @@
-import type {
-  ClaudeProviderConfig,
-  CodexProviderConfig,
-  CustomCliProviderConfig,
-  ExaProviderConfig,
-  GeminiProviderConfig,
-  ParallelProviderConfig,
-  PerplexityProviderConfig,
-  ProviderCapability,
-  ProviderId,
-  ValyuProviderConfig,
-  WebProvidersConfig,
+import {
+  TOOLS,
+  type ProviderId,
+  type Tool,
+  type WebProviders,
 } from "./types.js";
 
-export const PROVIDER_TOOL_IDS = [
-  "search",
-  "contents",
-  "answer",
-  "research",
-] as const;
-
-export type ProviderToolId = (typeof PROVIDER_TOOL_IDS)[number];
-
-export const PROVIDER_TOOLS: Record<ProviderId, readonly ProviderToolId[]> = {
+export const PROVIDER_TOOLS_BY_ID: Record<ProviderId, readonly Tool[]> = {
   claude: ["search", "answer"],
   codex: ["search"],
-  "custom-cli": ["search", "contents", "answer", "research"],
+  custom: ["search", "contents", "answer", "research"],
   exa: ["search", "contents", "answer", "research"],
   gemini: ["search", "answer", "research"],
   perplexity: ["search", "answer", "research"],
@@ -32,10 +16,7 @@ export const PROVIDER_TOOLS: Record<ProviderId, readonly ProviderToolId[]> = {
   valyu: ["search", "contents", "answer", "research"],
 };
 
-export const PROVIDER_TOOL_META: Record<
-  ProviderToolId,
-  { label: string; help: string }
-> = {
+export const TOOL_INFO: Record<Tool, { label: string; help: string }> = {
   search: {
     label: "Search",
     help: "Enable the provider's search tool.",
@@ -54,34 +35,19 @@ export const PROVIDER_TOOL_META: Record<
   },
 };
 
-export type ProviderConfigUnion =
-  | ClaudeProviderConfig
-  | CodexProviderConfig
-  | CustomCliProviderConfig
-  | ExaProviderConfig
-  | GeminiProviderConfig
-  | PerplexityProviderConfig
-  | ParallelProviderConfig
-  | ValyuProviderConfig;
-
-export function supportsProviderTool(
-  providerId: ProviderId,
-  toolId: ProviderToolId,
-): boolean {
-  return PROVIDER_TOOLS[providerId].includes(toolId);
+export function supportsTool(providerId: ProviderId, toolId: Tool): boolean {
+  return PROVIDER_TOOLS_BY_ID[providerId].includes(toolId);
 }
 
-export function getCompatibleProvidersForTool(
-  toolId: ProviderToolId,
-): ProviderId[] {
-  return (Object.keys(PROVIDER_TOOLS) as ProviderId[]).filter((providerId) =>
-    supportsProviderTool(providerId, toolId),
+export function getCompatibleProviders(toolId: Tool): ProviderId[] {
+  return (Object.keys(PROVIDER_TOOLS_BY_ID) as ProviderId[]).filter(
+    (providerId) => supportsTool(providerId, toolId),
   );
 }
 
-export function getMappedProviderForCapability(
-  config: WebProvidersConfig,
-  capability: ProviderCapability,
+export function getMappedProviderForTool(
+  config: WebProviders,
+  tool: Tool,
 ): ProviderId | null | undefined {
-  return config.tools?.[capability];
+  return config.tools?.[tool];
 }

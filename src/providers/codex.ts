@@ -1,16 +1,16 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Codex, type ThreadEvent } from "@openai/codex-sdk";
+import { Codex as CodexClient, type ThreadEvent } from "@openai/codex-sdk";
 import { resolveConfigValue, resolveEnvMap } from "../config.js";
 import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
-  CodexProviderConfig,
+  Codex,
   ProviderContext,
   ProviderOperationRequest,
   ProviderStatus,
   SearchResponse,
-  WebProvider,
+  ProviderAdapter,
 } from "../types.js";
 import { trimSnippet } from "./shared.js";
 
@@ -43,16 +43,16 @@ interface CodexOutput {
   }>;
 }
 
-export class CodexProvider implements WebProvider<CodexProviderConfig> {
+export class CodexAdapter implements ProviderAdapter<Codex> {
   readonly id: "codex" = "codex";
   readonly label = "Codex";
   readonly docsUrl = "https://github.com/openai/codex/tree/main/sdk/typescript";
-  readonly capabilities = ["search"] as const;
+  readonly tools = ["search"] as const;
 
-  createTemplate(): CodexProviderConfig {
+  createTemplate(): Codex {
     return {
       enabled: true,
-      native: {
+      options: {
         networkAccessEnabled: true,
         webSearchEnabled: true,
         webSearchMode: "live",
@@ -60,10 +60,7 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
     };
   }
 
-  getStatus(
-    config: CodexProviderConfig | undefined,
-    _cwd: string,
-  ): ProviderStatus {
+  getStatus(config: Codex | undefined, _cwd: string): ProviderStatus {
     if (!config) {
       return { available: false, summary: "not configured" };
     }
@@ -71,7 +68,7 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
       return { available: false, summary: "disabled" };
     }
     try {
-      new Codex({
+      new CodexClient({
         codexPathOverride: config.codexPath,
         config: config.config as never,
       });
@@ -87,7 +84,7 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: CodexProviderConfig) {
+  buildPlan(request: ProviderOperationRequest, config: Codex) {
     if (request.capability !== "search") {
       return null;
     }
@@ -112,10 +109,10 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
     query: string,
     maxResults: number,
     options: Record<string, unknown> | undefined,
-    config: CodexProviderConfig,
+    config: Codex,
     context: ProviderContext,
   ): Promise<SearchResponse> {
-    const codex = new Codex({
+    const codex = new CodexClient({
       codexPathOverride: config.codexPath,
       baseUrl: config.baseUrl,
       apiKey: resolveConfigValue(config.apiKey),
@@ -173,25 +170,26 @@ export class CodexProvider implements WebProvider<CodexProviderConfig> {
 }
 
 function buildCodexSearchThreadOptions(
-  config: CodexProviderConfig,
+  config: Codex,
   cwd: string,
   options: Record<string, unknown> | undefined,
 ) {
   const runtimeOptions = getCodexSearchRuntimeOptions(options);
-  const native = config.native ?? config.defaults;
+  const providerOptions = config.options;
 
   return {
-    additionalDirectories: native?.additionalDirectories,
+    additionalDirectories: providerOptions?.additionalDirectories,
     approvalPolicy: "never" as const,
-    model: runtimeOptions.model ?? native?.model,
+    model: runtimeOptions.model ?? providerOptions?.model,
     modelReasoningEffort:
-      runtimeOptions.modelReasoningEffort ?? native?.modelReasoningEffort,
-    networkAccessEnabled: native?.networkAccessEnabled ?? true,
+      runtimeOptions.modelReasoningEffort ??
+      providerOptions?.modelReasoningEffort,
+    networkAccessEnabled: providerOptions?.networkAccessEnabled ?? true,
     sandboxMode: "read-only" as const,
     skipGitRepoCheck: true,
-    webSearchEnabled: native?.webSearchEnabled ?? true,
+    webSearchEnabled: providerOptions?.webSearchEnabled ?? true,
     webSearchMode:
-      runtimeOptions.webSearchMode ?? native?.webSearchMode ?? "live",
+      runtimeOptions.webSearchMode ?? providerOptions?.webSearchMode ?? "live",
     workingDirectory: cwd,
   };
 }
@@ -243,7 +241,7 @@ function readEnum<const TValue extends string>(
     : undefined;
 }
 
-function hasCodexCredentials(config: CodexProviderConfig): boolean {
+function hasCodexCredentials(config: Codex): boolean {
   if (hasConfiguredReference(config.apiKey)) {
     return true;
   }

@@ -1,36 +1,34 @@
 import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
-  CustomCliCommandConfig,
-  CustomCliProviderConfig,
-  JsonObject,
-  JsonValue,
-  ProviderCapability,
+  CustomCommandConfig,
+  Custom,
+  Tool,
   ProviderContext,
   ProviderOperationRequest,
   ProviderStatus,
-  ProviderToolOutput,
+  ToolOutput,
   SearchResponse,
-  WebProvider,
+  ProviderAdapter,
 } from "../types.js";
 import { runCliJsonCommand } from "./cli-json.js";
 
-export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
-  readonly id: "custom-cli" = "custom-cli";
-  readonly label = "Custom CLI";
+export class CustomAdapter implements ProviderAdapter<Custom> {
+  readonly id: "custom" = "custom";
+  readonly label = "Custom";
   readonly docsUrl =
-    "https://github.com/mavam/pi-web-providers#custom-cli-provider";
-  readonly capabilities = ["search", "contents", "answer", "research"] as const;
+    "https://github.com/mavam/pi-web-providers#custom-provider";
+  readonly tools = ["search", "contents", "answer", "research"] as const;
 
-  createTemplate(): CustomCliProviderConfig {
+  createTemplate(): Custom {
     return {
       enabled: false,
     };
   }
 
   getStatus(
-    config: CustomCliProviderConfig | undefined,
+    config: Custom | undefined,
     _cwd: string,
-    capability?: ProviderCapability,
+    capability?: Tool,
   ): ProviderStatus {
     if (!config) {
       return { available: false, summary: "not configured" };
@@ -53,10 +51,7 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
       : { available: false, summary: "no commands configured" };
   }
 
-  buildPlan(
-    request: ProviderOperationRequest,
-    config: CustomCliProviderConfig,
-  ) {
+  buildPlan(request: ProviderOperationRequest, config: Custom) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -108,8 +103,8 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
   async search(
     query: string,
     maxResults: number,
-    options: JsonObject | undefined,
-    config: CustomCliProviderConfig,
+    options: Record<string, unknown> | undefined,
+    config: Custom,
     context: ProviderContext,
   ): Promise<SearchResponse> {
     const output = await this.runCommand<unknown>({
@@ -129,10 +124,10 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
 
   async contents(
     urls: string[],
-    options: JsonObject | undefined,
-    config: CustomCliProviderConfig,
+    options: Record<string, unknown> | undefined,
+    config: Custom,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const output = await this.runCommand<unknown>({
       capability: "contents",
       payload: {
@@ -144,15 +139,15 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
       context,
     });
 
-    return parseProviderToolOutput(output, this.id);
+    return parseToolOutput(output, this.id);
   }
 
   async answer(
     query: string,
-    options: JsonObject | undefined,
-    config: CustomCliProviderConfig,
+    options: Record<string, unknown> | undefined,
+    config: Custom,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const output = await this.runCommand<unknown>({
       capability: "answer",
       payload: {
@@ -164,15 +159,15 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
       context,
     });
 
-    return parseProviderToolOutput(output, this.id);
+    return parseToolOutput(output, this.id);
   }
 
   async research(
     input: string,
-    options: JsonObject | undefined,
-    config: CustomCliProviderConfig,
+    options: Record<string, unknown> | undefined,
+    config: Custom,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const output = await this.runCommand<unknown>({
       capability: "research",
       payload: {
@@ -184,7 +179,7 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
       context,
     });
 
-    return parseProviderToolOutput(output, this.id);
+    return parseToolOutput(output, this.id);
   }
 
   private async runCommand<TOutput>({
@@ -193,19 +188,17 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
     config,
     context,
   }: {
-    capability: ProviderCapability;
-    payload: JsonObject;
-    config: CustomCliProviderConfig;
+    capability: Tool;
+    payload: Record<string, unknown>;
+    config: Custom;
     context: ProviderContext;
   }): Promise<TOutput> {
     const command = getCommandConfig(config, capability);
     if (!command) {
-      throw new Error(
-        `Custom CLI has no command configured for ${capability}.`,
-      );
+      throw new Error(`Custom has no command configured for ${capability}.`);
     }
 
-    context.onProgress?.(`Running Custom CLI ${capability}`);
+    context.onProgress?.(`Running Custom ${capability}`);
     return await runCliJsonCommand<TOutput>({
       command,
       payload: {
@@ -213,28 +206,25 @@ export class CustomCliProvider implements WebProvider<CustomCliProviderConfig> {
         cwd: context.cwd,
       },
       context,
-      label: `Custom CLI ${capability}`,
+      label: `Custom ${capability}`,
     });
   }
 }
 
 function getCommandConfig(
-  config: CustomCliProviderConfig,
-  capability: ProviderCapability,
-): CustomCliCommandConfig | undefined {
-  return config.native?.[capability] ?? config.defaults?.[capability];
+  config: Custom,
+  capability: Tool,
+): CustomCommandConfig | undefined {
+  return config.options?.[capability];
 }
 
-function hasCommandForCapability(
-  config: CustomCliProviderConfig,
-  capability: ProviderCapability,
-): boolean {
+function hasCommandForCapability(config: Custom, capability: Tool): boolean {
   return (
     normalizeConfiguredArgv(getCommandConfig(config, capability)).length > 0
   );
 }
 
-function hasAnyCommand(config: CustomCliProviderConfig): boolean {
+function hasAnyCommand(config: Custom): boolean {
   return (
     hasCommandForCapability(config, "search") ||
     hasCommandForCapability(config, "contents") ||
@@ -244,7 +234,7 @@ function hasAnyCommand(config: CustomCliProviderConfig): boolean {
 }
 
 function normalizeConfiguredArgv(
-  command: CustomCliCommandConfig | undefined,
+  command: CustomCommandConfig | undefined,
 ): string[] {
   return command?.argv?.filter((entry) => entry.trim().length > 0) ?? [];
 }
@@ -253,12 +243,12 @@ function parseSearchResponse(
   value: unknown,
   providerId: SearchResponse["provider"],
 ): SearchResponse {
-  if (!isJsonObject(value)) {
-    throw new Error("Custom CLI search output must be a JSON object.");
+  if (!isRecord(value)) {
+    throw new Error("Custom search output must be a JSON object.");
   }
 
   if (!Array.isArray(value.results)) {
-    throw new Error("Custom CLI search output must include a 'results' array.");
+    throw new Error("Custom search output must include a 'results' array.");
   }
 
   return {
@@ -270,9 +260,9 @@ function parseSearchResponse(
 }
 
 function parseSearchResult(entry: unknown, index: number) {
-  if (!isJsonObject(entry)) {
+  if (!isRecord(entry)) {
     throw new Error(
-      `Custom CLI search result at index ${index} must be a JSON object.`,
+      `Custom search result at index ${index} must be a JSON object.`,
     );
   }
 
@@ -281,16 +271,16 @@ function parseSearchResult(entry: unknown, index: number) {
     url: readRequiredString(entry.url, `results[${index}].url`),
     snippet: readRequiredString(entry.snippet, `results[${index}].snippet`),
     ...(typeof entry.score === "number" ? { score: entry.score } : {}),
-    ...(isJsonObject(entry.metadata) ? { metadata: entry.metadata } : {}),
+    ...(isRecord(entry.metadata) ? { metadata: entry.metadata } : {}),
   };
 }
 
-function parseProviderToolOutput(
+function parseToolOutput(
   value: unknown,
-  providerId: ProviderToolOutput["provider"],
-): ProviderToolOutput {
-  if (!isJsonObject(value)) {
-    throw new Error("Custom CLI output must be a JSON object.");
+  providerId: ToolOutput["provider"],
+): ToolOutput {
+  if (!isRecord(value)) {
+    throw new Error("Custom output must be a JSON object.");
   }
 
   return {
@@ -300,13 +290,13 @@ function parseProviderToolOutput(
     ...(isNonNegativeInteger(value.itemCount)
       ? { itemCount: value.itemCount }
       : {}),
-    ...(isJsonObject(value.metadata) ? { metadata: value.metadata } : {}),
+    ...(isRecord(value.metadata) ? { metadata: value.metadata } : {}),
   };
 }
 
 function readRequiredString(value: unknown, field: string): string {
   if (typeof value !== "string") {
-    throw new Error(`Custom CLI output field '${field}' must be a string.`);
+    throw new Error(`Custom output field '${field}' must be a string.`);
   }
   return value;
 }
@@ -315,31 +305,6 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-function isJsonObject(value: unknown): value is JsonObject {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-
-  return Object.values(value as Record<string, unknown>).every(isJsonValue);
-}
-
-function isJsonValue(value: unknown): value is JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return true;
-  }
-
-  if (Array.isArray(value)) {
-    return value.every(isJsonValue);
-  }
-
-  if (typeof value === "object") {
-    return Object.values(value as Record<string, unknown>).every(isJsonValue);
-  }
-
-  return false;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1,22 +1,21 @@
-import { Valyu } from "valyu-js";
+import { Valyu as ValyuClient } from "valyu-js";
 import { resolveConfigValue } from "../config.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
   createBackgroundResearchPlan,
   createSilentForegroundPlan,
 } from "../provider-plans.js";
+import type { ContentsEntry } from "../contents.js";
 import type {
-  JsonValue,
-  ProviderContentsMetadataEntry,
   ProviderContext,
   ProviderOperationRequest,
-  ProviderResearchJob,
-  ProviderResearchPollResult,
+  ResearchJob,
+  ResearchPollResult,
   ProviderStatus,
-  ProviderToolOutput,
+  ToolOutput,
   SearchResponse,
-  ValyuProviderConfig,
-  WebProvider,
+  Valyu,
+  ProviderAdapter,
 } from "../types.js";
 import {
   asJsonObject,
@@ -26,24 +25,24 @@ import {
   trimSnippet,
 } from "./shared.js";
 
-export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
+export class ValyuAdapter implements ProviderAdapter<Valyu> {
   readonly id: "valyu" = "valyu";
   readonly label = "Valyu";
   readonly docsUrl = "https://docs.valyu.ai/sdk/typescript-sdk";
-  readonly capabilities = ["search", "contents", "answer", "research"] as const;
+  readonly tools = ["search", "contents", "answer", "research"] as const;
 
-  createTemplate(): ValyuProviderConfig {
+  createTemplate(): Valyu {
     return {
       enabled: false,
       apiKey: "VALYU_API_KEY",
-      native: {
+      options: {
         searchType: "all",
         responseLength: "short",
       },
     };
   }
 
-  getStatus(config: ValyuProviderConfig | undefined): ProviderStatus {
+  getStatus(config: Valyu | undefined): ProviderStatus {
     if (!config) {
       return { available: false, summary: "not configured" };
     }
@@ -57,7 +56,7 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: ValyuProviderConfig) {
+  buildPlan(request: ProviderOperationRequest, config: Valyu) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -127,7 +126,7 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
     query: string,
     maxResults: number,
     searchOptions: Record<string, unknown> | undefined,
-    config: ValyuProviderConfig,
+    config: Valyu,
     context: ProviderContext,
   ): Promise<SearchResponse> {
     const apiKey = resolveConfigValue(config.apiKey);
@@ -135,10 +134,10 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
       throw new Error("Valyu is missing an API key.");
     }
 
-    const client = new Valyu(apiKey, config.baseUrl);
-    const native = config.native ?? config.defaults;
+    const client = new ValyuClient(apiKey, config.baseUrl);
+    const providerOptions = config.options;
     const options = {
-      ...(stripLocalExecutionOptions(asJsonObject(native)) ?? {}),
+      ...(stripLocalExecutionOptions(asJsonObject(providerOptions)) ?? {}),
       ...(searchOptions ?? {}),
       maxNumResults: maxResults,
     };
@@ -166,15 +165,15 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
   async contents(
     urls: string[],
     options: Record<string, unknown> | undefined,
-    config: ValyuProviderConfig,
+    config: Valyu,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Valyu is missing an API key.");
     }
 
-    const client = new Valyu(apiKey, config.baseUrl);
+    const client = new ValyuClient(apiKey, config.baseUrl);
     context.onProgress?.(
       `Fetching contents from Valyu for ${urls.length} URL(s)`,
     );
@@ -195,8 +194,8 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
 
     const results = finalResponse.results ?? [];
     const lines: string[] = [];
-    const contentsEntries: ProviderContentsMetadataEntry[] =
-      results.flatMap<ProviderContentsMetadataEntry>((result, index) => {
+    const contentsEntries: ContentsEntry[] = results.flatMap<ContentsEntry>(
+      (result, index) => {
         const entryLines = [`${index + 1}. ${result.url}`];
         if (result.status === "failed") {
           const body = normalizeContentText(`Failed: ${result.error}`);
@@ -238,7 +237,8 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
             status: "ready",
           },
         ];
-      });
+      },
+    );
 
     return {
       provider: this.id,
@@ -246,7 +246,7 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
       summary: `${results.length} content result(s) via Valyu`,
       itemCount: results.length,
       metadata: {
-        contentsEntries: contentsEntries as unknown as JsonValue,
+        contentsEntries: contentsEntries as unknown,
       },
     };
   }
@@ -254,15 +254,15 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
   async answer(
     query: string,
     options: Record<string, unknown> | undefined,
-    config: ValyuProviderConfig,
+    config: Valyu,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Valyu is missing an API key.");
     }
 
-    const client = new Valyu(apiKey, config.baseUrl);
+    const client = new ValyuClient(apiKey, config.baseUrl);
     context.onProgress?.(`Getting Valyu answer for: ${query}`);
     const response = await client.answer(query, {
       ...(options ?? {}),
@@ -305,15 +305,15 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
   async startResearch(
     input: string,
     options: Record<string, unknown> | undefined,
-    config: ValyuProviderConfig,
+    config: Valyu,
     context: ProviderContext,
-  ): Promise<ProviderResearchJob> {
+  ): Promise<ResearchJob> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Valyu is missing an API key.");
     }
 
-    const client = new Valyu(apiKey, config.baseUrl);
+    const client = new ValyuClient(apiKey, config.baseUrl);
     const task = await client.deepresearch.create({
       input,
       ...(options ?? {}),
@@ -329,15 +329,15 @@ export class ValyuProvider implements WebProvider<ValyuProviderConfig> {
   async pollResearch(
     id: string,
     _options: Record<string, unknown> | undefined,
-    config: ValyuProviderConfig,
+    config: Valyu,
     context: ProviderContext,
-  ): Promise<ProviderResearchPollResult> {
+  ): Promise<ResearchPollResult> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Valyu is missing an API key.");
     }
 
-    const client = new Valyu(apiKey, config.baseUrl);
+    const client = new ValyuClient(apiKey, config.baseUrl);
     const result = await client.deepresearch.status(id);
 
     if (!result.success) {

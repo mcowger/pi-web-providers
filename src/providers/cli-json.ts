@@ -1,11 +1,7 @@
 import { spawn } from "node:child_process";
 import { isAbsolute, resolve } from "node:path";
 import { resolveEnvMap } from "../config.js";
-import type {
-  CustomCliCommandConfig,
-  JsonObject,
-  ProviderContext,
-} from "../types.js";
+import type { CustomCommandConfig, ProviderContext } from "../types.js";
 
 export async function runCliJsonCommand<TOutput>({
   command,
@@ -13,8 +9,8 @@ export async function runCliJsonCommand<TOutput>({
   context,
   label,
 }: {
-  command: CustomCliCommandConfig;
-  payload: JsonObject;
+  command: CustomCommandConfig;
+  payload: Record<string, unknown>;
   context: ProviderContext;
   label: string;
 }): Promise<TOutput> {
@@ -157,10 +153,10 @@ export async function runCliJsonCommand<TOutput>({
   });
 }
 
-function normalizeArgv(command: CustomCliCommandConfig): string[] {
+function normalizeArgv(command: CustomCommandConfig): string[] {
   const argv = command.argv?.filter((entry) => entry.trim().length > 0) ?? [];
   if (argv.length === 0) {
-    throw new Error("Custom CLI command is missing argv.");
+    throw new Error("Custom command is missing argv.");
   }
   return argv;
 }

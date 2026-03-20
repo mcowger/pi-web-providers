@@ -1,61 +1,59 @@
-import {
-  getMappedProviderForCapability,
-  type ProviderConfigUnion,
-} from "./provider-tools.js";
-import { PROVIDER_MAP } from "./providers/index.js";
+import { getMappedProviderForTool } from "./provider-tools.js";
+import { ADAPTERS_BY_ID } from "./providers/index.js";
 import type {
-  ExecutionPolicyDefaults,
-  ProviderCapability,
+  AnyProvider,
+  ExecutionSettings,
+  Tool,
   ProviderId,
-  WebProvider,
-  WebProvidersConfig,
+  ProviderAdapter,
+  WebProviders,
 } from "./types.js";
 
-export function supportsProviderCapability(
-  provider: WebProvider<unknown>,
-  capability: ProviderCapability,
+export function supportsTool(
+  provider: ProviderAdapter<unknown>,
+  tool: Tool,
 ): boolean {
-  return provider.capabilities.includes(capability);
+  return provider.tools.includes(tool);
 }
 
-export function resolveProviderChoice(
-  config: WebProvidersConfig,
+export function resolveSearchProvider(
+  config: WebProviders,
   cwd: string,
   explicit?: ProviderId,
 ) {
-  return resolveProviderForCapability(config, cwd, "search", explicit);
+  return resolveProviderForTool(config, cwd, "search", explicit);
 }
 
 export function getEffectiveProviderConfig(
-  config: WebProvidersConfig,
+  config: WebProviders,
   providerId: ProviderId,
-): ProviderConfigUnion | undefined {
+): AnyProvider | undefined {
   const providerConfig = config.providers?.[providerId] as
-    | ProviderConfigUnion
+    | AnyProvider
     | undefined;
   if (!providerConfig) {
     return undefined;
   }
 
-  const mergedPolicy = mergeExecutionPolicyDefaults(
-    config.genericSettings,
-    providerConfig.policy,
+  const mergedSettings = mergeSettings(
+    config.settings,
+    providerConfig.settings,
   );
-  if (!mergedPolicy) {
+  if (!mergedSettings) {
     return providerConfig;
   }
 
   return {
     ...providerConfig,
-    policy: mergedPolicy,
-  } as ProviderConfigUnion;
+    settings: mergedSettings,
+  } as AnyProvider;
 }
 
-function mergeExecutionPolicyDefaults(
-  shared: WebProvidersConfig["genericSettings"],
-  provider: ExecutionPolicyDefaults | undefined,
-): ExecutionPolicyDefaults | undefined {
-  const merged: ExecutionPolicyDefaults = {
+function mergeSettings(
+  shared: WebProviders["settings"],
+  provider: ExecutionSettings | undefined,
+): ExecutionSettings | undefined {
+  const merged: ExecutionSettings = {
     requestTimeoutMs: provider?.requestTimeoutMs ?? shared?.requestTimeoutMs,
     retryCount: provider?.retryCount ?? shared?.retryCount,
     retryDelayMs: provider?.retryDelayMs ?? shared?.retryDelayMs,
@@ -72,37 +70,34 @@ function mergeExecutionPolicyDefaults(
     : undefined;
 }
 
-export function getMappedProviderIdForCapability(
-  config: WebProvidersConfig,
-  capability: ProviderCapability,
+export function getMappedProviderIdForTool(
+  config: WebProviders,
+  tool: Tool,
 ): ProviderId | undefined {
-  const providerId = getMappedProviderForCapability(config, capability);
+  const providerId = getMappedProviderForTool(config, tool);
   return providerId === null ? undefined : providerId;
 }
 
-export function resolveProviderForCapability(
-  config: WebProvidersConfig,
+export function resolveProviderForTool(
+  config: WebProviders,
   cwd: string,
-  capability: ProviderCapability,
+  tool: Tool,
   explicit?: ProviderId,
 ) {
-  const providerId =
-    explicit ?? getMappedProviderIdForCapability(config, capability);
+  const providerId = explicit ?? getMappedProviderIdForTool(config, tool);
   if (!providerId) {
     throw new Error(
-      `No provider is configured for '${capability}'. Run /web-providers to configure tool mappings.`,
+      `No provider is configured for '${tool}'. Run /web-providers to configure tool mappings.`,
     );
   }
 
-  const provider = PROVIDER_MAP[providerId];
-  if (!supportsProviderCapability(provider, capability)) {
-    throw new Error(
-      `Provider '${providerId}' does not support '${capability}'.`,
-    );
+  const provider = ADAPTERS_BY_ID[providerId];
+  if (!supportsTool(provider, tool)) {
+    throw new Error(`Provider '${providerId}' does not support '${tool}'.`);
   }
 
   const providerConfig = getEffectiveProviderConfig(config, providerId);
-  const status = provider.getStatus(providerConfig as never, cwd, capability);
+  const status = provider.getStatus(providerConfig as never, cwd, tool);
   if (!status.available) {
     throw new Error(
       `Provider '${providerId}' is not available: ${status.summary}.`,

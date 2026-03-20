@@ -1,5 +1,3 @@
-import type { JsonObject } from "../types.js";
-
 export function trimSnippet(
   input: string | undefined,
   maxLength = 300,
@@ -34,7 +32,7 @@ export function pushIndentedBlock(lines: string[], text: string): void {
 }
 
 export function asJsonObject(
-  value: JsonObject | undefined,
+  value: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
   return value ? { ...value } : {};
 }

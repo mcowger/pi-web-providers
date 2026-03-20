@@ -1,20 +1,19 @@
 import type {
-  ClaudeProviderConfig,
-  ClaudeProviderNativeConfig,
-  CodexProviderConfig,
-  CodexProviderNativeConfig,
-  CustomCliProviderConfig,
-  CustomCliProviderNativeConfig,
-  ExaProviderConfig,
-  ExecutionPolicyDefaults,
-  GeminiProviderConfig,
-  GeminiProviderNativeConfig,
-  JsonObject,
-  ParallelProviderConfig,
-  ParallelProviderNativeConfig,
-  PerplexityProviderConfig,
+  Claude,
+  ClaudeOptions,
+  Codex,
+  CodexOptions,
+  Custom,
+  CustomOptions,
+  Exa,
+  ExecutionSettings,
+  Gemini,
+  GeminiOptions,
+  Parallel,
+  ParallelOptions,
+  Perplexity,
   ProviderId,
-  ValyuProviderConfig,
+  Valyu,
 } from "./types.js";
 
 export interface ProviderTextSettingDescriptor<TConfig> {
@@ -44,54 +43,54 @@ export type ProviderSettingDescriptor<TConfig> =
 export const PROVIDER_CONFIG_MANIFESTS = {
   claude: {
     settings: [
-      stringSetting<ClaudeProviderConfig>({
+      stringSetting<Claude>({
         id: "model",
         label: "Model",
         help: "Optional Claude model override. Leave empty to use the local default.",
-        getValue: (config) => getClaudeNative(config)?.model,
+        getValue: (config) => getClaudeOptions(config)?.model,
         setValue: (config, value) => {
-          assignOptionalString(ensureClaudeNative(config), "model", value);
-          cleanupEmpty(config, "native");
+          assignOptionalString(ensureClaudeOptions(config), "model", value);
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<ClaudeProviderConfig>({
+      valuesSetting<Claude>({
         id: "claudeEffort",
         label: "Effort",
         help: "How much effort Claude should use. 'default' uses the SDK default.",
         values: ["default", "low", "medium", "high", "max"],
-        getValue: (config) => getClaudeNative(config)?.effort ?? "default",
+        getValue: (config) => getClaudeOptions(config)?.effort ?? "default",
         setValue: (config, value) => {
-          const native = ensureClaudeNative(config);
+          const options = ensureClaudeOptions(config);
           if (value === "default") {
-            delete native.effort;
+            delete options.effort;
           } else {
-            native.effort = value as ClaudeProviderNativeConfig["effort"];
+            options.effort = value as ClaudeOptions["effort"];
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      integerSetting<ClaudeProviderConfig>({
+      integerSetting<Claude>({
         id: "claudeMaxTurns",
         label: "Max turns",
         help: "Optional maximum number of Claude turns. Leave empty to use the SDK default.",
         minimum: 1,
         errorMessage: "Claude max turns must be a positive integer.",
         getValue: (config) =>
-          getIntegerString(getClaudeNative(config)?.maxTurns),
+          getIntegerString(getClaudeOptions(config)?.maxTurns),
         setValue: (config, value) => {
           assignOptionalInteger(
-            ensureClaudeNative(config) as Record<
+            ensureClaudeOptions(config) as Record<
               string,
-              number | string | boolean | JsonObject | undefined
+              number | string | boolean | Record<string, unknown> | undefined
             >,
             "maxTurns",
             value,
             "Claude max turns must be a positive integer.",
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      stringSetting<ClaudeProviderConfig>({
+      stringSetting<Claude>({
         id: "claudePathToExecutable",
         label: "Executable path",
         help: "Optional path to the Claude Code executable. Leave empty to use the bundled/default executable.",
@@ -100,7 +99,7 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           assignOptionalString(
             config as Record<
               string,
-              string | number | boolean | JsonObject | undefined
+              string | number | boolean | Record<string, unknown> | undefined
             >,
             "pathToClaudeCodeExecutable",
             value,
@@ -111,247 +110,246 @@ export const PROVIDER_CONFIG_MANIFESTS = {
   },
   codex: {
     settings: [
-      stringSetting<CodexProviderConfig>({
+      stringSetting<Codex>({
         id: "model",
         label: "Model",
         help: "Optional Codex model override. Leave empty to use the local default.",
-        getValue: (config) => getCodexNative(config)?.model,
+        getValue: (config) => getCodexOptions(config)?.model,
         setValue: (config, value) => {
           assignOptionalString(
-            ensureCodexNative(config) as Record<
+            ensureCodexOptions(config) as Record<
               string,
-              string | number | boolean | JsonObject | undefined
+              string | number | boolean | Record<string, unknown> | undefined
             >,
             "model",
             value,
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<CodexProviderConfig>({
+      valuesSetting<Codex>({
         id: "modelReasoningEffort",
         label: "Reasoning effort",
         help: "Reasoning depth for Codex. 'default' uses the SDK default.",
         values: ["default", "minimal", "low", "medium", "high", "xhigh"],
         getValue: (config) =>
-          getCodexNative(config)?.modelReasoningEffort ?? "default",
+          getCodexOptions(config)?.modelReasoningEffort ?? "default",
         setValue: (config, value) => {
-          const native = ensureCodexNative(config);
+          const options = ensureCodexOptions(config);
           if (value === "default") {
-            delete native.modelReasoningEffort;
+            delete options.modelReasoningEffort;
           } else {
-            native.modelReasoningEffort =
-              value as CodexProviderNativeConfig["modelReasoningEffort"];
+            options.modelReasoningEffort =
+              value as CodexOptions["modelReasoningEffort"];
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<CodexProviderConfig>({
+      valuesSetting<Codex>({
         id: "webSearchMode",
         label: "Web search mode",
         help: "How Codex should source web results. 'default' currently behaves like 'live'.",
         values: ["default", "disabled", "cached", "live"],
         getValue: (config) =>
-          getCodexNative(config)?.webSearchMode ?? "default",
+          getCodexOptions(config)?.webSearchMode ?? "default",
         setValue: (config, value) => {
-          const native = ensureCodexNative(config);
+          const options = ensureCodexOptions(config);
           if (value === "default") {
-            delete native.webSearchMode;
+            delete options.webSearchMode;
           } else {
-            native.webSearchMode =
-              value as CodexProviderNativeConfig["webSearchMode"];
+            options.webSearchMode = value as CodexOptions["webSearchMode"];
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<CodexProviderConfig>({
+      valuesSetting<Codex>({
         id: "networkAccessEnabled",
         label: "Network access",
         help: "Allow Codex network access during search runs. 'default' currently behaves like 'true'.",
         values: ["default", "true", "false"],
         getValue: (config) =>
-          getBooleanValue(getCodexNative(config)?.networkAccessEnabled),
+          getBooleanValue(getCodexOptions(config)?.networkAccessEnabled),
         setValue: (config, value) => {
           assignOptionalBoolean(
-            ensureCodexNative(config) as Record<string, unknown>,
+            ensureCodexOptions(config) as Record<string, unknown>,
             "networkAccessEnabled",
             value,
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<CodexProviderConfig>({
+      valuesSetting<Codex>({
         id: "webSearchEnabled",
         label: "Web search",
         help: "Enable Codex web search. 'default' currently behaves like 'true'.",
         values: ["default", "true", "false"],
         getValue: (config) =>
-          getBooleanValue(getCodexNative(config)?.webSearchEnabled),
+          getBooleanValue(getCodexOptions(config)?.webSearchEnabled),
         setValue: (config, value) => {
           assignOptionalBoolean(
-            ensureCodexNative(config) as Record<string, unknown>,
+            ensureCodexOptions(config) as Record<string, unknown>,
             "webSearchEnabled",
             value,
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      stringSetting<CodexProviderConfig>({
+      stringSetting<Codex>({
         id: "additionalDirectories",
         label: "Additional dirs",
         help: "Optional comma-separated directories that Codex may read in addition to the current working directory.",
         getValue: (config) =>
-          getCodexNative(config)?.additionalDirectories?.join(", "),
+          getCodexOptions(config)?.additionalDirectories?.join(", "),
         setValue: (config, value) => {
-          const native = ensureCodexNative(config);
+          const options = ensureCodexOptions(config);
           const trimmed = value.trim();
           if (!trimmed) {
-            delete native.additionalDirectories;
+            delete options.additionalDirectories;
           } else {
-            native.additionalDirectories = trimmed
+            options.additionalDirectories = trimmed
               .split(",")
               .map((entry) => entry.trim())
               .filter((entry) => entry.length > 0);
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
     ],
   },
-  "custom-cli": {
+  custom: {
     settings: [
-      jsonArraySetting<CustomCliProviderConfig>({
-        id: "customCliSearchArgv",
+      jsonArraySetting<Custom>({
+        id: "customSearchArgv",
         label: "Search argv",
         help: `Optional JSON string array for the command to run for web_search, for example ["node","./scripts/codex-search.mjs"].`,
         getValue: (config) =>
-          getCustomCliNative(config)?.search?.argv
-            ? JSON.stringify(getCustomCliNative(config)?.search?.argv)
+          getCustomOptions(config)?.search?.argv
+            ? JSON.stringify(getCustomOptions(config)?.search?.argv)
             : undefined,
         setValue: (config, value) => {
-          setCustomCliArgv(config, "search", value);
+          setCustomArgv(config, "search", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliSearchCwd",
+      stringSetting<Custom>({
+        id: "customSearchCwd",
         label: "Search cwd",
         help: "Optional working directory for the web_search command. Relative paths resolve from the active project directory.",
-        getValue: (config) => getCustomCliNative(config)?.search?.cwd,
+        getValue: (config) => getCustomOptions(config)?.search?.cwd,
         setValue: (config, value) => {
-          setCustomCliCwd(config, "search", value);
+          setCustomCwd(config, "search", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliSearchEnv",
+      stringSetting<Custom>({
+        id: "customSearchEnv",
         label: "Search env",
         help: "Optional JSON object of string environment variables for the web_search command. Values can be literal strings, env var names, or !command.",
         getValue: (config) =>
-          formatCustomCliEnv(getCustomCliNative(config)?.search?.env),
+          formatCustomEnv(getCustomOptions(config)?.search?.env),
         setValue: (config, value) => {
-          setCustomCliEnv(config, "search", value);
+          setCustomEnv(config, "search", value);
         },
       }),
-      jsonArraySetting<CustomCliProviderConfig>({
-        id: "customCliContentsArgv",
+      jsonArraySetting<Custom>({
+        id: "customContentsArgv",
         label: "Contents argv",
         help: "Optional JSON string array for the command to run for web_contents.",
         getValue: (config) =>
-          getCustomCliNative(config)?.contents?.argv
-            ? JSON.stringify(getCustomCliNative(config)?.contents?.argv)
+          getCustomOptions(config)?.contents?.argv
+            ? JSON.stringify(getCustomOptions(config)?.contents?.argv)
             : undefined,
         setValue: (config, value) => {
-          setCustomCliArgv(config, "contents", value);
+          setCustomArgv(config, "contents", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliContentsCwd",
+      stringSetting<Custom>({
+        id: "customContentsCwd",
         label: "Contents cwd",
         help: "Optional working directory for the web_contents command. Relative paths resolve from the active project directory.",
-        getValue: (config) => getCustomCliNative(config)?.contents?.cwd,
+        getValue: (config) => getCustomOptions(config)?.contents?.cwd,
         setValue: (config, value) => {
-          setCustomCliCwd(config, "contents", value);
+          setCustomCwd(config, "contents", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliContentsEnv",
+      stringSetting<Custom>({
+        id: "customContentsEnv",
         label: "Contents env",
         help: "Optional JSON object of string environment variables for the web_contents command. Values can be literal strings, env var names, or !command.",
         getValue: (config) =>
-          formatCustomCliEnv(getCustomCliNative(config)?.contents?.env),
+          formatCustomEnv(getCustomOptions(config)?.contents?.env),
         setValue: (config, value) => {
-          setCustomCliEnv(config, "contents", value);
+          setCustomEnv(config, "contents", value);
         },
       }),
-      jsonArraySetting<CustomCliProviderConfig>({
-        id: "customCliAnswerArgv",
+      jsonArraySetting<Custom>({
+        id: "customAnswerArgv",
         label: "Answer argv",
         help: "Optional JSON string array for the command to run for web_answer.",
         getValue: (config) =>
-          getCustomCliNative(config)?.answer?.argv
-            ? JSON.stringify(getCustomCliNative(config)?.answer?.argv)
+          getCustomOptions(config)?.answer?.argv
+            ? JSON.stringify(getCustomOptions(config)?.answer?.argv)
             : undefined,
         setValue: (config, value) => {
-          setCustomCliArgv(config, "answer", value);
+          setCustomArgv(config, "answer", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliAnswerCwd",
+      stringSetting<Custom>({
+        id: "customAnswerCwd",
         label: "Answer cwd",
         help: "Optional working directory for the web_answer command. Relative paths resolve from the active project directory.",
-        getValue: (config) => getCustomCliNative(config)?.answer?.cwd,
+        getValue: (config) => getCustomOptions(config)?.answer?.cwd,
         setValue: (config, value) => {
-          setCustomCliCwd(config, "answer", value);
+          setCustomCwd(config, "answer", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliAnswerEnv",
+      stringSetting<Custom>({
+        id: "customAnswerEnv",
         label: "Answer env",
         help: "Optional JSON object of string environment variables for the web_answer command. Values can be literal strings, env var names, or !command.",
         getValue: (config) =>
-          formatCustomCliEnv(getCustomCliNative(config)?.answer?.env),
+          formatCustomEnv(getCustomOptions(config)?.answer?.env),
         setValue: (config, value) => {
-          setCustomCliEnv(config, "answer", value);
+          setCustomEnv(config, "answer", value);
         },
       }),
-      jsonArraySetting<CustomCliProviderConfig>({
-        id: "customCliResearchArgv",
+      jsonArraySetting<Custom>({
+        id: "customResearchArgv",
         label: "Research argv",
         help: "Optional JSON string array for the command to run for web_research.",
         getValue: (config) =>
-          getCustomCliNative(config)?.research?.argv
-            ? JSON.stringify(getCustomCliNative(config)?.research?.argv)
+          getCustomOptions(config)?.research?.argv
+            ? JSON.stringify(getCustomOptions(config)?.research?.argv)
             : undefined,
         setValue: (config, value) => {
-          setCustomCliArgv(config, "research", value);
+          setCustomArgv(config, "research", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliResearchCwd",
+      stringSetting<Custom>({
+        id: "customResearchCwd",
         label: "Research cwd",
         help: "Optional working directory for the web_research command. Relative paths resolve from the active project directory.",
-        getValue: (config) => getCustomCliNative(config)?.research?.cwd,
+        getValue: (config) => getCustomOptions(config)?.research?.cwd,
         setValue: (config, value) => {
-          setCustomCliCwd(config, "research", value);
+          setCustomCwd(config, "research", value);
         },
       }),
-      stringSetting<CustomCliProviderConfig>({
-        id: "customCliResearchEnv",
+      stringSetting<Custom>({
+        id: "customResearchEnv",
         label: "Research env",
         help: "Optional JSON object of string environment variables for the web_research command. Values can be literal strings, env var names, or !command.",
         getValue: (config) =>
-          formatCustomCliEnv(getCustomCliNative(config)?.research?.env),
+          formatCustomEnv(getCustomOptions(config)?.research?.env),
         setValue: (config, value) => {
-          setCustomCliEnv(config, "research", value);
+          setCustomEnv(config, "research", value);
         },
       }),
-      ...requestPolicySettings<CustomCliProviderConfig>(),
+      ...requestSettings<Custom>(),
     ],
   },
   exa: {
     settings: [
-      apiKeySetting<ExaProviderConfig>(),
-      baseUrlSetting<ExaProviderConfig>(),
-      valuesSetting<ExaProviderConfig>({
+      apiKeySetting<Exa>(),
+      baseUrlSetting<Exa>(),
+      valuesSetting<Exa>({
         id: "exaSearchType",
         label: "Search type",
         help: "Exa search mode. 'default' uses the SDK default.",
@@ -368,175 +366,172 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           "deep-max",
         ],
         getValue: (config) =>
-          readString(getExaNative(config)?.type) ?? "default",
+          readString(getExaOptions(config)?.type) ?? "default",
         setValue: (config, value) => {
-          const native = ensureExaNative(config);
+          const options = ensureExaOptions(config);
           if (value === "default") {
-            delete native.type;
+            delete options.type;
           } else {
-            native.type = value;
+            options.type = value;
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<ExaProviderConfig>({
+      valuesSetting<Exa>({
         id: "exaTextContents",
         label: "Text contents",
         help: "Whether Exa should include text contents in search results. 'default' uses the SDK default.",
         values: ["default", "true", "false"],
         getValue: (config) => {
-          const contents = asJsonObject(getExaNative(config)?.contents);
+          const contents = asJsonObject(getExaOptions(config)?.contents);
           return typeof contents?.text === "boolean"
             ? String(contents.text)
             : "default";
         },
         setValue: (config, value) => {
-          const native = ensureExaNative(config);
-          const contents = asJsonObject(native.contents) ?? {};
+          const options = ensureExaOptions(config);
+          const contents = asJsonObject(options.contents) ?? {};
           if (value === "default") {
             delete contents.text;
           } else {
             contents.text = value === "true";
           }
           if (Object.keys(contents).length === 0) {
-            delete native.contents;
+            delete options.contents;
           } else {
-            native.contents = contents;
+            options.contents = contents;
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      ...lifecyclePolicySettings<ExaProviderConfig>(),
+      ...researchSettings<Exa>(),
     ],
   },
   gemini: {
     settings: [
-      apiKeySetting<GeminiProviderConfig>(),
-      valuesSetting<GeminiProviderConfig>({
+      apiKeySetting<Gemini>(),
+      valuesSetting<Gemini>({
         id: "geminiApiVersion",
         label: "API version",
         help: "Gemini API version. 'default' uses the SDK default beta endpoints.",
         values: ["default", "v1alpha", "v1beta", "v1"],
-        getValue: (config) => getGeminiNative(config)?.apiVersion ?? "default",
+        getValue: (config) => getGeminiOptions(config)?.apiVersion ?? "default",
         setValue: (config, value) => {
-          const native = ensureGeminiNative(config);
+          const options = ensureGeminiOptions(config);
           if (value === "default") {
-            delete native.apiVersion;
+            delete options.apiVersion;
           } else {
-            native.apiVersion = value;
+            options.apiVersion = value;
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      stringSetting<GeminiProviderConfig>({
+      stringSetting<Gemini>({
         id: "geminiSearchModel",
         label: "Search model",
         help: "Model used for Gemini search interactions.",
-        getValue: (config) => getGeminiNative(config)?.searchModel,
+        getValue: (config) => getGeminiOptions(config)?.searchModel,
         setValue: (config, value) => {
           assignOptionalString(
-            ensureGeminiNative(config),
+            ensureGeminiOptions(config),
             "searchModel",
             value,
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      stringSetting<GeminiProviderConfig>({
+      stringSetting<Gemini>({
         id: "geminiAnswerModel",
         label: "Answer model",
         help: "Model used for grounded Gemini answers.",
-        getValue: (config) => getGeminiNative(config)?.answerModel,
+        getValue: (config) => getGeminiOptions(config)?.answerModel,
         setValue: (config, value) => {
           assignOptionalString(
-            ensureGeminiNative(config),
+            ensureGeminiOptions(config),
             "answerModel",
             value,
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      stringSetting<GeminiProviderConfig>({
+      stringSetting<Gemini>({
         id: "geminiResearchAgent",
         label: "Research agent",
         help: "Agent used for Gemini deep research runs.",
-        getValue: (config) => getGeminiNative(config)?.researchAgent,
+        getValue: (config) => getGeminiOptions(config)?.researchAgent,
         setValue: (config, value) => {
           assignOptionalString(
-            ensureGeminiNative(config),
+            ensureGeminiOptions(config),
             "researchAgent",
             value,
           );
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      ...lifecyclePolicySettings<GeminiProviderConfig>(),
+      ...researchSettings<Gemini>(),
     ],
   },
   perplexity: {
-    settings: [
-      apiKeySetting<PerplexityProviderConfig>(),
-      baseUrlSetting<PerplexityProviderConfig>(),
-    ],
+    settings: [apiKeySetting<Perplexity>(), baseUrlSetting<Perplexity>()],
   },
   parallel: {
     settings: [
-      apiKeySetting<ParallelProviderConfig>(),
-      baseUrlSetting<ParallelProviderConfig>(),
-      valuesSetting<ParallelProviderConfig>({
+      apiKeySetting<Parallel>(),
+      baseUrlSetting<Parallel>(),
+      valuesSetting<Parallel>({
         id: "parallelSearchMode",
         label: "Search mode",
         help: "Parallel search mode. 'default' uses the SDK default.",
         values: ["default", "agentic", "one-shot"],
         getValue: (config) =>
-          readString(getParallelNative(config)?.search?.mode) ?? "default",
+          readString(getParallelOptions(config)?.search?.mode) ?? "default",
         setValue: (config, value) => {
-          const native = ensureParallelNative(config);
-          native.search = asJsonObject(native.search) ?? {};
+          const options = ensureParallelOptions(config);
+          options.search = asJsonObject(options.search) ?? {};
           if (value === "default") {
-            delete native.search.mode;
+            delete options.search.mode;
           } else {
-            native.search.mode = value;
+            options.search.mode = value;
           }
           cleanupNestedObjects(config);
         },
       }),
-      valuesSetting<ParallelProviderConfig>({
+      valuesSetting<Parallel>({
         id: "parallelExtractExcerpts",
         label: "Extract excerpts",
         help: "Include excerpts in Parallel extraction results. 'default' uses the SDK default.",
         values: ["default", "on", "off"],
         getValue: (config) =>
           getOnOffValue(
-            readBoolean(getParallelNative(config)?.extract?.excerpts),
+            readBoolean(getParallelOptions(config)?.extract?.excerpts),
           ),
         setValue: (config, value) => {
-          const native = ensureParallelNative(config);
-          native.extract = asJsonObject(native.extract) ?? {};
+          const options = ensureParallelOptions(config);
+          options.extract = asJsonObject(options.extract) ?? {};
           if (value === "default") {
-            delete native.extract.excerpts;
+            delete options.extract.excerpts;
           } else {
-            native.extract.excerpts = value === "on";
+            options.extract.excerpts = value === "on";
           }
           cleanupNestedObjects(config);
         },
       }),
-      valuesSetting<ParallelProviderConfig>({
+      valuesSetting<Parallel>({
         id: "parallelExtractFullContent",
         label: "Extract full content",
         help: "Include full page content in Parallel extraction results. 'default' uses the SDK default.",
         values: ["default", "on", "off"],
         getValue: (config) =>
           getOnOffValue(
-            readBoolean(getParallelNative(config)?.extract?.full_content),
+            readBoolean(getParallelOptions(config)?.extract?.full_content),
           ),
         setValue: (config, value) => {
-          const native = ensureParallelNative(config);
-          native.extract = asJsonObject(native.extract) ?? {};
+          const options = ensureParallelOptions(config);
+          options.extract = asJsonObject(options.extract) ?? {};
           if (value === "default") {
-            delete native.extract.full_content;
+            delete options.extract.full_content;
           } else {
-            native.extract.full_content = value === "on";
+            options.extract.full_content = value === "on";
           }
           cleanupNestedObjects(config);
         },
@@ -545,43 +540,43 @@ export const PROVIDER_CONFIG_MANIFESTS = {
   },
   valyu: {
     settings: [
-      apiKeySetting<ValyuProviderConfig>(),
-      baseUrlSetting<ValyuProviderConfig>(),
-      valuesSetting<ValyuProviderConfig>({
+      apiKeySetting<Valyu>(),
+      baseUrlSetting<Valyu>(),
+      valuesSetting<Valyu>({
         id: "valyuSearchType",
         label: "Search type",
         help: "Valyu search type. 'default' uses the SDK default.",
         values: ["default", "all", "web", "proprietary", "news"],
         getValue: (config) =>
-          readString(getValyuNative(config)?.searchType) ?? "default",
+          readString(getValyuOptions(config)?.searchType) ?? "default",
         setValue: (config, value) => {
-          const native = ensureValyuNative(config);
+          const options = ensureValyuOptions(config);
           if (value === "default") {
-            delete native.searchType;
+            delete options.searchType;
           } else {
-            native.searchType = value;
+            options.searchType = value;
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      valuesSetting<ValyuProviderConfig>({
+      valuesSetting<Valyu>({
         id: "valyuResponseLength",
         label: "Response length",
         help: "Valyu response length. 'default' uses the SDK default.",
         values: ["default", "short", "medium", "large", "max"],
         getValue: (config) =>
-          readString(getValyuNative(config)?.responseLength) ?? "default",
+          readString(getValyuOptions(config)?.responseLength) ?? "default",
         setValue: (config, value) => {
-          const native = ensureValyuNative(config);
+          const options = ensureValyuOptions(config);
           if (value === "default") {
-            delete native.responseLength;
+            delete options.responseLength;
           } else {
-            native.responseLength = value;
+            options.responseLength = value;
           }
-          cleanupEmpty(config, "native");
+          cleanupEmpty(config, "options");
         },
       }),
-      ...lifecyclePolicySettings<ValyuProviderConfig>(),
+      ...researchSettings<Valyu>(),
     ],
   },
 } as const;
@@ -628,7 +623,7 @@ function apiKeySetting<TConfig extends { apiKey?: string }>() {
       assignOptionalString(
         config as Record<
           string,
-          string | number | boolean | JsonObject | undefined
+          string | number | boolean | Record<string, unknown> | undefined
         >,
         "apiKey",
         value,
@@ -647,7 +642,7 @@ function baseUrlSetting<TConfig extends { baseUrl?: string }>() {
       assignOptionalString(
         config as Record<
           string,
-          string | number | boolean | JsonObject | undefined
+          string | number | boolean | Record<string, unknown> | undefined
         >,
         "baseUrl",
         value,
@@ -656,120 +651,118 @@ function baseUrlSetting<TConfig extends { baseUrl?: string }>() {
   });
 }
 
-function requestPolicySettings<
-  TConfig extends { policy?: ExecutionPolicyDefaults },
->() {
+function requestSettings<TConfig extends { settings?: ExecutionSettings }>() {
   return [
     integerSetting<TConfig>({
       id: "requestTimeoutMs",
       label: "Request timeout (ms)",
-      help: "Maximum time to wait for each command before failing that attempt for this provider. Leave empty to inherit the generic setting.",
+      help: "Maximum time to wait for each command before failing that attempt for this provider. Leave empty to inherit the shared setting.",
       minimum: 1,
       errorMessage: "Request timeout must be a positive integer.",
-      getValue: (config) => getIntegerString(config?.policy?.requestTimeoutMs),
+      getValue: (config) =>
+        getIntegerString(config?.settings?.requestTimeoutMs),
       setValue: (config, value) => {
         assignOptionalInteger(
-          ensurePolicy(config),
+          ensureSettings(config),
           "requestTimeoutMs",
           value,
           "Request timeout must be a positive integer.",
         );
-        cleanupEmpty(config, "policy");
+        cleanupEmpty(config, "settings");
       },
     }),
     integerSetting<TConfig>({
       id: "retryCount",
       label: "Retry count",
-      help: "How many times to retry transient command failures for this provider. Leave empty to inherit the generic setting.",
+      help: "How many times to retry transient command failures for this provider. Leave empty to inherit the shared setting.",
       minimum: 0,
       errorMessage: "Retry count must be a non-negative integer.",
-      getValue: (config) => getIntegerString(config?.policy?.retryCount),
+      getValue: (config) => getIntegerString(config?.settings?.retryCount),
       setValue: (config, value) => {
         assignOptionalInteger(
-          ensurePolicy(config),
+          ensureSettings(config),
           "retryCount",
           value,
           "Retry count must be a non-negative integer.",
           { allowZero: true },
         );
-        cleanupEmpty(config, "policy");
+        cleanupEmpty(config, "settings");
       },
     }),
     integerSetting<TConfig>({
       id: "retryDelayMs",
       label: "Retry delay (ms)",
-      help: "Initial delay before retrying command failures for this provider. Leave empty to inherit the generic setting.",
+      help: "Initial delay before retrying command failures for this provider. Leave empty to inherit the shared setting.",
       minimum: 1,
       errorMessage: "Retry delay must be a positive integer.",
-      getValue: (config) => getIntegerString(config?.policy?.retryDelayMs),
+      getValue: (config) => getIntegerString(config?.settings?.retryDelayMs),
       setValue: (config, value) => {
         assignOptionalInteger(
-          ensurePolicy(config),
+          ensureSettings(config),
           "retryDelayMs",
           value,
           "Retry delay must be a positive integer.",
         );
-        cleanupEmpty(config, "policy");
+        cleanupEmpty(config, "settings");
       },
     }),
   ] as const;
 }
 
-function lifecyclePolicySettings<
-  TConfig extends { policy?: ExecutionPolicyDefaults },
->() {
+function researchSettings<TConfig extends { settings?: ExecutionSettings }>() {
   return [
     integerSetting<TConfig>({
       id: "researchPollIntervalMs",
       label: "Research poll interval (ms)",
-      help: "How often to poll long-running research jobs for updates for this provider. Leave empty to inherit the generic setting.",
+      help: "How often to poll long-running research jobs for updates for this provider. Leave empty to inherit the shared setting.",
       minimum: 1,
       errorMessage: "Research poll interval must be a positive integer.",
       getValue: (config) =>
-        getIntegerString(config?.policy?.researchPollIntervalMs),
+        getIntegerString(config?.settings?.researchPollIntervalMs),
       setValue: (config, value) => {
         assignOptionalInteger(
-          ensurePolicy(config),
+          ensureSettings(config),
           "researchPollIntervalMs",
           value,
           "Research poll interval must be a positive integer.",
         );
-        cleanupEmpty(config, "policy");
+        cleanupEmpty(config, "settings");
       },
     }),
     integerSetting<TConfig>({
       id: "researchTimeoutMs",
       label: "Research timeout (ms)",
-      help: "Maximum total time to wait for research before returning a resumable timeout error for this provider. Leave empty to inherit the generic setting.",
+      help: "Maximum total time to wait for research before returning a resumable timeout error for this provider. Leave empty to inherit the shared setting.",
       minimum: 1,
       errorMessage: "Research timeout must be a positive integer.",
-      getValue: (config) => getIntegerString(config?.policy?.researchTimeoutMs),
+      getValue: (config) =>
+        getIntegerString(config?.settings?.researchTimeoutMs),
       setValue: (config, value) => {
         assignOptionalInteger(
-          ensurePolicy(config),
+          ensureSettings(config),
           "researchTimeoutMs",
           value,
           "Research timeout must be a positive integer.",
         );
-        cleanupEmpty(config, "policy");
+        cleanupEmpty(config, "settings");
       },
     }),
     integerSetting<TConfig>({
       id: "researchMaxConsecutivePollErrors",
       label: "Max poll errors",
-      help: "How many consecutive poll failures to tolerate before stopping the local research run for this provider. Leave empty to inherit the generic setting.",
+      help: "How many consecutive poll failures to tolerate before stopping the local research run for this provider. Leave empty to inherit the shared setting.",
       minimum: 1,
       errorMessage: "Max poll errors must be a positive integer.",
       getValue: (config) =>
-        getIntegerString(config?.policy?.researchMaxConsecutivePollErrors),
+        getIntegerString(config?.settings?.researchMaxConsecutivePollErrors),
       setValue: (config, value) => {
         assignOptionalInteger(
-          ensurePolicy(config),
+          ensureSettings(config),
           "researchMaxConsecutivePollErrors",
           value,
           "Max poll errors must be a positive integer.",
         );
-        cleanupEmpty(config, "policy");
+        cleanupEmpty(config, "settings");
       },
     }),
   ] as const;
@@ -789,7 +782,10 @@ function integerSetting<TConfig>(
 }
 
 function assignOptionalString(
-  target: Record<string, string | number | boolean | JsonObject | undefined>,
+  target: Record<
+    string,
+    string | number | boolean | Record<string, unknown> | undefined
+  >,
   key: string,
   value: string,
 ): void {
@@ -802,7 +798,10 @@ function assignOptionalString(
 }
 
 function assignOptionalInteger(
-  target: Record<string, string | number | boolean | JsonObject | undefined>,
+  target: Record<
+    string,
+    string | number | boolean | Record<string, unknown> | undefined
+  >,
   key: string,
   value: string,
   errorMessage: string,
@@ -858,25 +857,28 @@ function readBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function asJsonObject(value: unknown): JsonObject | undefined {
+function asJsonObject(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as JsonObject)
+    ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function ensurePolicy<TConfig extends { policy?: ExecutionPolicyDefaults }>(
+function ensureSettings<TConfig extends { settings?: ExecutionSettings }>(
   config: TConfig,
-): Record<string, string | number | boolean | JsonObject | undefined> {
-  config.policy = { ...(config.policy ?? {}) };
-  return config.policy as Record<
+): Record<
+  string,
+  string | number | boolean | Record<string, unknown> | undefined
+> {
+  config.settings = { ...(config.settings ?? {}) };
+  return config.settings as Record<
     string,
-    string | number | boolean | JsonObject | undefined
+    string | number | boolean | Record<string, unknown> | undefined
   >;
 }
 
 function cleanupEmpty<TConfig extends object>(
   config: TConfig,
-  key: "native" | "policy",
+  key: "options" | "settings",
 ): void {
   const value = asJsonObject((config as Record<string, unknown>)[key]);
   if (value && Object.keys(value).length === 0) {
@@ -884,96 +886,94 @@ function cleanupEmpty<TConfig extends object>(
   }
 }
 
-function cleanupNestedObjects(config: ParallelProviderConfig): void {
-  const native = config.native;
-  if (!native) {
+function cleanupNestedObjects(config: Parallel): void {
+  const options = config.options;
+  if (!options) {
     return;
   }
-  if (native.search && Object.keys(native.search).length === 0) {
-    delete native.search;
+  if (options.search && Object.keys(options.search).length === 0) {
+    delete options.search;
   }
-  if (native.extract && Object.keys(native.extract).length === 0) {
-    delete native.extract;
+  if (options.extract && Object.keys(options.extract).length === 0) {
+    delete options.extract;
   }
-  cleanupEmpty(config, "native");
+  cleanupEmpty(config, "options");
 }
 
-function getClaudeNative(config: ClaudeProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getClaudeOptions(config: Claude | undefined) {
+  return config?.options;
 }
 
-function ensureClaudeNative(
-  config: ClaudeProviderConfig,
-): Record<string, string | number | boolean | JsonObject | undefined> {
-  config.native = { ...(config.native ?? config.defaults ?? {}) };
-  delete config.defaults;
-  return config.native as Record<
+function ensureClaudeOptions(
+  config: Claude,
+): Record<
+  string,
+  string | number | boolean | Record<string, unknown> | undefined
+> {
+  config.options = { ...(config.options ?? {}) };
+  return config.options as Record<
     string,
-    string | number | boolean | JsonObject | undefined
+    string | number | boolean | Record<string, unknown> | undefined
   >;
 }
 
-function getCodexNative(config: CodexProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getCodexOptions(config: Codex | undefined) {
+  return config?.options;
 }
 
-function ensureCodexNative(
-  config: CodexProviderConfig,
-): CodexProviderNativeConfig {
-  config.native = { ...(config.native ?? config.defaults ?? {}) };
-  delete config.defaults;
-  return config.native;
+function ensureCodexOptions(config: Codex): CodexOptions {
+  config.options = { ...(config.options ?? {}) };
+  return config.options;
 }
 
-function getGeminiNative(config: GeminiProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getGeminiOptions(config: Gemini | undefined) {
+  return config?.options;
 }
 
-function ensureGeminiNative(
-  config: GeminiProviderConfig,
-): Record<string, string | number | boolean | JsonObject | undefined> {
-  config.native = { ...(config.native ?? config.defaults ?? {}) };
-  delete config.defaults;
-  return config.native as Record<
+function ensureGeminiOptions(
+  config: Gemini,
+): Record<
+  string,
+  string | number | boolean | Record<string, unknown> | undefined
+> {
+  config.options = { ...(config.options ?? {}) };
+  return config.options as Record<
     string,
-    string | number | boolean | JsonObject | undefined
+    string | number | boolean | Record<string, unknown> | undefined
   >;
 }
 
-function getCustomCliNative(config: CustomCliProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getCustomOptions(config: Custom | undefined) {
+  return config?.options;
 }
 
-function ensureCustomCliNative(
-  config: CustomCliProviderConfig,
-): CustomCliProviderNativeConfig {
-  const native = getCustomCliNative(config);
-  config.native = {
-    ...(native?.search ? { search: { ...native.search } } : {}),
-    ...(native?.contents ? { contents: { ...native.contents } } : {}),
-    ...(native?.answer ? { answer: { ...native.answer } } : {}),
-    ...(native?.research ? { research: { ...native.research } } : {}),
+function ensureCustomOptions(config: Custom): CustomOptions {
+  const options = getCustomOptions(config);
+  config.options = {
+    ...(options?.search ? { search: { ...options.search } } : {}),
+    ...(options?.contents ? { contents: { ...options.contents } } : {}),
+    ...(options?.answer ? { answer: { ...options.answer } } : {}),
+    ...(options?.research ? { research: { ...options.research } } : {}),
   };
-  delete config.defaults;
-  return config.native;
+  return config.options;
 }
 
-function formatCustomCliEnv(
+function formatCustomEnv(
   env: Record<string, string> | undefined,
 ): string | undefined {
   return env ? JSON.stringify(env) : undefined;
 }
 
-function setCustomCliArgv(
-  config: CustomCliProviderConfig,
-  capability: keyof CustomCliProviderNativeConfig,
+function setCustomArgv(
+  config: Custom,
+  capability: keyof CustomOptions,
   value: string,
 ): void {
   const trimmed = value.trim();
-  const native = ensureCustomCliNative(config);
+  const options = ensureCustomOptions(config);
   if (!trimmed) {
-    delete native[capability];
-    cleanupCustomCliNative(config);
+    delete options[capability];
+    cleanupCustomOptions(config);
     return;
   }
 
@@ -982,7 +982,7 @@ function setCustomCliArgv(
     parsed = JSON.parse(trimmed);
   } catch (error) {
     throw new Error(
-      `Custom CLI ${capability} argv must be a JSON string array: ${(error as Error).message}`,
+      `Custom ${capability} argv must be a JSON string array: ${(error as Error).message}`,
     );
   }
 
@@ -994,44 +994,44 @@ function setCustomCliArgv(
     )
   ) {
     throw new Error(
-      `Custom CLI ${capability} argv must be a non-empty JSON string array.`,
+      `Custom ${capability} argv must be a non-empty JSON string array.`,
     );
   }
 
-  native[capability] = {
-    ...(native[capability] ?? {}),
+  options[capability] = {
+    ...(options[capability] ?? {}),
     argv: parsed,
   };
-  cleanupCustomCliNative(config);
+  cleanupCustomOptions(config);
 }
 
-function setCustomCliCwd(
-  config: CustomCliProviderConfig,
-  capability: keyof CustomCliProviderNativeConfig,
+function setCustomCwd(
+  config: Custom,
+  capability: keyof CustomOptions,
   value: string,
 ): void {
-  const native = ensureCustomCliNative(config);
-  const command = { ...(native[capability] ?? {}) };
+  const options = ensureCustomOptions(config);
+  const command = { ...(options[capability] ?? {}) };
   assignOptionalString(
     command as Record<
       string,
-      string | number | boolean | JsonObject | undefined
+      string | number | boolean | Record<string, unknown> | undefined
     >,
     "cwd",
     value,
   );
-  native[capability] = command;
-  cleanupCustomCliNative(config);
+  options[capability] = command;
+  cleanupCustomOptions(config);
 }
 
-function setCustomCliEnv(
-  config: CustomCliProviderConfig,
-  capability: keyof CustomCliProviderNativeConfig,
+function setCustomEnv(
+  config: Custom,
+  capability: keyof CustomOptions,
   value: string,
 ): void {
   const trimmed = value.trim();
-  const native = ensureCustomCliNative(config);
-  const command = { ...(native[capability] ?? {}) };
+  const options = ensureCustomOptions(config);
+  const command = { ...(options[capability] ?? {}) };
 
   if (!trimmed) {
     delete command.env;
@@ -1041,7 +1041,7 @@ function setCustomCliEnv(
       parsed = JSON.parse(trimmed);
     } catch (error) {
       throw new Error(
-        `Custom CLI ${capability} env must be a JSON object of strings: ${(error as Error).message}`,
+        `Custom ${capability} env must be a JSON object of strings: ${(error as Error).message}`,
       );
     }
 
@@ -1052,20 +1052,20 @@ function setCustomCliEnv(
       Object.values(parsed).some((entry) => typeof entry !== "string")
     ) {
       throw new Error(
-        `Custom CLI ${capability} env must be a JSON object of strings.`,
+        `Custom ${capability} env must be a JSON object of strings.`,
       );
     }
 
     command.env = parsed as Record<string, string>;
   }
 
-  native[capability] = command;
-  cleanupCustomCliNative(config);
+  options[capability] = command;
+  cleanupCustomOptions(config);
 }
 
-function cleanupCustomCliNative(config: CustomCliProviderConfig): void {
-  const native = config.native;
-  if (!native) {
+function cleanupCustomOptions(config: Custom): void {
+  const options = config.options;
+  if (!options) {
     return;
   }
 
@@ -1075,7 +1075,7 @@ function cleanupCustomCliNative(config: CustomCliProviderConfig): void {
     "answer",
     "research",
   ] as const) {
-    const entry = native[capability];
+    const entry = options[capability];
     if (!entry) {
       continue;
     }
@@ -1085,48 +1085,41 @@ function cleanupCustomCliNative(config: CustomCliProviderConfig): void {
       entry.cwd === undefined &&
       (entry.env === undefined || Object.keys(entry.env).length === 0)
     ) {
-      delete native[capability];
+      delete options[capability];
     }
   }
 
-  cleanupEmpty(config, "native");
+  cleanupEmpty(config, "options");
 }
 
-function getParallelNative(config: ParallelProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getParallelOptions(config: Parallel | undefined) {
+  return config?.options;
 }
 
-function ensureParallelNative(
-  config: ParallelProviderConfig,
-): ParallelProviderNativeConfig {
-  const search = asJsonObject(config.native?.search ?? config.defaults?.search);
-  const extract = asJsonObject(
-    config.native?.extract ?? config.defaults?.extract,
-  );
-  config.native = {
+function ensureParallelOptions(config: Parallel): ParallelOptions {
+  const search = asJsonObject(config.options?.search);
+  const extract = asJsonObject(config.options?.extract);
+  config.options = {
     ...(search ? { search } : {}),
     ...(extract ? { extract } : {}),
   };
-  delete config.defaults;
-  return config.native;
+  return config.options;
 }
 
-function getExaNative(config: ExaProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getExaOptions(config: Exa | undefined) {
+  return config?.options;
 }
 
-function ensureExaNative(config: ExaProviderConfig): JsonObject {
-  config.native = { ...(config.native ?? config.defaults ?? {}) };
-  delete config.defaults;
-  return config.native;
+function ensureExaOptions(config: Exa): Record<string, unknown> {
+  config.options = { ...(config.options ?? {}) };
+  return config.options;
 }
 
-function getValyuNative(config: ValyuProviderConfig | undefined) {
-  return config?.native ?? config?.defaults;
+function getValyuOptions(config: Valyu | undefined) {
+  return config?.options;
 }
 
-function ensureValyuNative(config: ValyuProviderConfig): JsonObject {
-  config.native = { ...(config.native ?? config.defaults ?? {}) };
-  delete config.defaults;
-  return config.native;
+function ensureValyuOptions(config: Valyu): Record<string, unknown> {
+  config.options = { ...(config.options ?? {}) };
+  return config.options;
 }

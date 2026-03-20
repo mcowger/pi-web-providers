@@ -1,22 +1,21 @@
-import { Exa } from "exa-js";
+import { Exa as ExaClient } from "exa-js";
 import { resolveConfigValue } from "../config.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
   createBackgroundResearchPlan,
   createSilentForegroundPlan,
 } from "../provider-plans.js";
+import type { ContentsEntry } from "../contents.js";
 import type {
-  ExaProviderConfig,
-  JsonValue,
-  ProviderContentsMetadataEntry,
+  Exa,
   ProviderContext,
   ProviderOperationRequest,
-  ProviderResearchJob,
-  ProviderResearchPollResult,
+  ResearchJob,
+  ResearchPollResult,
   ProviderStatus,
-  ProviderToolOutput,
+  ToolOutput,
   SearchResponse,
-  WebProvider,
+  ProviderAdapter,
 } from "../types.js";
 import {
   asJsonObject,
@@ -26,17 +25,17 @@ import {
   trimSnippet,
 } from "./shared.js";
 
-export class ExaProvider implements WebProvider<ExaProviderConfig> {
+export class ExaAdapter implements ProviderAdapter<Exa> {
   readonly id: "exa" = "exa";
   readonly label = "Exa";
   readonly docsUrl = "https://exa.ai/docs/sdks/typescript-sdk-specification";
-  readonly capabilities = ["search", "contents", "answer", "research"] as const;
+  readonly tools = ["search", "contents", "answer", "research"] as const;
 
-  createTemplate(): ExaProviderConfig {
+  createTemplate(): Exa {
     return {
       enabled: false,
       apiKey: "EXA_API_KEY",
-      native: {
+      options: {
         type: "auto",
         contents: {
           text: true,
@@ -45,7 +44,7 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
     };
   }
 
-  getStatus(config: ExaProviderConfig | undefined): ProviderStatus {
+  getStatus(config: Exa | undefined): ProviderStatus {
     if (!config) {
       return { available: false, summary: "not configured" };
     }
@@ -59,7 +58,7 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: ExaProviderConfig) {
+  buildPlan(request: ProviderOperationRequest, config: Exa) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -129,7 +128,7 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
     query: string,
     maxResults: number,
     searchOptions: Record<string, unknown> | undefined,
-    config: ExaProviderConfig,
+    config: Exa,
     context: ProviderContext,
   ): Promise<SearchResponse> {
     const apiKey = resolveConfigValue(config.apiKey);
@@ -137,10 +136,10 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
       throw new Error("Exa is missing an API key.");
     }
 
-    const client = new Exa(apiKey, config.baseUrl);
-    const native = config.native ?? config.defaults;
+    const client = new ExaClient(apiKey, config.baseUrl);
+    const providerOptions = config.options;
     const options = {
-      ...(stripLocalExecutionOptions(asJsonObject(native)) ?? {}),
+      ...(stripLocalExecutionOptions(asJsonObject(providerOptions)) ?? {}),
       ...(searchOptions ?? {}),
       numResults: maxResults,
     };
@@ -172,15 +171,15 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
   async contents(
     urls: string[],
     options: Record<string, unknown> | undefined,
-    config: ExaProviderConfig,
+    config: Exa,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Exa is missing an API key.");
     }
 
-    const client = new Exa(apiKey, config.baseUrl);
+    const client = new ExaClient(apiKey, config.baseUrl);
     context.onProgress?.(
       `Fetching contents from Exa for ${urls.length} URL(s)`,
     );
@@ -188,7 +187,7 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
 
     const results = response.results ?? [];
     const lines: string[] = [];
-    const contentsEntries: ProviderContentsMetadataEntry[] = results.flatMap(
+    const contentsEntries: ContentsEntry[] = results.flatMap(
       (result, index) => {
         const title = String(result.title ?? result.url ?? "Untitled");
         const url = String(result.url ?? "");
@@ -235,7 +234,7 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
       summary: `${results.length} content result(s) via Exa`,
       itemCount: results.length,
       metadata: {
-        contentsEntries: contentsEntries as unknown as JsonValue,
+        contentsEntries: contentsEntries as unknown,
       },
     };
   }
@@ -243,15 +242,15 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
   async answer(
     query: string,
     options: Record<string, unknown> | undefined,
-    config: ExaProviderConfig,
+    config: Exa,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Exa is missing an API key.");
     }
 
-    const client = new Exa(apiKey, config.baseUrl);
+    const client = new ExaClient(apiKey, config.baseUrl);
     context.onProgress?.(`Getting Exa answer for: ${query}`);
     const response = await client.answer(query, options as never);
 
@@ -285,15 +284,15 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
   async startResearch(
     input: string,
     options: Record<string, unknown> | undefined,
-    config: ExaProviderConfig,
+    config: Exa,
     context: ProviderContext,
-  ): Promise<ProviderResearchJob> {
+  ): Promise<ResearchJob> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Exa is missing an API key.");
     }
 
-    const client = new Exa(apiKey, config.baseUrl);
+    const client = new ExaClient(apiKey, config.baseUrl);
     const task = await client.research.create({
       instructions: input,
       ...(options ?? {}),
@@ -305,15 +304,15 @@ export class ExaProvider implements WebProvider<ExaProviderConfig> {
   async pollResearch(
     id: string,
     _options: Record<string, unknown> | undefined,
-    config: ExaProviderConfig,
+    config: Exa,
     _context: ProviderContext,
-  ): Promise<ProviderResearchPollResult> {
+  ): Promise<ResearchPollResult> {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Exa is missing an API key.");
     }
 
-    const client = new Exa(apiKey, config.baseUrl);
+    const client = new ExaClient(apiKey, config.baseUrl);
     const result = await client.research.get(id, { events: false });
 
     if (result.status === "completed") {

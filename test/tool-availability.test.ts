@@ -21,7 +21,7 @@ vi.mock("node:child_process", async () => {
 
 import webProvidersExtension, { __test__ } from "../src/index.js";
 import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
-import type { WebProvidersConfig } from "../src/types.js";
+import type { WebProviders } from "../src/types.js";
 
 const originalHome = process.env.HOME;
 const cleanupDirs: string[] = [];
@@ -170,15 +170,15 @@ describe("managed tool availability", () => {
     ).toEqual([]);
   });
 
-  it("hides Custom CLI tools when the mapped capability has no command configured", () => {
+  it("hides Custom tools when the mapped capability has no command configured", () => {
     const config = createConfig({
       tools: {
-        search: "custom-cli",
+        search: "custom",
       },
       providers: {
-        "custom-cli": {
+        custom: {
           enabled: true,
-          native: {
+          options: {
             answer: {
               argv: [process.execPath, "./answer-wrapper.mjs"],
             },
@@ -192,12 +192,12 @@ describe("managed tool availability", () => {
     ).toEqual([]);
   });
 
-  it("only lists Custom CLI as selectable for capabilities with a configured command", () => {
+  it("only lists Custom as selectable for capabilities with a configured command", () => {
     const config = createConfig({
       providers: {
-        "custom-cli": {
+        custom: {
           enabled: true,
-          native: {
+          options: {
             answer: {
               argv: [process.execPath, "./answer-wrapper.mjs"],
             },
@@ -219,7 +219,7 @@ describe("managed tool availability", () => {
         process.cwd(),
         "answer",
       ),
-    ).toEqual(["custom-cli"]);
+    ).toEqual(["custom"]);
   });
 
   it("does not activate unavailable tools before agent start", () => {
@@ -306,7 +306,7 @@ describe("managed tool availability", () => {
       providers: {
         exa: {
           apiKey: "EXA_API_KEY",
-          native: {
+          options: {
             type: "auto",
             contents: {
               text: true,
@@ -320,7 +320,7 @@ describe("managed tool availability", () => {
       providers: {
         exa: {
           apiKey: "EXA_API_KEY",
-          native: {
+          options: {
             type: "auto",
             contents: {
               text: false,
@@ -337,7 +337,7 @@ describe("managed tool availability", () => {
     const previous = createConfig({
       providers: {
         codex: {
-          native: {
+          options: {
             webSearchEnabled: true,
           },
         },
@@ -347,7 +347,7 @@ describe("managed tool availability", () => {
     const next = createConfig({
       providers: {
         codex: {
-          native: {
+          options: {
             webSearchEnabled: false,
           },
         },
@@ -389,9 +389,7 @@ describe("managed tool availability", () => {
   });
 });
 
-function createConfig(
-  overrides: Partial<WebProvidersConfig> = {},
-): WebProvidersConfig {
+function createConfig(overrides: Partial<WebProviders> = {}): WebProviders {
   return {
     tools: overrides.tools,
     providers: overrides.providers,

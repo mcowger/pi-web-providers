@@ -8,15 +8,13 @@ import {
 import { stripLocalExecutionOptions } from "./execution-policy.js";
 import { getEffectiveProviderConfig } from "./provider-resolution.js";
 import { executeOperationPlan } from "./provider-runtime.js";
-import { PROVIDER_MAP } from "./providers/index.js";
+import { ADAPTERS_BY_ID } from "./providers/index.js";
+import type { ContentsEntry } from "./contents.js";
 import type {
-  JsonObject,
-  JsonValue,
-  ProviderContentsMetadataEntry,
   ProviderId,
-  ProviderToolOutput,
-  SearchPrefetchSettings,
-  WebProvidersConfig,
+  ToolOutput,
+  SearchSettings,
+  WebProviders,
 } from "./types.js";
 
 const CONTENT_ENTRY_KIND = "web-contents";
@@ -31,7 +29,7 @@ export interface SearchContentsPrefetchOptions {
   provider?: ProviderId | null;
   maxUrls?: number;
   ttlMs?: number;
-  contentsOptions?: JsonObject;
+  contentsOptions?: Record<string, unknown>;
 }
 
 interface StoredContentItem {
@@ -71,7 +69,7 @@ interface StoredBatchContentsResult {
   fromCache: boolean;
 }
 
-interface StoredContentsMetadataEntry extends ProviderContentsMetadataEntry {}
+interface StoredContentsMetadataEntry extends ContentsEntry {}
 
 export interface PrefetchStartResult {
   prefetchId: string;
@@ -100,9 +98,9 @@ export interface PrefetchStatus {
 interface EnsureContentsArgs {
   url: string;
   providerId: ProviderId;
-  config: WebProvidersConfig;
+  config: WebProviders;
   cwd: string;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   ttlMs?: number;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
@@ -140,7 +138,7 @@ export async function cleanupContentStore(): Promise<void> {
   }
 }
 
-async function putContentStoreEntry<TValue extends JsonValue = JsonValue>({
+async function putContentStoreEntry<TValue extends unknown = unknown>({
   entry,
   generation,
 }: {
@@ -162,7 +160,7 @@ export async function startContentsPrefetch({
   options,
   onProgress,
 }: {
-  config: WebProvidersConfig;
+  config: WebProviders;
   cwd: string;
   urls: string[];
   options: SearchContentsPrefetchOptions;
@@ -187,7 +185,7 @@ export async function startContentsPrefetch({
   const createdAt = Date.now();
   const generation = contentStoreGeneration;
 
-  await putContentStoreEntry<JsonValue>({
+  await putContentStoreEntry<unknown>({
     generation,
     entry: {
       key: buildPrefetchJobStoreKey(prefetchId),
@@ -232,7 +230,7 @@ export async function startContentsPrefetch({
             ? formatUnknownError(failedResults[0].reason)
             : `${failedResults.length} URL(s) failed during prefetch.`;
 
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key: buildPrefetchJobStoreKey(prefetchId),
@@ -257,7 +255,7 @@ export async function startContentsPrefetch({
       });
     })
     .catch(async (error) => {
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key: buildPrefetchJobStoreKey(prefetchId),
@@ -295,7 +293,7 @@ export async function startContentsPrefetch({
 export async function getPrefetchStatus(
   prefetchId: string,
 ): Promise<PrefetchStatus | undefined> {
-  const job = await contentStore.get<JsonValue>(
+  const job = await contentStore.get<unknown>(
     buildPrefetchJobStoreKey(prefetchId),
   );
   if (!job || !isPrefetchJobValue(job.value)) {
@@ -303,7 +301,7 @@ export async function getPrefetchStatus(
   }
 
   const entries = await Promise.all(
-    job.value.contentKeys.map((key) => contentStore.get<JsonValue>(key)),
+    job.value.contentKeys.map((key) => contentStore.get<unknown>(key)),
   );
   const urlStates = job.value.urls.map((url, index) => {
     const entry = entries[index];
@@ -382,7 +380,8 @@ export async function getPrefetchStatus(
  *   2. at least one requested URL already has an individual cached/in-flight
  *      entry that we can reuse while fetching only the missing URLs.
  *
- * When nothing is cached yet, callers can fall back to the provider's native
+ * When nothing is cached yet, callers can fall back to the provider's
+ * provider-specific
  * batched contents endpoint to avoid fanning out a cold multi-URL request into
  * one request per URL.
  */
@@ -393,7 +392,7 @@ export async function canResolveContentsFromStore({
 }: {
   urls: string[];
   providerId: ProviderId;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
 }): Promise<boolean> {
   if (urls.length === 0) {
     return false;
@@ -435,14 +434,14 @@ async function hasStoredBatchContents({
 }: {
   urls: string[];
   providerId: ProviderId;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
 }): Promise<boolean> {
   const key = buildBatchContentsStoreKey(urls, providerId, options);
   if (inFlightBatchContents.has(key)) {
     return true;
   }
 
-  const entry = await contentStore.get<JsonValue>(key);
+  const entry = await contentStore.get<unknown>(key);
   return (
     entry?.status === "ready" &&
     isStoredBatchContentsValue(entry.value) &&
@@ -461,12 +460,12 @@ export async function resolveContentsFromStore({
 }: {
   urls: string[];
   providerId: ProviderId;
-  config: WebProvidersConfig;
+  config: WebProviders;
   cwd: string;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
-}): Promise<{ output: ProviderToolOutput; cachedCount: number }> {
+}): Promise<{ output: ToolOutput; cachedCount: number }> {
   if (await canResolveContentsFromStore({ urls, providerId, options })) {
     if (await hasStoredBatchContents({ urls, providerId, options })) {
       const batch = await ensureBatchContentsStored({
@@ -592,7 +591,7 @@ export async function resolveContentsFromStore({
 }
 
 export function parseSearchContentsPrefetchOptions(
-  options: JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
 ): SearchContentsPrefetchOptions | undefined {
   const raw = options?.prefetch;
   if (raw === undefined) {
@@ -619,7 +618,7 @@ export function parseSearchContentsPrefetchOptions(
 }
 
 export function mergeSearchContentsPrefetchOptions(
-  defaults: SearchPrefetchSettings | undefined,
+  defaults: SearchSettings | undefined,
   overrides: SearchContentsPrefetchOptions | undefined,
 ): SearchContentsPrefetchOptions | undefined {
   if (!defaults && !overrides) {
@@ -642,14 +641,16 @@ export function mergeSearchContentsPrefetchOptions(
 }
 
 export function stripSearchContentsPrefetchOptions(
-  options: JsonObject | undefined,
-): JsonObject | undefined {
+  options: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
   if (!options) {
     return undefined;
   }
 
   const { prefetch: _prefetch, ...rest } = options;
-  return Object.keys(rest).length > 0 ? (rest as JsonObject) : undefined;
+  return Object.keys(rest).length > 0
+    ? (rest as Record<string, unknown>)
+    : undefined;
 }
 
 export function formatPrefetchStatusText(
@@ -724,9 +725,9 @@ async function ensureBatchContentsStored({
 }: {
   urls: string[];
   providerId: ProviderId;
-  config: WebProvidersConfig;
+  config: WebProviders;
   cwd: string;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   ttlMs?: number;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
@@ -745,7 +746,7 @@ async function ensureBatchContentsStored({
 
   let task!: Promise<StoredBatchContentsResult>;
   task = (async () => {
-    const existing = await contentStore.get<JsonValue>(key);
+    const existing = await contentStore.get<unknown>(key);
     const now = Date.now();
 
     if (
@@ -756,14 +757,14 @@ async function ensureBatchContentsStored({
       return { value: existing.value, fromCache: true };
     }
 
-    const provider = PROVIDER_MAP[providerId];
+    const provider = ADAPTERS_BY_ID[providerId];
     const providerConfig = getEffectiveProviderConfig(config, providerId);
     if (!providerConfig) {
       throw new Error(`Provider '${providerId}' is not configured.`);
     }
 
     const createdAt = now;
-    await putContentStoreEntry<JsonValue>({
+    await putContentStoreEntry<unknown>({
       generation,
       entry: {
         key,
@@ -773,7 +774,7 @@ async function ensureBatchContentsStored({
         updatedAt: createdAt,
         expiresAt: createdAt + ttlMs,
         metadata: {
-          urls: normalizedUrls as unknown as JsonValue,
+          urls: normalizedUrls as unknown,
           provider: providerId,
           optionsHash: hashOptions(options),
         },
@@ -820,7 +821,7 @@ async function ensureBatchContentsStored({
         itemCount: result.itemCount,
         fetchedAt,
       };
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key,
@@ -829,9 +830,9 @@ async function ensureBatchContentsStored({
           createdAt,
           updatedAt: fetchedAt,
           expiresAt: fetchedAt + ttlMs,
-          value: stored as unknown as JsonValue,
+          value: stored as unknown,
           metadata: {
-            urls: normalizedUrls as unknown as JsonValue,
+            urls: normalizedUrls as unknown,
             provider: result.provider,
             optionsHash: hashOptions(options),
           },
@@ -848,7 +849,7 @@ async function ensureBatchContentsStored({
       });
       return { value: stored, fromCache: false };
     } catch (error) {
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key,
@@ -859,7 +860,7 @@ async function ensureBatchContentsStored({
           expiresAt: Date.now() + ttlMs,
           error: error instanceof Error ? error.message : String(error),
           metadata: {
-            urls: normalizedUrls as unknown as JsonValue,
+            urls: normalizedUrls as unknown,
             provider: providerId,
             optionsHash: hashOptions(options),
           },
@@ -899,7 +900,7 @@ async function ensureContentsStored({
 
   let task!: Promise<StoredContentsResult>;
   task = (async () => {
-    const existing = await contentStore.get<JsonValue>(key);
+    const existing = await contentStore.get<unknown>(key);
     const now = Date.now();
 
     if (
@@ -910,14 +911,14 @@ async function ensureContentsStored({
       return { value: existing.value, fromCache: true };
     }
 
-    const provider = PROVIDER_MAP[providerId];
+    const provider = ADAPTERS_BY_ID[providerId];
     const providerConfig = getEffectiveProviderConfig(config, providerId);
     if (!providerConfig) {
       throw new Error(`Provider '${providerId}' is not configured.`);
     }
 
     const createdAt = now;
-    await putContentStoreEntry<JsonValue>({
+    await putContentStoreEntry<unknown>({
       generation,
       entry: {
         key,
@@ -973,7 +974,7 @@ async function ensureContentsStored({
           : { body: result.text },
         fetchedAt: now,
       };
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key,
@@ -982,7 +983,7 @@ async function ensureContentsStored({
           createdAt,
           updatedAt: now,
           expiresAt: now + ttlMs,
-          value: stored as unknown as JsonValue,
+          value: stored as unknown,
           metadata: {
             url: canonicalUrl,
             provider: result.provider,
@@ -992,7 +993,7 @@ async function ensureContentsStored({
       });
       return { value: stored, fromCache: false };
     } catch (error) {
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key,
@@ -1030,7 +1031,7 @@ async function storePerUrlContentsEntries({
 }: {
   entries: StoredContentsMetadataEntry[];
   provider: ProviderId;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   createdAt: number;
   fetchedAt: number;
   ttlMs: number;
@@ -1043,7 +1044,7 @@ async function storePerUrlContentsEntries({
         return;
       }
 
-      await putContentStoreEntry<JsonValue>({
+      await putContentStoreEntry<unknown>({
         generation,
         entry: {
           key: buildContentsStoreKey(canonicalUrl, provider, options),
@@ -1057,7 +1058,7 @@ async function storePerUrlContentsEntries({
             provider,
             item: toStoredContentItem(entry),
             fetchedAt,
-          } as unknown as JsonValue,
+          } as unknown,
           metadata: {
             url: canonicalUrl,
             provider,
@@ -1070,7 +1071,7 @@ async function storePerUrlContentsEntries({
 }
 
 function extractStoredContentsEntriesFromMetadata(
-  metadata: JsonObject | undefined,
+  metadata: Record<string, unknown> | undefined,
 ): StoredContentsMetadataEntry[] {
   const rawEntries = metadata?.contentsEntries;
   if (!Array.isArray(rawEntries)) {
@@ -1121,7 +1122,7 @@ function findStoredContentsEntry(
 function buildBatchContentsStoreKey(
   urls: string[],
   providerId: ProviderId,
-  options: JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
 ): string {
   return createStoreKey([
     CONTENT_BATCH_ENTRY_KIND,
@@ -1135,7 +1136,7 @@ function buildBatchContentsStoreKey(
 function buildContentsStoreKey(
   url: string,
   providerId: ProviderId,
-  options: JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
 ): string {
   return createStoreKey([
     CONTENT_ENTRY_KIND,
@@ -1151,7 +1152,7 @@ function buildPrefetchJobStoreKey(prefetchId: string): string {
 }
 
 function resolveContentsProvider(
-  config: WebProvidersConfig,
+  config: WebProviders,
   cwd: string,
   explicitProvider: ProviderId | null | undefined,
 ) {
@@ -1159,8 +1160,8 @@ function resolveContentsProvider(
     return undefined;
   }
 
-  const provider = PROVIDER_MAP[explicitProvider];
-  if (!provider.capabilities.includes("contents")) {
+  const provider = ADAPTERS_BY_ID[explicitProvider];
+  if (!provider.tools.includes("contents")) {
     return undefined;
   }
 
@@ -1322,11 +1323,11 @@ function renderStoredContentItem(
   return lines.join("\n").trimEnd();
 }
 
-function hashOptions(options: JsonObject | undefined): string {
+function hashOptions(options: Record<string, unknown> | undefined): string {
   return hashKey(stableStringify(stripLocalExecutionOptions(options) ?? {}));
 }
 
-function stableStringify(value: JsonValue): string {
+function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
   }
@@ -1338,16 +1339,19 @@ function stableStringify(value: JsonValue): string {
     .sort()
     .map(
       (key) =>
-        `${JSON.stringify(key)}:${stableStringify(value[key] as JsonValue)}`,
+        `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`,
     )
     .join(",")}}`;
 }
 
-function isJsonObject(value: unknown): value is JsonObject {
+function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function assertJsonObject(value: unknown, field: string): JsonObject {
+function assertJsonObject(
+  value: unknown,
+  field: string,
+): Record<string, unknown> {
   if (!isJsonObject(value)) {
     throw new Error(`${field} must be an object.`);
   }
@@ -1396,7 +1400,7 @@ function isProviderId(value: unknown): value is ProviderId {
 
 function isStoredBatchContentsValue(
   value: unknown,
-): value is StoredBatchContentsValue & JsonObject {
+): value is StoredBatchContentsValue & Record<string, unknown> {
   if (!isJsonObject(value)) {
     return false;
   }
@@ -1412,7 +1416,7 @@ function isStoredBatchContentsValue(
 
 function isStoredContentsValue(
   value: unknown,
-): value is StoredContentsValue & JsonObject {
+): value is StoredContentsValue & Record<string, unknown> {
   if (!isJsonObject(value)) {
     return false;
   }
@@ -1426,7 +1430,7 @@ function isStoredContentsValue(
 
 function isStoredContentItem(
   value: unknown,
-): value is StoredContentItem & JsonObject {
+): value is StoredContentItem & Record<string, unknown> {
   return (
     isJsonObject(value) &&
     (value.url === undefined || typeof value.url === "string") &&
@@ -1441,7 +1445,7 @@ function isStoredContentItem(
 
 function isPrefetchJobValue(
   value: unknown,
-): value is PrefetchJobValue & JsonObject {
+): value is PrefetchJobValue & Record<string, unknown> {
   if (!isJsonObject(value)) {
     return false;
   }

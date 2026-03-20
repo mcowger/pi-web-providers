@@ -14,7 +14,7 @@ vi.mock("@openai/codex-sdk", () => ({
   }),
 }));
 
-import { CodexProvider } from "../src/providers/codex.js";
+import { CodexAdapter } from "../src/providers/codex.js";
 
 afterEach(() => {
   codexCtorMock.mockClear();
@@ -22,9 +22,9 @@ afterEach(() => {
   runStreamedMock.mockReset();
 });
 
-describe("CodexProvider", () => {
-  it("attaches config policy defaults to Codex operation plans", () => {
-    const provider = new CodexProvider();
+describe("CodexAdapter", () => {
+  it("attaches config settings to Codex operation plans", () => {
+    const provider = new CodexAdapter();
     const plan = provider.buildPlan(
       {
         capability: "search",
@@ -33,7 +33,7 @@ describe("CodexProvider", () => {
       },
       {
         enabled: true,
-        policy: {
+        settings: {
           requestTimeoutMs: 1500,
           retryCount: 2,
           retryDelayMs: 250,
@@ -44,7 +44,7 @@ describe("CodexProvider", () => {
     expect(plan).toMatchObject({
       deliveryMode: "silent-foreground",
       traits: {
-        policyDefaults: {
+        settings: {
           requestTimeoutMs: 1500,
           retryCount: 2,
           retryDelayMs: 250,
@@ -76,7 +76,7 @@ describe("CodexProvider", () => {
       }),
     });
 
-    const provider = new CodexProvider();
+    const provider = new CodexAdapter();
     const response = await provider.search(
       "latest docs",
       5,
@@ -95,7 +95,7 @@ describe("CodexProvider", () => {
       {
         enabled: true,
         apiKey: "literal-key",
-        defaults: {
+        options: {
           model: "gpt-4.1",
           modelReasoningEffort: "low",
           webSearchMode: "live",

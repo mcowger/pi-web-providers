@@ -39,7 +39,7 @@ vi.mock("valyu-js", () => ({
 }));
 
 import { __test__ } from "../src/index.js";
-import type { WebProvidersConfig } from "../src/types.js";
+import type { WebProviders } from "../src/types.js";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -74,7 +74,7 @@ describe("research lifecycle providers", () => {
             apiKey: "literal-key",
           },
         },
-      } satisfies WebProvidersConfig,
+      } satisfies WebProviders,
       explicitProvider: "exa",
       ctx: { cwd: process.cwd() },
       signal: undefined,
@@ -120,12 +120,12 @@ describe("research lifecycle providers", () => {
           exa: {
             enabled: true,
             apiKey: "literal-key",
-            policy: {
+            settings: {
               requestTimeoutMs: 1,
             },
           },
         },
-      } satisfies WebProvidersConfig,
+      } satisfies WebProviders,
       explicitProvider: "exa",
       ctx: { cwd: process.cwd() },
       signal: undefined,
@@ -167,7 +167,7 @@ describe("research lifecycle providers", () => {
             apiKey: "literal-key",
           },
         },
-      } satisfies WebProvidersConfig,
+      } satisfies WebProviders,
       explicitProvider: "exa",
       ctx: { cwd: process.cwd() },
       signal: undefined,
@@ -212,12 +212,12 @@ describe("research lifecycle providers", () => {
           exa: {
             enabled: true,
             apiKey: "literal-key",
-            policy: {
+            settings: {
               requestTimeoutMs: 1,
             },
           },
         },
-      } satisfies WebProvidersConfig,
+      } satisfies WebProviders,
       explicitProvider: "exa",
       ctx: { cwd: process.cwd() },
       signal: undefined,
@@ -270,7 +270,7 @@ describe("research lifecycle providers", () => {
             apiKey: "literal-key",
           },
         },
-      } satisfies WebProvidersConfig,
+      } satisfies WebProviders,
       explicitProvider: "valyu",
       ctx: { cwd: process.cwd() },
       signal: undefined,

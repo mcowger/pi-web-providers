@@ -11,7 +11,7 @@ import {
   resolveConfigValue,
   serializeConfig,
 } from "../src/config.js";
-import { PROVIDER_MAP } from "../src/providers/index.js";
+import { ADAPTERS_BY_ID } from "../src/providers/index.js";
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -93,30 +93,28 @@ describe("config parsing", () => {
   it("accepts search tool settings for persisted prefetch defaults", () => {
     const parsed = parseConfig(
       JSON.stringify({
-        toolSettings: {
+        settings: {
           search: {
-            prefetch: {
-              provider: "exa",
-              maxUrls: 3,
-              ttlMs: 60000,
-            },
+            provider: "exa",
+            maxUrls: 3,
+            ttlMs: 60000,
           },
         },
       }),
       "test-config.json",
     );
 
-    expect(parsed.toolSettings?.search?.prefetch).toEqual({
+    expect(parsed.settings?.search).toEqual({
       provider: "exa",
       maxUrls: 3,
       ttlMs: 60000,
     });
   });
 
-  it("accepts shared generic execution settings", () => {
+  it("accepts shared execution settings", () => {
     const parsed = parseConfig(
       JSON.stringify({
-        genericSettings: {
+        settings: {
           requestTimeoutMs: 45000,
           retryCount: 5,
           retryDelayMs: 4000,
@@ -128,7 +126,7 @@ describe("config parsing", () => {
       "test-config.json",
     );
 
-    expect(parsed.genericSettings).toEqual({
+    expect(parsed.settings).toEqual({
       requestTimeoutMs: 45000,
       retryCount: 5,
       retryDelayMs: 4000,
@@ -142,9 +140,9 @@ describe("config parsing", () => {
     const parsed = parseConfig(
       JSON.stringify({
         providers: {
-          "custom-cli": {
+          custom: {
             enabled: true,
-            native: {
+            options: {
               search: {
                 argv: ["node", "./scripts/search-wrapper.mjs"],
                 cwd: ".",
@@ -159,9 +157,9 @@ describe("config parsing", () => {
       "test-config.json",
     );
 
-    expect(parsed.providers?.["custom-cli"]).toEqual({
+    expect(parsed.providers?.["custom"]).toEqual({
       enabled: true,
-      native: {
+      options: {
         search: {
           argv: ["node", "./scripts/search-wrapper.mjs"],
           cwd: ".",
@@ -173,7 +171,7 @@ describe("config parsing", () => {
         answer: undefined,
         research: undefined,
       },
-      policy: undefined,
+      settings: undefined,
     });
   });
 
@@ -182,8 +180,8 @@ describe("config parsing", () => {
       parseConfig(
         JSON.stringify({
           providers: {
-            "custom-cli": {
-              native: {
+            custom: {
+              options: {
                 search: {
                   argv: ["node", "   "],
                 },
@@ -200,7 +198,7 @@ describe("config parsing", () => {
     expect(() =>
       parseConfig(
         JSON.stringify({
-          toolSettings: {
+          settings: {
             search: {
               caching: true,
             },
@@ -208,7 +206,7 @@ describe("config parsing", () => {
         }),
         "test-config.json",
       ),
-    ).toThrow(/Unknown search tool settings/);
+    ).toThrow(/Unknown search settings/);
   });
 
   it("loads the global config", async () => {
@@ -221,22 +219,22 @@ describe("config parsing", () => {
     const config = createDefaultConfig();
     config.providers!.claude = {
       pathToClaudeCodeExecutable: "/tmp/claude-code",
-      native: {
+      options: {
         model: "claude-sonnet-4-5",
         effort: "high",
         maxTurns: 6,
       },
     };
-    config.providers!.codex!.native!.additionalDirectories = ["docs"];
+    config.providers!.codex!.options!.additionalDirectories = ["docs"];
     config.providers!.exa = {
       apiKey: "EXA_API_KEY",
-      native: {
+      options: {
         type: "auto",
       },
     };
     config.providers!.parallel = {
       apiKey: "PARALLEL_API_KEY",
-      native: {
+      options: {
         search: {
           mode: "one-shot",
         },
@@ -244,11 +242,11 @@ describe("config parsing", () => {
     };
     config.providers!.gemini = {
       apiKey: "GOOGLE_API_KEY",
-      native: {
+      options: {
         apiVersion: "v1alpha",
         searchModel: "gemini-2.5-flash",
       },
-      policy: {
+      settings: {
         requestTimeoutMs: 45000,
         retryCount: 5,
         retryDelayMs: 4000,
@@ -259,7 +257,7 @@ describe("config parsing", () => {
     };
     config.providers!.perplexity = {
       apiKey: "PERPLEXITY_API_KEY",
-      native: {
+      options: {
         search: {
           country: "US",
         },
@@ -272,15 +270,14 @@ describe("config parsing", () => {
       },
     };
 
-    config.providers!.codex!.native!.webSearchMode = "cached";
-    config.providers!.codex!.native!.additionalDirectories = ["notes"];
-    config.toolSettings = {
+    config.providers!.codex!.options!.webSearchMode = "cached";
+    config.providers!.codex!.options!.additionalDirectories = ["notes"];
+    config.settings = {
+      ...(config.settings ?? {}),
       search: {
-        prefetch: {
-          provider: "exa",
-          maxUrls: 2,
-          ttlMs: 60000,
-        },
+        provider: "exa",
+        maxUrls: 2,
+        ttlMs: 60000,
       },
     };
 
@@ -290,64 +287,43 @@ describe("config parsing", () => {
     expect(loaded.providers?.claude?.pathToClaudeCodeExecutable).toBe(
       "/tmp/claude-code",
     );
-    expect(loaded.providers?.claude?.native?.model).toBe("claude-sonnet-4-5");
-    expect(loaded.providers?.claude?.native?.effort).toBe("high");
-    expect(loaded.providers?.claude?.native?.maxTurns).toBe(6);
-    expect(loaded.providers?.codex?.native?.webSearchMode).toBe("cached");
-    expect(loaded.providers?.codex?.native?.additionalDirectories).toEqual([
+    expect(loaded.providers?.claude?.options?.model).toBe("claude-sonnet-4-5");
+    expect(loaded.providers?.claude?.options?.effort).toBe("high");
+    expect(loaded.providers?.claude?.options?.maxTurns).toBe(6);
+    expect(loaded.providers?.codex?.options?.webSearchMode).toBe("cached");
+    expect(loaded.providers?.codex?.options?.additionalDirectories).toEqual([
       "notes",
     ]);
     expect(loaded.providers?.exa?.apiKey).toBe("EXA_API_KEY");
-    expect(loaded.providers?.gemini?.native?.apiVersion).toBe("v1alpha");
-    expect(loaded.providers?.gemini?.policy?.requestTimeoutMs).toBe(45000);
-    expect(loaded.providers?.gemini?.policy?.retryCount).toBe(5);
-    expect(loaded.providers?.gemini?.policy?.retryDelayMs).toBe(4000);
-    expect(loaded.providers?.gemini?.policy?.researchPollIntervalMs).toBe(6000);
-    expect(loaded.providers?.gemini?.policy?.researchTimeoutMs).toBe(28800000);
+    expect(loaded.providers?.gemini?.options?.apiVersion).toBe("v1alpha");
+    expect(loaded.providers?.gemini?.settings?.requestTimeoutMs).toBe(45000);
+    expect(loaded.providers?.gemini?.settings?.retryCount).toBe(5);
+    expect(loaded.providers?.gemini?.settings?.retryDelayMs).toBe(4000);
+    expect(loaded.providers?.gemini?.settings?.researchPollIntervalMs).toBe(
+      6000,
+    );
+    expect(loaded.providers?.gemini?.settings?.researchTimeoutMs).toBe(
+      28800000,
+    );
     expect(
-      loaded.providers?.gemini?.policy?.researchMaxConsecutivePollErrors,
+      loaded.providers?.gemini?.settings?.researchMaxConsecutivePollErrors,
     ).toBe(12);
-    expect(loaded.providers?.perplexity?.native?.search?.country).toBe("US");
-    expect(loaded.providers?.perplexity?.native?.research?.model).toBe(
+    expect(loaded.providers?.perplexity?.options?.search?.country).toBe("US");
+    expect(loaded.providers?.perplexity?.options?.research?.model).toBe(
       "sonar-deep-research",
     );
-    expect(loaded.providers?.parallel?.native?.search?.mode).toBe("one-shot");
-    expect(loaded.toolSettings?.search?.prefetch).toEqual({
+    expect(loaded.providers?.parallel?.options?.search?.mode).toBe("one-shot");
+    expect(loaded.settings?.search).toEqual({
       provider: "exa",
       maxUrls: 2,
       ttlMs: 60000,
     });
   });
 
-  it("maps legacy defaults into native and policy config blocks", () => {
-    const loaded = parseConfig(
-      JSON.stringify({
-        providers: {
-          gemini: {
-            apiKey: "GOOGLE_API_KEY",
-            defaults: {
-              searchModel: "gemini-2.5-flash",
-              requestTimeoutMs: 45000,
-              retryCount: 5,
-            },
-          },
-        },
-      }),
-      "test-config.json",
-    );
-
-    expect(loaded.providers?.gemini?.native?.searchModel).toBe(
-      "gemini-2.5-flash",
-    );
-    expect(loaded.providers?.gemini?.policy?.requestTimeoutMs).toBe(45000);
-    expect(loaded.providers?.gemini?.policy?.retryCount).toBe(5);
-    expect(loaded.providers?.gemini).not.toHaveProperty("defaults");
-  });
-
-  it("seeds shared generic defaults and only keeps provider-specific overrides", () => {
+  it("seeds shared settings and only keeps provider-specific overrides", () => {
     const config = createDefaultConfig();
 
-    expect(config.genericSettings).toEqual({
+    expect(config.settings).toEqual({
       requestTimeoutMs: 30000,
       retryCount: 3,
       retryDelayMs: 2000,
@@ -355,47 +331,47 @@ describe("config parsing", () => {
       researchTimeoutMs: 21600000,
       researchMaxConsecutivePollErrors: 3,
     });
-    expect(config.providers?.claude?.policy).toBeUndefined();
-    expect(config.providers?.codex?.policy).toBeUndefined();
-    expect(config.providers?.exa?.policy).toBeUndefined();
-    expect(config.providers?.gemini?.policy).toEqual({
+    expect(config.providers?.claude?.settings).toBeUndefined();
+    expect(config.providers?.codex?.settings).toBeUndefined();
+    expect(config.providers?.exa?.settings).toBeUndefined();
+    expect(config.providers?.gemini?.settings).toEqual({
       researchMaxConsecutivePollErrors: 10,
     });
-    expect(config.providers?.perplexity?.policy).toBeUndefined();
-    expect(config.providers?.parallel?.policy).toBeUndefined();
-    expect(config.providers?.valyu?.policy).toBeUndefined();
+    expect(config.providers?.perplexity?.settings).toBeUndefined();
+    expect(config.providers?.parallel?.settings).toBeUndefined();
+    expect(config.providers?.valyu?.settings).toBeUndefined();
   });
 
   it("keeps provider templates aligned with provider-specific default config blocks", () => {
     const config = createDefaultConfig();
 
-    expect(PROVIDER_MAP.claude.createTemplate().policy).toEqual(
-      config.providers?.claude?.policy,
+    expect(ADAPTERS_BY_ID.claude.createTemplate().settings).toEqual(
+      config.providers?.claude?.settings,
     );
-    expect(PROVIDER_MAP.codex.createTemplate().policy).toEqual(
-      config.providers?.codex?.policy,
+    expect(ADAPTERS_BY_ID.codex.createTemplate().settings).toEqual(
+      config.providers?.codex?.settings,
     );
-    expect(PROVIDER_MAP.exa.createTemplate().policy).toEqual(
-      config.providers?.exa?.policy,
+    expect(ADAPTERS_BY_ID.exa.createTemplate().settings).toEqual(
+      config.providers?.exa?.settings,
     );
-    expect(PROVIDER_MAP.gemini.createTemplate().policy).toEqual(
-      config.providers?.gemini?.policy,
+    expect(ADAPTERS_BY_ID.gemini.createTemplate().settings).toEqual(
+      config.providers?.gemini?.settings,
     );
-    expect(PROVIDER_MAP.perplexity.createTemplate().policy).toEqual(
-      config.providers?.perplexity?.policy,
+    expect(ADAPTERS_BY_ID.perplexity.createTemplate().settings).toEqual(
+      config.providers?.perplexity?.settings,
     );
-    expect(PROVIDER_MAP.parallel.createTemplate().policy).toEqual(
-      config.providers?.parallel?.policy,
+    expect(ADAPTERS_BY_ID.parallel.createTemplate().settings).toEqual(
+      config.providers?.parallel?.settings,
     );
-    expect(PROVIDER_MAP.valyu.createTemplate().policy).toEqual(
-      config.providers?.valyu?.policy,
+    expect(ADAPTERS_BY_ID.valyu.createTemplate().settings).toEqual(
+      config.providers?.valyu?.settings,
     );
   });
 
   it("keeps example-config.json in sync with createDefaultConfig()", async () => {
     const examplePath = join(PROJECT_ROOT, "example-config.json");
     const exampleJson = JSON.parse(await readFile(examplePath, "utf-8"));
-    const defaultConfig = createDefaultConfig();
+    const defaultConfig = JSON.parse(serializeConfig(createDefaultConfig()));
     expect(exampleJson).toEqual(defaultConfig);
   });
 

@@ -1,12 +1,12 @@
 import type {
   BackgroundResearchOperationPlan,
-  ExecutionPolicyDefaults,
+  ExecutionSettings,
   ProviderPlanTraits,
   SingleProviderOperationPlan,
 } from "./types.js";
 
 interface ConfigWithPolicy {
-  policy?: ExecutionPolicyDefaults;
+  settings?: ExecutionSettings;
 }
 
 // Silent foreground plans wait for a final result without surfacing partial
@@ -17,9 +17,9 @@ export function createSilentForegroundPlan<TResult>({
   ...plan
 }: Omit<SingleProviderOperationPlan<TResult>, "deliveryMode" | "traits"> & {
   config: ConfigWithPolicy;
-  traits?: Omit<ProviderPlanTraits, "policyDefaults">;
+  traits?: Omit<ProviderPlanTraits, "settings">;
 }): SingleProviderOperationPlan<TResult> {
-  return buildSinglePlan("silent-foreground", config.policy, traits, plan);
+  return buildSinglePlan("silent-foreground", config.settings, traits, plan);
 }
 
 // Streaming foreground plans can surface intermediate provider output, but the
@@ -30,9 +30,9 @@ export function createStreamingForegroundPlan<TResult>({
   ...plan
 }: Omit<SingleProviderOperationPlan<TResult>, "deliveryMode" | "traits"> & {
   config: ConfigWithPolicy;
-  traits?: Omit<ProviderPlanTraits, "policyDefaults">;
+  traits?: Omit<ProviderPlanTraits, "settings">;
 }): SingleProviderOperationPlan<TResult> {
-  return buildSinglePlan("streaming-foreground", config.policy, traits, plan);
+  return buildSinglePlan("streaming-foreground", config.settings, traits, plan);
 }
 
 // Background research plans model providers that return a durable research job
@@ -43,9 +43,9 @@ export function createBackgroundResearchPlan({
   ...plan
 }: Omit<BackgroundResearchOperationPlan, "deliveryMode" | "traits"> & {
   config: ConfigWithPolicy;
-  traits?: Omit<ProviderPlanTraits, "policyDefaults">;
+  traits?: Omit<ProviderPlanTraits, "settings">;
 }): BackgroundResearchOperationPlan {
-  const builtTraits = buildTraits(config.policy, traits);
+  const builtTraits = buildTraits(config.settings, traits);
 
   return {
     ...plan,
@@ -56,11 +56,11 @@ export function createBackgroundResearchPlan({
 
 function buildSinglePlan<TResult>(
   deliveryMode: SingleProviderOperationPlan<TResult>["deliveryMode"],
-  policyDefaults: ExecutionPolicyDefaults | undefined,
-  traits: Omit<ProviderPlanTraits, "policyDefaults"> | undefined,
+  settings: ExecutionSettings | undefined,
+  traits: Omit<ProviderPlanTraits, "settings"> | undefined,
   plan: Omit<SingleProviderOperationPlan<TResult>, "deliveryMode" | "traits">,
 ): SingleProviderOperationPlan<TResult> {
-  const builtTraits = buildTraits(policyDefaults, traits);
+  const builtTraits = buildTraits(settings, traits);
 
   return {
     ...plan,
@@ -70,11 +70,11 @@ function buildSinglePlan<TResult>(
 }
 
 function buildTraits(
-  policyDefaults: ExecutionPolicyDefaults | undefined,
-  traits: Omit<ProviderPlanTraits, "policyDefaults"> | undefined,
+  settings: ExecutionSettings | undefined,
+  traits: Omit<ProviderPlanTraits, "settings"> | undefined,
 ): ProviderPlanTraits | undefined {
   const builtTraits: ProviderPlanTraits = {
-    ...(policyDefaults ? { policyDefaults } : {}),
+    ...(settings ? { settings } : {}),
     ...(traits ?? {}),
   };
 

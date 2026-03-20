@@ -1,4 +1,4 @@
-import Perplexity from "@perplexity-ai/perplexity_ai";
+import PerplexityClient from "@perplexity-ai/perplexity_ai";
 import { resolveConfigValue } from "../config.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
@@ -6,13 +6,13 @@ import {
   createStreamingForegroundPlan,
 } from "../provider-plans.js";
 import type {
-  PerplexityProviderConfig,
+  Perplexity,
   ProviderContext,
   ProviderOperationRequest,
   ProviderStatus,
-  ProviderToolOutput,
+  ToolOutput,
   SearchResponse,
-  WebProvider,
+  ProviderAdapter,
 } from "../types.js";
 import { asJsonObject, trimSnippet } from "./shared.js";
 
@@ -31,19 +31,17 @@ type PerplexityForegroundChunk = {
   citations?: Array<string | null> | null;
 };
 
-export class PerplexityProvider
-  implements WebProvider<PerplexityProviderConfig>
-{
+export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
   readonly id: "perplexity" = "perplexity";
   readonly label = "Perplexity";
   readonly docsUrl = "https://docs.perplexity.ai/docs/sdk/overview.md";
-  readonly capabilities = ["search", "answer", "research"] as const;
+  readonly tools = ["search", "answer", "research"] as const;
 
-  createTemplate(): PerplexityProviderConfig {
+  createTemplate(): Perplexity {
     return {
       enabled: false,
       apiKey: "PERPLEXITY_API_KEY",
-      native: {
+      options: {
         answer: {
           model: DEFAULT_ANSWER_MODEL,
         },
@@ -54,7 +52,7 @@ export class PerplexityProvider
     };
   }
 
-  getStatus(config: PerplexityProviderConfig | undefined): ProviderStatus {
+  getStatus(config: Perplexity | undefined): ProviderStatus {
     if (!config) {
       return { available: false, summary: "not configured" };
     }
@@ -68,10 +66,7 @@ export class PerplexityProvider
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(
-    request: ProviderOperationRequest,
-    config: PerplexityProviderConfig,
-  ) {
+  buildPlan(request: ProviderOperationRequest, config: Perplexity) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -126,13 +121,14 @@ export class PerplexityProvider
     query: string,
     maxResults: number,
     options: Record<string, unknown> | undefined,
-    config: PerplexityProviderConfig,
+    config: Perplexity,
     context: ProviderContext,
   ): Promise<SearchResponse> {
     const client = this.createClient(config);
-    const native = config.native ?? config.defaults;
+    const providerOptions = config.options;
     const request = {
-      ...(stripLocalExecutionOptions(asJsonObject(native?.search)) ?? {}),
+      ...(stripLocalExecutionOptions(asJsonObject(providerOptions?.search)) ??
+        {}),
       ...(options ?? {}),
       query,
       max_results: maxResults,
@@ -166,9 +162,9 @@ export class PerplexityProvider
   async answer(
     query: string,
     options: Record<string, unknown> | undefined,
-    config: PerplexityProviderConfig,
+    config: Perplexity,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     context.onProgress?.(`Getting Perplexity answer for: ${query}`);
     return this.runSilentForegroundChatTool(
       query,
@@ -183,9 +179,9 @@ export class PerplexityProvider
   async research(
     input: string,
     options: Record<string, unknown> | undefined,
-    config: PerplexityProviderConfig,
+    config: Perplexity,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     context.onProgress?.("Starting Perplexity research");
     return this.runStreamingForegroundChatTool(
       input,
@@ -200,19 +196,19 @@ export class PerplexityProvider
   private async runSilentForegroundChatTool(
     input: string,
     options: Record<string, unknown> | undefined,
-    config: PerplexityProviderConfig,
+    config: Perplexity,
     context: ProviderContext,
     fallbackModel: string,
     label: "Answer" | "Research",
     isResearch = false,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const client = this.createClient(config);
-    const native = config.native ?? config.defaults;
+    const providerOptions = config.options;
     const defaults =
       stripLocalExecutionOptions(
         isResearch
-          ? asJsonObject(native?.research)
-          : asJsonObject(native?.answer),
+          ? asJsonObject(providerOptions?.research)
+          : asJsonObject(providerOptions?.answer),
       ) ?? {};
     const request = {
       ...defaults,
@@ -257,15 +253,15 @@ export class PerplexityProvider
   private async runStreamingForegroundChatTool(
     input: string,
     options: Record<string, unknown> | undefined,
-    config: PerplexityProviderConfig,
+    config: Perplexity,
     context: ProviderContext,
     fallbackModel: string,
     label: "Answer" | "Research",
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const client = this.createClient(config);
-    const native = config.native ?? config.defaults;
+    const providerOptions = config.options;
     const defaults =
-      stripLocalExecutionOptions(asJsonObject(native?.research)) ?? {};
+      stripLocalExecutionOptions(asJsonObject(providerOptions?.research)) ?? {};
     const request = {
       ...defaults,
       ...(options ?? {}),
@@ -319,13 +315,13 @@ export class PerplexityProvider
     };
   }
 
-  private createClient(config: PerplexityProviderConfig): Perplexity {
+  private createClient(config: Perplexity): PerplexityClient {
     const apiKey = resolveConfigValue(config.apiKey);
     if (!apiKey) {
       throw new Error("Perplexity is missing an API key.");
     }
 
-    return new Perplexity({
+    return new PerplexityClient({
       apiKey,
       baseURL: resolveConfigValue(config.baseUrl),
     });

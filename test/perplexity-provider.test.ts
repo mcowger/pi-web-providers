@@ -23,7 +23,7 @@ vi.mock("@perplexity-ai/perplexity_ai", () => ({
   }),
 }));
 
-import { PerplexityProvider } from "../src/providers/perplexity.js";
+import { PerplexityAdapter } from "../src/providers/perplexity.js";
 
 afterEach(() => {
   delete process.env.PERPLEXITY_API_KEY;
@@ -32,7 +32,7 @@ afterEach(() => {
   perplexityCtorMock.mockClear();
 });
 
-describe("PerplexityProvider", () => {
+describe("PerplexityAdapter", () => {
   it("forwards merged search options and preserves date metadata", async () => {
     process.env.PERPLEXITY_API_KEY = "test-key";
     searchCreateMock.mockResolvedValue({
@@ -47,7 +47,7 @@ describe("PerplexityProvider", () => {
       ],
     });
 
-    const provider = new PerplexityProvider();
+    const provider = new PerplexityAdapter();
     const response = await provider.search(
       "government policies on renewable energy",
       5,
@@ -58,7 +58,7 @@ describe("PerplexityProvider", () => {
       {
         enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
-        defaults: {
+        options: {
           search: {
             search_mode: "academic",
           },
@@ -116,7 +116,7 @@ describe("PerplexityProvider", () => {
       ],
     });
 
-    const provider = new PerplexityProvider();
+    const provider = new PerplexityAdapter();
     const response = await provider.answer(
       "What changed?",
       { country: "US" },
@@ -180,7 +180,7 @@ describe("PerplexityProvider", () => {
       },
     });
 
-    const provider = new PerplexityProvider();
+    const provider = new PerplexityAdapter();
     const response = await provider.research(
       "Investigate the topic",
       undefined,
@@ -225,7 +225,7 @@ describe("PerplexityProvider", () => {
       citations: ["https://example.com/fallback"],
     });
 
-    const provider = new PerplexityProvider();
+    const provider = new PerplexityAdapter();
     const response = await provider.answer(
       "What changed?",
       undefined,

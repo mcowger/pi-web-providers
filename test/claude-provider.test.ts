@@ -21,7 +21,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 }));
 
 import {
-  ClaudeProvider,
+  ClaudeAdapter,
   resetClaudeProviderCachesForTests,
 } from "../src/providers/claude.js";
 
@@ -31,11 +31,11 @@ afterEach(() => {
   resetClaudeProviderCachesForTests();
 });
 
-describe("ClaudeProvider", () => {
+describe("ClaudeAdapter", () => {
   it("reports Claude as unavailable when auth status is logged out", () => {
     execFileSyncMock.mockImplementation(mockLoggedOutClaudeStatus);
 
-    const provider = new ClaudeProvider();
+    const provider = new ClaudeAdapter();
 
     expect(
       provider.getStatus(
@@ -55,7 +55,7 @@ describe("ClaudeProvider", () => {
   it("reports Claude as available when auth is available", () => {
     execFileSyncMock.mockImplementation(mockClaudeAvailable);
 
-    const provider = new ClaudeProvider();
+    const provider = new ClaudeAdapter();
 
     expect(
       provider.getStatus(
@@ -80,19 +80,19 @@ describe("ClaudeProvider", () => {
       pathToClaudeCodeExecutable: process.execPath,
     };
 
-    expect(new ClaudeProvider().getStatus(config, process.cwd())).toEqual({
+    expect(new ClaudeAdapter().getStatus(config, process.cwd())).toEqual({
       available: true,
       summary: "enabled",
     });
-    expect(new ClaudeProvider().getStatus(config, process.cwd())).toEqual({
+    expect(new ClaudeAdapter().getStatus(config, process.cwd())).toEqual({
       available: true,
       summary: "enabled",
     });
     expect(execFileSyncMock).toHaveBeenCalledTimes(1);
   });
 
-  it("attaches config policy defaults to Claude operation plans", () => {
-    const provider = new ClaudeProvider();
+  it("attaches config settings to Claude operation plans", () => {
+    const provider = new ClaudeAdapter();
     const plan = provider.buildPlan(
       {
         capability: "search",
@@ -101,7 +101,7 @@ describe("ClaudeProvider", () => {
       },
       {
         enabled: true,
-        policy: {
+        settings: {
           requestTimeoutMs: 1500,
           retryCount: 2,
           retryDelayMs: 250,
@@ -112,7 +112,7 @@ describe("ClaudeProvider", () => {
     expect(plan).toMatchObject({
       deliveryMode: "silent-foreground",
       traits: {
-        policyDefaults: {
+        settings: {
           requestTimeoutMs: 1500,
           retryCount: 2,
           retryDelayMs: 250,
@@ -143,7 +143,7 @@ describe("ClaudeProvider", () => {
       close() {},
     }));
 
-    const provider = new ClaudeProvider();
+    const provider = new ClaudeAdapter();
     await provider.search(
       "latest Claude docs",
       1,
@@ -189,7 +189,7 @@ describe("ClaudeProvider", () => {
       };
     });
 
-    const provider = new ClaudeProvider();
+    const provider = new ClaudeAdapter();
     const controller = new AbortController();
     const searchPromise = provider.search(
       "latest Claude docs",
@@ -230,7 +230,7 @@ describe("ClaudeProvider", () => {
       }),
     );
 
-    const provider = new ClaudeProvider();
+    const provider = new ClaudeAdapter();
     await provider.search(
       "latest Claude docs",
       1,
@@ -247,7 +247,7 @@ describe("ClaudeProvider", () => {
       },
       {
         enabled: true,
-        defaults: {
+        options: {
           model: "claude-sonnet-4-6",
           effort: "medium",
           maxTurns: 3,
@@ -289,7 +289,7 @@ describe("ClaudeProvider", () => {
       }),
     );
 
-    const provider = new ClaudeProvider();
+    const provider = new ClaudeAdapter();
     const response = await provider.answer(
       "What changed?",
       {
@@ -299,7 +299,7 @@ describe("ClaudeProvider", () => {
       },
       {
         enabled: true,
-        defaults: {
+        options: {
           model: "claude-sonnet-4-6",
           maxTurns: 2,
         },

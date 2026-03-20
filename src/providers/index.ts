@@ -1,45 +1,23 @@
-import type {
-  ClaudeProviderConfig,
-  CodexProviderConfig,
-  CustomCliProviderConfig,
-  ExaProviderConfig,
-  GeminiProviderConfig,
-  ParallelProviderConfig,
-  PerplexityProviderConfig,
-  ProviderId,
-  ValyuProviderConfig,
-  WebProvider,
-} from "../types.js";
-import { ClaudeProvider } from "./claude.js";
-import { CodexProvider } from "./codex.js";
-import { CustomCliProvider } from "./custom-cli.js";
-import { ExaProvider } from "./exa.js";
-import { GeminiProvider } from "./gemini.js";
-import { ParallelProvider } from "./parallel.js";
-import { PerplexityProvider } from "./perplexity.js";
-import { ValyuProvider } from "./valyu.js";
+import type { AnyProvider, ProviderId, ProviderAdapter } from "../types.js";
+import { ClaudeAdapter } from "./claude.js";
+import { CodexAdapter } from "./codex.js";
+import { CustomAdapter } from "./custom.js";
+import { ExaAdapter } from "./exa.js";
+import { GeminiAdapter } from "./gemini.js";
+import { ParallelAdapter } from "./parallel.js";
+import { PerplexityAdapter } from "./perplexity.js";
+import { ValyuAdapter } from "./valyu.js";
 
-const claudeProvider = new ClaudeProvider();
-const codexProvider = new CodexProvider();
-const exaProvider = new ExaProvider();
-const geminiProvider = new GeminiProvider();
-const perplexityProvider = new PerplexityProvider();
-const parallelProvider = new ParallelProvider();
-const valyuProvider = new ValyuProvider();
-const customCliProvider = new CustomCliProvider();
+const claudeProvider = new ClaudeAdapter();
+const codexProvider = new CodexAdapter();
+const exaProvider = new ExaAdapter();
+const geminiProvider = new GeminiAdapter();
+const perplexityProvider = new PerplexityAdapter();
+const parallelProvider = new ParallelAdapter();
+const valyuProvider = new ValyuAdapter();
+const customProvider = new CustomAdapter();
 
-export const PROVIDERS: ReadonlyArray<
-  WebProvider<
-    | ClaudeProviderConfig
-    | CodexProviderConfig
-    | CustomCliProviderConfig
-    | ExaProviderConfig
-    | GeminiProviderConfig
-    | PerplexityProviderConfig
-    | ParallelProviderConfig
-    | ValyuProviderConfig
-  >
-> = [
+export const ADAPTERS: ReadonlyArray<ProviderAdapter<AnyProvider>> = [
   claudeProvider,
   codexProvider,
   exaProvider,
@@ -47,25 +25,16 @@ export const PROVIDERS: ReadonlyArray<
   perplexityProvider,
   parallelProvider,
   valyuProvider,
-  customCliProvider,
+  customProvider,
 ];
 
-export const PROVIDER_MAP: Record<
+export const ADAPTERS_BY_ID: Record<
   ProviderId,
-  WebProvider<
-    | ClaudeProviderConfig
-    | CodexProviderConfig
-    | CustomCliProviderConfig
-    | ExaProviderConfig
-    | GeminiProviderConfig
-    | PerplexityProviderConfig
-    | ParallelProviderConfig
-    | ValyuProviderConfig
-  >
+  ProviderAdapter<AnyProvider>
 > = {
   claude: claudeProvider,
   codex: codexProvider,
-  "custom-cli": customCliProvider,
+  custom: customProvider,
   exa: exaProvider,
   gemini: geminiProvider,
   perplexity: perplexityProvider,

@@ -40,7 +40,7 @@ After:
 }
 ```
 
-Per-provider `tools` toggles are removed and shared execution defaults (`requestTimeoutMs`, `retryCount`, `retryDelayMs`, and the research lifecycle settings) move from per-provider `policy` blocks into a top-level `genericSettings` section. Provider-specific `policy` overrides still take precedence. The `/web-providers` settings command now has three sections: tool routing, provider settings, and generic settings. Existing config files must be migrated to the new format.
+Per-provider `tools` toggles are removed and shared execution defaults (`requestTimeoutMs`, `retryCount`, `retryDelayMs`, and the research lifecycle settings) move from per-provider `policy` blocks into a top-level `settings` section. Provider-specific `policy` overrides still take precedence. The `/web-providers` settings command now has three sections: tool routing, provider settings, and shared settings. Existing config files must be migrated to the new format.
 
 *By @mavam and @codex.*
 
@@ -94,7 +94,7 @@ Gemini research exceeded 6h. Resume the background job with
 options.resumeId="abc123".
 ```
 
-All settings are configurable per provider in `~/.pi/agent/web-providers.json`, with provider-native knobs under `native` and parent-managed runtime controls under `policy`.
+All settings are configurable per provider in `~/.pi/agent/web-providers.json`, with provider-specific knobs under `options` and parent-managed runtime controls under `policy`.
 
 *By @mavam and @claude.*
 

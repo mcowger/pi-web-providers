@@ -5,15 +5,11 @@ import {
   runWithExecutionPolicy,
   stripLocalExecutionOptions,
 } from "../src/execution-policy.js";
-import type {
-  GeminiProviderConfig,
-  JsonObject,
-  ProviderContext,
-} from "../src/types.js";
+import type { Gemini, ProviderContext } from "../src/types.js";
 
 describe("execution policy", () => {
   it("strips local execution control fields before calling providers", () => {
-    const options: JsonObject = {
+    const options: Record<string, unknown> = {
       model: "gemini-2.5-pro",
       requestTimeoutMs: 45000,
       retryCount: 4,
@@ -30,10 +26,10 @@ describe("execution policy", () => {
   });
 
   it("uses Gemini config defaults for parent-side request execution", () => {
-    const config: GeminiProviderConfig = {
+    const config: Gemini = {
       enabled: true,
       apiKey: "literal-key",
-      defaults: {
+      settings: {
         requestTimeoutMs: 45000,
         retryCount: 5,
         retryDelayMs: 4000,
@@ -42,9 +38,9 @@ describe("execution policy", () => {
 
     expect(
       resolveRequestExecutionPolicy(undefined, {
-        requestTimeoutMs: config.defaults?.requestTimeoutMs,
-        retryCount: config.defaults?.retryCount,
-        retryDelayMs: config.defaults?.retryDelayMs,
+        requestTimeoutMs: config.settings?.requestTimeoutMs,
+        retryCount: config.settings?.retryCount,
+        retryDelayMs: config.settings?.retryDelayMs,
       }),
     ).toEqual({
       requestTimeoutMs: 45000,
@@ -178,7 +174,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext(progress),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 1,
           retryDelayMs: 1,
@@ -236,7 +232,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext(progress),
-        policy: {
+        settings: {
           requestTimeoutMs: 10,
           retryCount: 1,
           retryDelayMs: 1,
@@ -284,7 +280,7 @@ describe("execution policy", () => {
         providerLabel: "Exa",
         providerId: "exa",
         context: createContext([]),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 0,
           retryDelayMs: 1,
@@ -315,7 +311,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext([]),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 1,
           retryDelayMs: 1,
@@ -337,7 +333,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext([]),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 1,
           retryDelayMs: 1,
@@ -364,7 +360,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext([]),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 0,
           retryDelayMs: 1,
@@ -394,7 +390,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext([]),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 0,
           retryDelayMs: 1,
@@ -430,7 +426,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext([]),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 0,
           retryDelayMs: 1,
@@ -475,7 +471,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext(progress),
-        policy: {
+        settings: {
           requestTimeoutMs: 10,
           retryCount: 0,
           retryDelayMs: 1,
@@ -522,7 +518,7 @@ describe("execution policy", () => {
         providerLabel: "Gemini",
         providerId: "gemini",
         context: createContext(progress),
-        policy: {
+        settings: {
           requestTimeoutMs: undefined,
           retryCount: 0,
           retryDelayMs: 1,

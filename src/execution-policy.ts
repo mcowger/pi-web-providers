@@ -1,11 +1,10 @@
 import type {
-  ExecutionPolicyDefaults,
-  JsonObject,
+  ExecutionSettings,
   ProviderContext,
   ProviderId,
-  ProviderResearchJob,
-  ProviderResearchPollResult,
-  ProviderToolOutput,
+  ResearchJob,
+  ResearchPollResult,
+  ToolOutput,
 } from "./types.js";
 
 const DEFAULT_RESEARCH_POLL_INTERVAL_MS = 3000;
@@ -44,8 +43,8 @@ export interface LocalExecutionOptions {
 }
 
 export function stripLocalExecutionOptions(
-  options: Record<string, unknown> | JsonObject | undefined,
-): JsonObject | undefined {
+  options: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
   if (!options) {
     return undefined;
   }
@@ -62,11 +61,13 @@ export function stripLocalExecutionOptions(
     ...rest
   } = options;
 
-  return Object.keys(rest).length > 0 ? (rest as JsonObject) : undefined;
+  return Object.keys(rest).length > 0
+    ? (rest as Record<string, unknown>)
+    : undefined;
 }
 
 export function parseLocalExecutionOptions(
-  options: Record<string, unknown> | JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
 ): LocalExecutionOptions {
   return {
     requestTimeoutMs: parseOptionalPositiveIntegerOption(
@@ -89,10 +90,10 @@ export function parseLocalExecutionOptions(
 }
 
 export function extractExecutionPolicyDefaults(
-  options: Record<string, unknown> | JsonObject | undefined,
-): ExecutionPolicyDefaults | undefined {
+  options: Record<string, unknown> | undefined,
+): ExecutionSettings | undefined {
   const localOptions = parseLocalExecutionOptions(options);
-  const defaults: ExecutionPolicyDefaults = {
+  const defaults: ExecutionSettings = {
     requestTimeoutMs: localOptions.requestTimeoutMs,
     retryCount: localOptions.retryCount,
     retryDelayMs: localOptions.retryDelayMs,
@@ -107,8 +108,8 @@ export function extractExecutionPolicyDefaults(
 }
 
 export function resolveRequestExecutionPolicy(
-  options: JsonObject | undefined,
-  defaults: ExecutionPolicyDefaults | undefined,
+  options: Record<string, unknown> | undefined,
+  defaults: ExecutionSettings | undefined,
 ): RequestExecutionPolicy {
   const localOptions = parseLocalExecutionOptions(options);
 
@@ -121,8 +122,8 @@ export function resolveRequestExecutionPolicy(
 }
 
 export function resolveResearchExecutionPolicy(
-  options: JsonObject | undefined,
-  defaults: ExecutionPolicyDefaults | undefined,
+  options: Record<string, unknown> | undefined,
+  defaults: ExecutionSettings | undefined,
 ): ResearchExecutionPolicy {
   const localOptions = parseLocalExecutionOptions(options);
   const request = resolveRequestExecutionPolicy(options, defaults);
@@ -145,10 +146,10 @@ export function resolveResearchExecutionPolicy(
 export async function runWithExecutionPolicy<T>(
   label: string,
   operation: (context: ProviderContext) => Promise<T>,
-  policy: RequestExecutionPolicy,
+  settings: RequestExecutionPolicy,
   context: ProviderContext,
 ): Promise<T> {
-  const maxAttempts = Math.max(1, policy.retryCount + 1);
+  const maxAttempts = Math.max(1, settings.retryCount + 1);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     throwIfAborted(context.signal);
@@ -162,12 +163,12 @@ export async function runWithExecutionPolicy<T>(
     try {
       const result = operation(attemptContext);
       const timeoutMessage =
-        policy.requestTimeoutMs === undefined
+        settings.requestTimeoutMs === undefined
           ? undefined
-          : `${label} timed out after ${formatDuration(policy.requestTimeoutMs)}.`;
+          : `${label} timed out after ${formatDuration(settings.requestTimeoutMs)}.`;
       return await withAbortAndOptionalTimeout(
         result,
-        policy.requestTimeoutMs,
+        settings.requestTimeoutMs,
         context.signal,
         timeoutMessage,
         timeoutMessage
@@ -175,12 +176,12 @@ export async function runWithExecutionPolicy<T>(
           : undefined,
       );
     } catch (error) {
-      if (!shouldRetryError(error, policy) || attempt >= maxAttempts) {
+      if (!shouldRetryError(error, settings) || attempt >= maxAttempts) {
         throw error;
       }
 
       const delayMs = Math.min(
-        policy.retryDelayMs * 2 ** (attempt - 1),
+        settings.retryDelayMs * 2 ** (attempt - 1),
         MAX_RETRY_DELAY_MS,
       );
       context.onProgress?.(
@@ -199,7 +200,7 @@ export async function executeResearchWithLifecycle({
   providerLabel,
   providerId,
   context,
-  policy,
+  settings,
   startRetryCount = 0,
   startRetryNotice,
   startIdempotencyKey,
@@ -212,33 +213,30 @@ export async function executeResearchWithLifecycle({
   providerLabel: string;
   providerId: ProviderId;
   context: ProviderContext;
-  policy: ResearchExecutionPolicy;
+  settings: ResearchExecutionPolicy;
   startRetryCount?: number;
   startRetryNotice?: string;
   startIdempotencyKey?: string;
   startRetryOnTimeout?: boolean;
   startRequestTimeoutMs?: number | null;
   pollRequestTimeoutMs?: number | null;
-  start: (context: ProviderContext) => Promise<ProviderResearchJob>;
-  poll: (
-    id: string,
-    context: ProviderContext,
-  ) => Promise<ProviderResearchPollResult>;
-}): Promise<ProviderToolOutput> {
+  start: (context: ProviderContext) => Promise<ResearchJob>;
+  poll: (id: string, context: ProviderContext) => Promise<ResearchPollResult>;
+}): Promise<ToolOutput> {
   const effectiveStartRequestTimeoutMs =
     startRequestTimeoutMs === undefined
-      ? policy.requestTimeoutMs
+      ? settings.requestTimeoutMs
       : (startRequestTimeoutMs ?? undefined);
   const effectivePollRequestTimeoutMs =
     pollRequestTimeoutMs === undefined
-      ? policy.requestTimeoutMs
+      ? settings.requestTimeoutMs
       : (pollRequestTimeoutMs ?? undefined);
   const timeoutMessage =
-    policy.timeoutMs === undefined
+    settings.timeoutMs === undefined
       ? undefined
-      : `${providerLabel} research exceeded ${formatDuration(policy.timeoutMs)}.`;
+      : `${providerLabel} research exceeded ${formatDuration(settings.timeoutMs)}.`;
 
-  let lastStatus: ProviderResearchPollResult["status"] | undefined;
+  let lastStatus: ResearchPollResult["status"] | undefined;
   let lifecycleStartedAt = Date.now();
   let lifecycleSignal = context.signal;
   let cleanupLifecycle = () => {};
@@ -250,7 +248,7 @@ export async function executeResearchWithLifecycle({
   const activateLifecycleDeadline = () => {
     const deadline = createDeadlineSignal(
       context.signal,
-      policy.timeoutMs,
+      settings.timeoutMs,
       timeoutMessage,
     );
     lifecycleSignal = deadline.signal;
@@ -262,7 +260,7 @@ export async function executeResearchWithLifecycle({
     };
   };
 
-  let jobId = policy.resumeId;
+  let jobId = settings.resumeId;
   activateLifecycleDeadline();
 
   try {
@@ -283,7 +281,7 @@ export async function executeResearchWithLifecycle({
             idempotencyKey: startIdempotencyKey,
           }),
         {
-          ...policy,
+          ...settings,
           requestTimeoutMs: effectiveStartRequestTimeoutMs,
           retryCount: startRetryCount,
           retryOnTimeout: startRetryOnTimeout,
@@ -313,7 +311,7 @@ export async function executeResearchWithLifecycle({
           `${providerLabel} research poll`,
           (attemptContext) => poll(jobId!, attemptContext),
           {
-            ...policy,
+            ...settings,
             requestTimeoutMs: effectivePollRequestTimeoutMs,
           },
           lifecycleContext,
@@ -357,7 +355,7 @@ export async function executeResearchWithLifecycle({
         }
 
         consecutivePollErrors += 1;
-        if (consecutivePollErrors >= policy.maxConsecutivePollErrors) {
+        if (consecutivePollErrors >= settings.maxConsecutivePollErrors) {
           throw buildResumeError(
             `${providerLabel} research polling failed too many times in a row: ${formatErrorMessage(error)}`,
             jobId,
@@ -365,11 +363,11 @@ export async function executeResearchWithLifecycle({
         }
 
         lifecycleContext.onProgress?.(
-          `${providerLabel} research poll is still retrying after transient errors (${consecutivePollErrors}/${policy.maxConsecutivePollErrors} consecutive poll failures). Background job id: ${jobId}`,
+          `${providerLabel} research poll is still retrying after transient errors (${consecutivePollErrors}/${settings.maxConsecutivePollErrors} consecutive poll failures). Background job id: ${jobId}`,
         );
       }
 
-      await sleep(policy.pollIntervalMs, lifecycleContext.signal);
+      await sleep(settings.pollIntervalMs, lifecycleContext.signal);
     }
   } catch (error) {
     if (isAbortErrorFromSignal(lifecycleContext.signal, error)) {
@@ -388,10 +386,10 @@ export async function executeResearchWithLifecycle({
 
 function shouldRetryError(
   error: unknown,
-  policy: Pick<RequestExecutionPolicy, "retryOnTimeout">,
+  settings: Pick<RequestExecutionPolicy, "retryOnTimeout">,
 ): boolean {
   if (error instanceof RequestTimeoutError) {
-    return policy.retryOnTimeout === true;
+    return settings.retryOnTimeout === true;
   }
 
   return isRetryableError(error);
@@ -648,7 +646,7 @@ function normalizeError(error: unknown): Error {
 }
 
 function parseOptionalPositiveIntegerOption(
-  options: Record<string, unknown> | JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
   key: keyof Pick<
     LocalExecutionOptions,
     | "requestTimeoutMs"
@@ -671,7 +669,7 @@ function parseOptionalPositiveIntegerOption(
 }
 
 function parseOptionalNonNegativeIntegerOption(
-  options: Record<string, unknown> | JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
   key: "retryCount",
 ): number | undefined {
   const value = options?.[key];
@@ -687,7 +685,7 @@ function parseOptionalNonNegativeIntegerOption(
 }
 
 function parseOptionalNonEmptyStringOption(
-  options: Record<string, unknown> | JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
   key: "resumeId",
 ): string | undefined {
   const value = options?.[key];

@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GeminiProvider } from "../src/providers/gemini.js";
-import type { GeminiProviderConfig, ProviderContext } from "../src/types.js";
+import { GeminiAdapter } from "../src/providers/gemini.js";
+import type { Gemini, ProviderContext } from "../src/types.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-describe("GeminiProvider search", () => {
+describe("GeminiAdapter search", () => {
   it("forces Google Search via interactions and returns search results", async () => {
     const create = vi.fn().mockResolvedValue({
       outputs: [
@@ -262,8 +262,8 @@ describe("GeminiProvider search", () => {
   });
 });
 
-describe("GeminiProvider answer", () => {
-  it("supports provider-native request options for answers while keeping Google Search grounding enabled", async () => {
+describe("GeminiAdapter answer", () => {
+  it("supports provider-specific request options for answers while keeping Google Search grounding enabled", async () => {
     const generateContent = vi.fn().mockResolvedValue({
       text: "Grounded answer",
       candidates: [],
@@ -354,7 +354,7 @@ describe("GeminiProvider answer", () => {
   });
 });
 
-describe("GeminiProvider contents", () => {
+describe("GeminiAdapter contents", () => {
   it("extracts URL content via urlContext and reports retrieval metadata", async () => {
     const generateContent = vi.fn().mockResolvedValue({
       text: "# Example Page\n\nThis is the main content of the page.",
@@ -583,7 +583,7 @@ describe("GeminiProvider contents", () => {
     });
   });
 
-  it("passes provider-native generateContent config for contents", async () => {
+  it("passes provider-specific generateContent config for contents", async () => {
     const generateContent = vi.fn().mockResolvedValue({
       text: "Result.",
       candidates: [],
@@ -611,7 +611,7 @@ describe("GeminiProvider contents", () => {
     );
   });
 
-  it("supports provider-native request options for contents while preserving urlContext", async () => {
+  it("supports provider-specific request options for contents while preserving urlContext", async () => {
     const generateContent = vi.fn().mockResolvedValue({
       text: "Result.",
       candidates: [],
@@ -769,8 +769,8 @@ describe("GeminiProvider contents", () => {
   });
 });
 
-describe("GeminiProvider research", () => {
-  it("starts Gemini deep research and forwards provider-native request options", async () => {
+describe("GeminiAdapter research", () => {
+  it("starts Gemini deep research and forwards provider-specific request options", async () => {
     const create = vi.fn().mockResolvedValue({ id: "research-1" });
 
     const provider = createProvider({
@@ -893,17 +893,17 @@ describe("GeminiProvider research", () => {
   });
 });
 
-function createProvider(client: unknown): GeminiProvider {
-  const provider = new GeminiProvider() as any;
+function createProvider(client: unknown): GeminiAdapter {
+  const provider = new GeminiAdapter() as any;
   provider.createClient = () => client;
-  return provider as GeminiProvider;
+  return provider as GeminiAdapter;
 }
 
-function createConfig(): GeminiProviderConfig {
+function createConfig(): Gemini {
   return {
     enabled: true,
     apiKey: "literal-key",
-    defaults: {
+    options: {
       searchModel: "gemini-2.5-flash",
     },
   };

@@ -1,4 +1,4 @@
-import type { ExecutionPolicyDefaults } from "./types.js";
+import type { ExecutionSettings } from "./types.js";
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 export const DEFAULT_RETRY_COUNT = 3;
@@ -8,9 +8,9 @@ export const DEFAULT_RESEARCH_TIMEOUT_MS = 21600000;
 export const DEFAULT_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS = 3;
 export const DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS = 10;
 
-export function createDefaultLifecyclePolicy(
-  overrides: Partial<ExecutionPolicyDefaults> = {},
-): ExecutionPolicyDefaults {
+export function createDefaultExecutionSettings(
+  overrides: Partial<ExecutionSettings> = {},
+): ExecutionSettings {
   return {
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     retryCount: DEFAULT_RETRY_COUNT,

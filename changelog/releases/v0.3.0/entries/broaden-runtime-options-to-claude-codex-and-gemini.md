@@ -13,7 +13,7 @@ each request without changing the shared tool interface.
 
 Claude supports `model`, `effort`, `maxTurns`, `maxThinkingTokens`,
 `maxBudgetUsd`, and a `thinking` object. Codex supports `model`,
-`modelReasoningEffort`, and `webSearchMode`. Gemini supports provider-native
+`modelReasoningEffort`, and `webSearchMode`. Gemini supports provider-specific
 options: `model` plus `generation_config` for search, `model` plus `config` for
 answer and contents, and caller-supplied research options passed through to the
 underlying API.

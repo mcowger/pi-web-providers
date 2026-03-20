@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
-import type { JsonObject, JsonValue } from "./types.js";
 
 export type ContentStoreEntryStatus = "pending" | "ready" | "failed";
 
-export interface ContentStoreEntry<TValue extends JsonValue = JsonValue> {
+export interface ContentStoreEntry<TValue = unknown> {
   key: string;
   kind: string;
   status: ContentStoreEntryStatus;
@@ -12,18 +11,16 @@ export interface ContentStoreEntry<TValue extends JsonValue = JsonValue> {
   expiresAt?: number;
   value?: TValue;
   error?: string;
-  metadata?: JsonObject;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ContentStore {
-  get<TValue extends JsonValue = JsonValue>(
+  get<TValue = unknown>(
     key: string,
   ): Promise<ContentStoreEntry<TValue> | undefined>;
-  put<TValue extends JsonValue = JsonValue>(
-    entry: ContentStoreEntry<TValue>,
-  ): Promise<void>;
+  put<TValue = unknown>(entry: ContentStoreEntry<TValue>): Promise<void>;
   delete(key: string): Promise<void>;
-  listByKind<TValue extends JsonValue = JsonValue>(
+  listByKind<TValue = unknown>(
     kind: string,
   ): Promise<Array<ContentStoreEntry<TValue>>>;
   cleanup(now?: number): Promise<void>;
@@ -36,15 +33,13 @@ export class MemoryContentStore implements ContentStore {
     this.entries.clear();
   }
 
-  async get<TValue extends JsonValue = JsonValue>(
+  async get<TValue = unknown>(
     key: string,
   ): Promise<ContentStoreEntry<TValue> | undefined> {
     return this.entries.get(key) as ContentStoreEntry<TValue> | undefined;
   }
 
-  async put<TValue extends JsonValue = JsonValue>(
-    entry: ContentStoreEntry<TValue>,
-  ): Promise<void> {
+  async put<TValue = unknown>(entry: ContentStoreEntry<TValue>): Promise<void> {
     this.entries.set(entry.key, entry as ContentStoreEntry);
   }
 
@@ -52,7 +47,7 @@ export class MemoryContentStore implements ContentStore {
     this.entries.delete(key);
   }
 
-  async listByKind<TValue extends JsonValue = JsonValue>(
+  async listByKind<TValue = unknown>(
     kind: string,
   ): Promise<Array<ContentStoreEntry<TValue>>> {
     const result: Array<ContentStoreEntry<TValue>> = [];

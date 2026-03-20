@@ -1,4 +1,4 @@
-# Custom CLI wrapper examples
+# Custom wrapper examples
 
 These examples keep the wrapper logic small. They are bash scripts that use
 `jq` for JSON handling. Each wrapper uses a different backend pattern:
@@ -30,27 +30,27 @@ You need:
 
 ```bash
 mkdir -p ./wrappers
-cp examples/custom-cli/wrappers/codex-search.sh ./wrappers/
-cp examples/custom-cli/wrappers/gemini-contents.sh ./wrappers/
-cp examples/custom-cli/wrappers/claude-answer.sh ./wrappers/
-cp examples/custom-cli/wrappers/perplexity-research.sh ./wrappers/
+cp examples/custom/wrappers/codex-search.sh ./wrappers/
+cp examples/custom/wrappers/gemini-contents.sh ./wrappers/
+cp examples/custom/wrappers/claude-answer.sh ./wrappers/
+cp examples/custom/wrappers/perplexity-research.sh ./wrappers/
 chmod +x ./wrappers/*.sh
 ```
 
-Then configure `custom-cli` like this:
+Then configure `custom` like this:
 
 ```json
 {
   "tools": {
-    "search": "custom-cli",
-    "contents": "custom-cli",
-    "answer": "custom-cli",
-    "research": "custom-cli"
+    "search": "custom",
+    "contents": "custom",
+    "answer": "custom",
+    "research": "custom"
   },
   "providers": {
-    "custom-cli": {
+    "custom": {
       "enabled": true,
-      "native": {
+      "options": {
         "search": {
           "argv": ["bash", "./wrappers/codex-search.sh"]
         },
@@ -70,7 +70,7 @@ Then configure `custom-cli` like this:
 ```
 
 `web_research` runs as a foreground wrapper command, so polling controls and
-`resumeId` do not apply to `custom-cli`.
+`resumeId` do not apply to `custom`.
 
 ## Core command shapes
 
@@ -132,7 +132,7 @@ printf '%s' '{
   "maxResults": 5,
   "options": {},
   "cwd": "'"$PWD"'"
-}' | bash examples/custom-cli/wrappers/codex-search.sh
+}' | bash examples/custom/wrappers/codex-search.sh
 ```
 
 ### Contents
@@ -143,7 +143,7 @@ printf '%s' '{
   "urls": ["https://example.com"],
   "options": {},
   "cwd": "'"$PWD"'"
-}' | bash examples/custom-cli/wrappers/gemini-contents.sh
+}' | bash examples/custom/wrappers/gemini-contents.sh
 ```
 
 ### Answer
@@ -154,7 +154,7 @@ printf '%s' '{
   "query": "What changed in the latest Claude Code release?",
   "options": {},
   "cwd": "'"$PWD"'"
-}' | bash examples/custom-cli/wrappers/claude-answer.sh
+}' | bash examples/custom/wrappers/claude-answer.sh
 ```
 
 ### Research
@@ -165,7 +165,7 @@ printf '%s' '{
   "input": "Compare current local agent CLIs for web-grounded tasks.",
   "options": {},
   "cwd": "'"$PWD"'"
-}' | bash examples/custom-cli/wrappers/perplexity-research.sh
+}' | bash examples/custom/wrappers/perplexity-research.sh
 ```
 
 ## Request and response contract

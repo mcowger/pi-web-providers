@@ -9,13 +9,13 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
-  ClaudeProviderConfig,
+  Claude,
   ProviderContext,
   ProviderOperationRequest,
   ProviderStatus,
-  ProviderToolOutput,
+  ToolOutput,
   SearchResponse,
-  WebProvider,
+  ProviderAdapter,
 } from "../types.js";
 import { trimSnippet } from "./shared.js";
 
@@ -79,23 +79,20 @@ interface ClaudeAnswerOutput {
   }>;
 }
 
-export class ClaudeProvider implements WebProvider<ClaudeProviderConfig> {
+export class ClaudeAdapter implements ProviderAdapter<Claude> {
   readonly id: "claude" = "claude";
   readonly label = "Claude";
   readonly docsUrl =
     "https://github.com/anthropics/claude-agent-sdk-typescript";
-  readonly capabilities = ["search", "answer"] as const;
+  readonly tools = ["search", "answer"] as const;
 
-  createTemplate(): ClaudeProviderConfig {
+  createTemplate(): Claude {
     return {
       enabled: false,
     };
   }
 
-  getStatus(
-    config: ClaudeProviderConfig | undefined,
-    _cwd: string,
-  ): ProviderStatus {
+  getStatus(config: Claude | undefined, _cwd: string): ProviderStatus {
     if (!config) {
       return { available: false, summary: "not configured" };
     }
@@ -113,7 +110,7 @@ export class ClaudeProvider implements WebProvider<ClaudeProviderConfig> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: ClaudeProviderConfig) {
+  buildPlan(request: ProviderOperationRequest, config: Claude) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -148,7 +145,7 @@ export class ClaudeProvider implements WebProvider<ClaudeProviderConfig> {
     queryText: string,
     maxResults: number,
     options: Record<string, unknown> | undefined,
-    config: ClaudeProviderConfig,
+    config: Claude,
     context: ProviderContext,
   ): Promise<SearchResponse> {
     const output = parseClaudeSearchOutput(
@@ -185,9 +182,9 @@ export class ClaudeProvider implements WebProvider<ClaudeProviderConfig> {
   async answer(
     queryText: string,
     options: Record<string, unknown> | undefined,
-    config: ClaudeProviderConfig,
+    config: Claude,
     context: ProviderContext,
-  ): Promise<ProviderToolOutput> {
+  ): Promise<ToolOutput> {
     const output = parseClaudeAnswerOutput(
       await this.runStructuredQuery<ClaudeAnswerOutput>({
         prompt: [
@@ -239,7 +236,7 @@ export class ClaudeProvider implements WebProvider<ClaudeProviderConfig> {
     prompt: string;
     schema: Record<string, unknown>;
     tools: string[];
-    config: ClaudeProviderConfig;
+    config: Claude;
     context: ProviderContext;
     options: Record<string, unknown> | undefined;
   }): Promise<T> {
@@ -318,9 +315,7 @@ const CLAUDE_AUTH_CACHE_TTL_MS = 5_000;
 let defaultClaudeExecutablePath: string | undefined;
 const claudeAuthStatusCache = new Map<string, CachedClaudeAuthStatus>();
 
-function resolveClaudeExecutablePath(
-  config: ClaudeProviderConfig,
-): string | undefined {
+function resolveClaudeExecutablePath(config: Claude): string | undefined {
   if (config.pathToClaudeCodeExecutable) {
     return config.pathToClaudeCodeExecutable;
   }
@@ -463,11 +458,11 @@ function parseStructuredOutput<T>(result: SDKResultMessage): T {
 }
 
 function getClaudeRuntimeOptions(
-  config: ClaudeProviderConfig,
+  config: Claude,
   options: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
-  const native = config.native ?? config.defaults;
-  const model = readNonEmptyString(options?.model) ?? native?.model;
+  const providerOptions = config.options;
+  const model = readNonEmptyString(options?.model) ?? providerOptions?.model;
   const effort = readEnum(options?.effort, ["low", "medium", "high", "max"]);
   const maxTurns = readPositiveInteger(options?.maxTurns);
   const maxThinkingTokens = readNonNegativeInteger(options?.maxThinkingTokens);
@@ -478,9 +473,11 @@ function getClaudeRuntimeOptions(
 
   return {
     ...(model ? { model } : {}),
-    ...((effort ?? native?.effort) ? { effort: effort ?? native?.effort } : {}),
-    ...((maxTurns ?? native?.maxTurns)
-      ? { maxTurns: maxTurns ?? native?.maxTurns }
+    ...((effort ?? providerOptions?.effort)
+      ? { effort: effort ?? providerOptions?.effort }
+      : {}),
+    ...((maxTurns ?? providerOptions?.maxTurns)
+      ? { maxTurns: maxTurns ?? providerOptions?.maxTurns }
       : {}),
     ...(maxThinkingTokens !== undefined ? { maxThinkingTokens } : {}),
     ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),

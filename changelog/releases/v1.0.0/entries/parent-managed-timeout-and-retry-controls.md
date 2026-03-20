@@ -44,5 +44,5 @@ options.resumeId="abc123".
 ```
 
 All settings are configurable per provider in
-`~/.pi/agent/web-providers.json`, with provider-native knobs under `native`
+`~/.pi/agent/web-providers.json`, with provider-specific knobs under `options`
 and parent-managed runtime controls under `policy`.

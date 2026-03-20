@@ -5,7 +5,7 @@
     "answer": null,
     "research": null
   },
-  "genericSettings": {
+  "settings": {
     "requestTimeoutMs": 30000,
     "retryCount": 3,
     "retryDelayMs": 2000,
@@ -19,19 +19,19 @@
     },
     "codex": {
       "enabled": true,
-      "native": {
+      "options": {
         "networkAccessEnabled": true,
         "webSearchEnabled": true,
         "webSearchMode": "live"
       }
     },
-    "custom-cli": {
+    "custom": {
       "enabled": false
     },
     "exa": {
       "enabled": false,
       "apiKey": "EXA_API_KEY",
-      "native": {
+      "options": {
         "type": "auto",
         "contents": {
           "text": true
@@ -41,19 +41,19 @@
     "gemini": {
       "enabled": false,
       "apiKey": "GOOGLE_API_KEY",
-      "native": {
+      "options": {
         "searchModel": "gemini-2.5-flash",
         "answerModel": "gemini-2.5-flash",
         "researchAgent": "deep-research-pro-preview-12-2025"
       },
-      "policy": {
+      "settings": {
         "researchMaxConsecutivePollErrors": 10
       }
     },
     "perplexity": {
       "enabled": false,
       "apiKey": "PERPLEXITY_API_KEY",
-      "native": {
+      "options": {
         "answer": {
           "model": "sonar"
         },
@@ -65,7 +65,7 @@
     "parallel": {
       "enabled": false,
       "apiKey": "PARALLEL_API_KEY",
-      "native": {
+      "options": {
         "search": {
           "mode": "agentic"
         },
@@ -78,7 +78,7 @@
     "valyu": {
       "enabled": false,
       "apiKey": "VALYU_API_KEY",
-      "native": {
+      "options": {
         "searchType": "all",
         "responseLength": "short"
       }

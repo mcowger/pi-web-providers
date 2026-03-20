@@ -1,12 +1,12 @@
-A new custom-cli provider routes any managed tool through local wrapper commands, making it easy to integrate additional agent SDKs without adding a first-class provider. In-flight progress messages now also use consistent naming and capitalization across all providers.
+A new custom provider routes any managed tool through local wrapper commands, making it easy to integrate additional agent SDKs without adding a first-class provider. In-flight progress messages now also use consistent naming and capitalization across all providers.
 
 ## 🚀 Features
 
-### Custom CLI provider for local agent wrappers
+### Custom provider for local agent wrappers
 
-`pi-web-providers` now supports a `custom-cli` provider that runs caller-configured local commands for `web_search`, `web_contents`, `web_answer`, and `web_research`.
+`pi-web-providers` now supports a `custom` provider that runs caller-configured local commands for `web_search`, `web_contents`, `web_answer`, and `web_research`.
 
-Each capability can point at its own wrapper command under `providers["custom-cli"].native`. Wrappers read one JSON request from `stdin`, write one JSON response to `stdout`, and can stream progress updates on `stderr`.
+Each capability can point at its own wrapper command under `providers["custom"].options`. Wrappers read one JSON request from `stdin`, write one JSON response to `stdout`, and can stream progress updates on `stderr`.
 
 This makes it easy to integrate additional local agent SDKs or CLIs without adding a dedicated first-class provider. For example, you can route `web_search` through a Codex wrapper, `web_contents` through a Gemini wrapper, and `web_answer` through a Claude wrapper while keeping the shared managed tool surface unchanged.
 

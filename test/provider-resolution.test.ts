@@ -20,11 +20,11 @@ vi.mock("node:child_process", async () => {
 
 import {
   getEffectiveProviderConfig,
-  resolveProviderChoice,
-  resolveProviderForCapability,
+  resolveSearchProvider,
+  resolveProviderForTool,
 } from "../src/provider-resolution.js";
 import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
-import type { WebProvidersConfig } from "../src/types.js";
+import type { WebProviders } from "../src/types.js";
 
 const originalHome = process.env.HOME;
 const cleanupDirs: string[] = [];
@@ -69,7 +69,7 @@ describe("provider resolution", () => {
       },
     });
 
-    const provider = resolveProviderChoice(config, process.cwd(), "exa");
+    const provider = resolveSearchProvider(config, process.cwd(), "exa");
     expect(provider.id).toBe("exa");
   });
 
@@ -81,7 +81,7 @@ describe("provider resolution", () => {
     });
 
     expect(() =>
-      resolveProviderChoice(config, process.cwd(), "claude"),
+      resolveSearchProvider(config, process.cwd(), "claude"),
     ).toThrow(/Provider 'claude' is not available: missing Claude auth/);
   });
 
@@ -99,14 +99,14 @@ describe("provider resolution", () => {
       },
     });
 
-    const provider = resolveProviderChoice(config, process.cwd());
+    const provider = resolveSearchProvider(config, process.cwd());
     expect(provider.id).toBe("exa");
   });
 
   it("does not fall back when search is unmapped", () => {
     process.env.CODEX_API_KEY = "test-key";
 
-    expect(() => resolveProviderChoice(createConfig(), process.cwd())).toThrow(
+    expect(() => resolveSearchProvider(createConfig(), process.cwd())).toThrow(
       /No provider is configured for 'search'/,
     );
   });
@@ -121,7 +121,7 @@ describe("provider resolution", () => {
       },
     });
 
-    expect(() => resolveProviderChoice(config, process.cwd())).toThrow(
+    expect(() => resolveSearchProvider(config, process.cwd())).toThrow(
       /Provider 'codex' is not available: missing Codex auth/,
     );
   });
@@ -140,23 +140,19 @@ describe("provider resolution", () => {
       },
     });
 
-    const provider = resolveProviderForCapability(
-      config,
-      process.cwd(),
-      "contents",
-    );
+    const provider = resolveProviderForTool(config, process.cwd(), "contents");
     expect(provider.id).toBe("parallel");
   });
 
-  it("rejects Custom CLI when the mapped capability has no command configured", () => {
+  it("rejects Custom when the mapped capability has no command configured", () => {
     const config = createConfig({
       tools: {
-        search: "custom-cli",
+        search: "custom",
       },
       providers: {
-        "custom-cli": {
+        custom: {
           enabled: true,
-          native: {
+          options: {
             answer: {
               argv: [process.execPath, "./answer-wrapper.mjs"],
             },
@@ -166,9 +162,9 @@ describe("provider resolution", () => {
     });
 
     expect(() =>
-      resolveProviderForCapability(config, process.cwd(), "search"),
+      resolveProviderForTool(config, process.cwd(), "search"),
     ).toThrow(
-      /Provider 'custom-cli' is not available: no command configured for search/,
+      /Provider 'custom' is not available: no command configured for search/,
     );
   });
 
@@ -183,7 +179,7 @@ describe("provider resolution", () => {
       },
     });
 
-    const provider = resolveProviderForCapability(
+    const provider = resolveProviderForTool(
       config,
       process.cwd(),
       "research",
@@ -192,9 +188,9 @@ describe("provider resolution", () => {
     expect(provider.id).toBe("perplexity");
   });
 
-  it("merges shared generic settings into the effective provider policy", () => {
+  it("merges shared settings into the effective provider settings", () => {
     const config = createConfig({
-      genericSettings: {
+      settings: {
         requestTimeoutMs: 30000,
         retryCount: 3,
         retryDelayMs: 2000,
@@ -204,7 +200,7 @@ describe("provider resolution", () => {
       },
       providers: {
         exa: {
-          policy: {
+          settings: {
             retryCount: 5,
             researchPollIntervalMs: 4000,
           },
@@ -212,7 +208,7 @@ describe("provider resolution", () => {
       },
     });
 
-    expect(getEffectiveProviderConfig(config, "exa")?.policy).toEqual({
+    expect(getEffectiveProviderConfig(config, "exa")?.settings).toEqual({
       requestTimeoutMs: 30000,
       retryCount: 5,
       retryDelayMs: 2000,
@@ -223,12 +219,10 @@ describe("provider resolution", () => {
   });
 });
 
-function createConfig(
-  overrides: Partial<WebProvidersConfig> = {},
-): WebProvidersConfig {
+function createConfig(overrides: Partial<WebProviders> = {}): WebProviders {
   return {
     tools: overrides.tools,
-    genericSettings: overrides.genericSettings,
+    settings: overrides.settings,
     providers: overrides.providers,
   };
 }

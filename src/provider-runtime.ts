@@ -10,21 +10,20 @@ import {
 import {
   EXECUTION_CONTROL_KEYS,
   type ExecutionControlKey,
-  type ExecutionPolicyDefaults,
+  type ExecutionSettings,
   type ExecutionSupport,
-  type JsonObject,
   type ProviderContext,
   type ProviderOperationPlan,
-  type ProviderToolOutput,
+  type ToolOutput,
   type SearchResponse,
   type SingleProviderOperationPlan,
 } from "./types.js";
 
 export async function executeOperationPlan<
-  TResult extends SearchResponse | ProviderToolOutput,
+  TResult extends SearchResponse | ToolOutput,
 >(
   plan: ProviderOperationPlan<TResult>,
-  options: JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
   context: ProviderContext,
 ): Promise<TResult> {
   if (plan.deliveryMode !== "background-research") {
@@ -51,7 +50,7 @@ export async function executeOperationPlan<
     providerLabel: plan.providerLabel,
     providerId: plan.providerId,
     context,
-    policy: researchPolicy,
+    settings: researchPolicy,
     startRetryCount: supportsSafeStartRetries ? researchPolicy.retryCount : 0,
     startRetryNotice:
       !supportsSafeStartRetries && researchPolicy.retryCount > 0
@@ -73,7 +72,7 @@ export async function executeOperationPlan<
 }
 
 export function resolvePlanExecutionSupport<
-  TResult extends SearchResponse | ProviderToolOutput,
+  TResult extends SearchResponse | ToolOutput,
 >(plan: ProviderOperationPlan<TResult>): Required<ExecutionSupport> {
   const explicit = plan.traits?.executionSupport ?? {};
 
@@ -96,8 +95,11 @@ export function resolvePlanExecutionSupport<
 }
 
 function resolveForegroundExecutionPolicy<
-  TResult extends SearchResponse | ProviderToolOutput,
->(plan: SingleProviderOperationPlan<TResult>, options: JsonObject | undefined) {
+  TResult extends SearchResponse | ToolOutput,
+>(
+  plan: SingleProviderOperationPlan<TResult>,
+  options: Record<string, unknown> | undefined,
+) {
   const localOptions = parseLocalExecutionOptions(options);
   const executionSupport = resolvePlanExecutionSupport(plan);
   const unsupportedControls = getUnsupportedExecutionControls(
@@ -125,15 +127,15 @@ function resolveForegroundExecutionPolicy<
 
   return resolveRequestExecutionPolicy(
     options,
-    filterPolicyDefaults(plan.traits?.policyDefaults, executionSupport),
+    filterPolicyDefaults(plan.traits?.settings, executionSupport),
   );
 }
 
 function resolveBackgroundResearchExecutionPolicy<
-  TResult extends SearchResponse | ProviderToolOutput,
+  TResult extends SearchResponse | ToolOutput,
 >(
   plan: ProviderOperationPlan<TResult>,
-  options: JsonObject | undefined,
+  options: Record<string, unknown> | undefined,
 ): ResearchExecutionPolicy {
   const localOptions = parseLocalExecutionOptions(options);
   const executionSupport = resolvePlanExecutionSupport(plan);
@@ -156,13 +158,14 @@ function resolveBackgroundResearchExecutionPolicy<
 
   return resolveResearchExecutionPolicy(
     options,
-    filterPolicyDefaults(plan.traits?.policyDefaults, executionSupport),
+    filterPolicyDefaults(plan.traits?.settings, executionSupport),
   );
 }
 
-function inferExecutionSupport<
-  TResult extends SearchResponse | ProviderToolOutput,
->(plan: ProviderOperationPlan<TResult>, key: ExecutionControlKey): boolean {
+function inferExecutionSupport<TResult extends SearchResponse | ToolOutput>(
+  plan: ProviderOperationPlan<TResult>,
+  key: ExecutionControlKey,
+): boolean {
   switch (key) {
     case "requestTimeoutMs":
       if (plan.deliveryMode !== "background-research") {
@@ -194,14 +197,14 @@ function getUnsupportedExecutionControls(
 }
 
 function filterPolicyDefaults(
-  defaults: ExecutionPolicyDefaults | undefined,
+  defaults: ExecutionSettings | undefined,
   executionSupport: Required<ExecutionSupport>,
-): ExecutionPolicyDefaults | undefined {
+): ExecutionSettings | undefined {
   if (!defaults) {
     return undefined;
   }
 
-  const filtered: ExecutionPolicyDefaults = {
+  const filtered: ExecutionSettings = {
     requestTimeoutMs: executionSupport.requestTimeoutMs
       ? defaults.requestTimeoutMs
       : undefined,

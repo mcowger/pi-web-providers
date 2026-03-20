@@ -50,40 +50,36 @@ import {
 } from "./provider-config-manifests.js";
 import {
   getEffectiveProviderConfig,
-  getMappedProviderIdForCapability,
-  resolveProviderChoice,
-  resolveProviderForCapability,
-  supportsProviderCapability,
+  getMappedProviderIdForTool,
+  resolveSearchProvider,
+  resolveProviderForTool,
+  supportsTool,
 } from "./provider-resolution.js";
 import {
   executeOperationPlan,
   resolvePlanExecutionSupport,
 } from "./provider-runtime.js";
-import {
-  getCompatibleProvidersForTool,
-  PROVIDER_TOOL_META,
-  type ProviderConfigUnion,
-  type ProviderToolId,
-} from "./provider-tools.js";
-import { PROVIDER_MAP, PROVIDERS } from "./providers/index.js";
+import { getCompatibleProviders, TOOL_INFO } from "./provider-tools.js";
+import { ADAPTERS, ADAPTERS_BY_ID } from "./providers/index.js";
 import type {
-  ClaudeProviderConfig,
-  CodexProviderConfig,
-  ExaProviderConfig,
-  GeminiProviderConfig,
-  GenericSettingsConfig,
-  JsonObject,
-  ParallelProviderConfig,
+  AnyProvider,
+  Claude,
+  Codex,
+  Exa,
+  ExecutionSettings,
+  Gemini,
+  Parallel,
   ProviderId,
   ProviderOperationPlan,
   ProviderOperationRequest,
-  ProviderToolDetails,
-  ProviderToolOutput,
-  SearchPrefetchSettings,
+  ToolDetails,
+  ToolOutput,
   SearchResponse,
-  SearchToolSettings,
-  ValyuProviderConfig,
-  WebProvidersConfig,
+  SearchSettings,
+  Settings,
+  Tool,
+  Valyu,
+  WebProviders,
   WebSearchDetails,
 } from "./types.js";
 import { EXECUTION_CONTROL_KEYS, PROVIDER_IDS } from "./types.js";
@@ -92,8 +88,7 @@ const DEFAULT_MAX_RESULTS = 5;
 const MAX_ALLOWED_RESULTS = 20;
 const MAX_SEARCH_QUERIES = 10;
 const RESEARCH_HEARTBEAT_MS = 15000;
-type ProviderCapability = ProviderToolId;
-const CAPABILITY_TOOL_NAMES: Record<ProviderCapability, string> = {
+const CAPABILITY_TOOL_NAMES: Record<Tool, string> = {
   search: "web_search",
   contents: "web_contents",
   answer: "web_answer",
@@ -129,9 +124,7 @@ export default function webProvidersExtension(pi: ExtensionAPI) {
 
 function registerManagedTools(
   pi: ExtensionAPI,
-  providerIdsByCapability: Partial<
-    Record<ProviderCapability, ProviderId[]>
-  > = {},
+  providerIdsByCapability: Partial<Record<Tool, ProviderId[]>> = {},
 ): void {
   registerWebSearchTool(pi, providerIdsByCapability.search ?? PROVIDER_IDS);
   registerWebContentsTool(
@@ -387,17 +380,17 @@ async function runWebProvidersConfig(
 }
 
 function getAvailableProviderIdsForCapability(
-  config: WebProvidersConfig,
+  config: WebProviders,
   cwd: string,
-  capability: ProviderCapability,
+  capability: Tool,
 ): ProviderId[] {
-  const providerId = getMappedProviderIdForCapability(config, capability);
+  const providerId = getMappedProviderIdForTool(config, capability);
   if (!providerId) {
     return [];
   }
 
   try {
-    resolveProviderForCapability(config, cwd, capability);
+    resolveProviderForTool(config, cwd, capability);
     return [providerId];
   } catch {
     return [];
@@ -405,10 +398,10 @@ function getAvailableProviderIdsForCapability(
 }
 
 function getAvailableManagedToolNames(
-  config: WebProvidersConfig,
+  config: WebProviders,
   cwd: string,
 ): string[] {
-  return (Object.keys(CAPABILITY_TOOL_NAMES) as ProviderCapability[])
+  return (Object.keys(CAPABILITY_TOOL_NAMES) as Tool[])
     .filter(
       (capability) =>
         getAvailableProviderIdsForCapability(config, cwd, capability).length >
@@ -418,7 +411,7 @@ function getAvailableManagedToolNames(
 }
 
 function getSyncedActiveTools(
-  config: WebProvidersConfig,
+  config: WebProviders,
   cwd: string,
   activeToolNames: readonly string[],
   options: { addAvailable: boolean },
@@ -477,12 +470,10 @@ async function syncManagedToolAvailability(
   }
 }
 
-function getProviderIdsForCapability(
-  capability: ProviderCapability,
-): ProviderId[] {
-  return PROVIDERS.filter((provider) =>
-    supportsProviderCapability(provider, capability),
-  ).map((provider) => provider.id);
+function getProviderIdsForCapability(capability: Tool): ProviderId[] {
+  return ADAPTERS.filter((provider) => supportsTool(provider, capability)).map(
+    (provider) => provider.id,
+  );
 }
 
 function jsonOptionsSchema(description: string) {
@@ -498,10 +489,10 @@ function jsonOptionsSchema(description: string) {
 }
 
 function describeOptionsField(
-  capability: ProviderCapability,
+  capability: Tool,
   providerIds: readonly ProviderId[],
 ): string {
-  const labels: Record<ProviderCapability, string> = {
+  const labels: Record<Tool, string> = {
     search: "Provider-specific search options.",
     contents: "Provider-specific extraction options.",
     answer: "Provider-specific answer options.",
@@ -531,13 +522,13 @@ function describeOptionsField(
 }
 
 function getSupportedExecutionControlsForCapability(
-  capability: ProviderCapability,
+  capability: Tool,
   providerIds: readonly ProviderId[],
 ): string[] {
   const supportedControls = new Set<string>();
 
   for (const providerId of providerIds) {
-    const provider = PROVIDER_MAP[providerId];
+    const provider = ADAPTERS_BY_ID[providerId];
     const plan = provider.buildPlan(
       createExecutionSupportProbeRequest(capability),
       provider.createTemplate() as never,
@@ -558,7 +549,7 @@ function getSupportedExecutionControlsForCapability(
 }
 
 function createExecutionSupportProbeRequest(
-  capability: ProviderCapability,
+  capability: Tool,
 ): ProviderOperationRequest {
   switch (capability) {
     case "search":
@@ -583,6 +574,8 @@ function createExecutionSupportProbeRequest(
         input: "Describe execution controls",
       };
   }
+
+  throw new Error(`Unknown tool '${capability}'.`);
 }
 
 async function executeSearchTool({
@@ -596,7 +589,7 @@ async function executeSearchTool({
   queries,
   planOverrides,
 }: {
-  config: WebProvidersConfig;
+  config: WebProviders;
   explicitProvider?: ProviderId;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
@@ -606,14 +599,14 @@ async function executeSearchTool({
         details: {};
       }) => void)
     | undefined;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   maxResults?: number;
   queries: string[];
   planOverrides?: ProviderOperationPlan<SearchResponse>[];
 }) {
   await cleanupContentStore();
 
-  const provider = resolveProviderChoice(config, ctx.cwd, explicitProvider);
+  const provider = resolveSearchProvider(config, ctx.cwd, explicitProvider);
   const providerConfig = getEffectiveProviderConfig(config, provider.id);
   if (!providerConfig) {
     throw new Error(`Provider '${provider.id}' is not configured.`);
@@ -647,7 +640,7 @@ async function executeSearchTool({
       searchQueries.map((searchQuery, index) =>
         executeSingleSearchQuery({
           provider,
-          providerConfig: providerConfig as ProviderConfigUnion,
+          providerConfig: providerConfig as AnyProvider,
           query: searchQuery,
           maxResults: clampedMaxResults,
           options: providerOptions,
@@ -729,11 +722,11 @@ async function executeSingleSearchQuery({
   onProgress,
   planOverride,
 }: {
-  provider: (typeof PROVIDERS)[number];
-  providerConfig: ProviderConfigUnion;
+  provider: (typeof ADAPTERS)[number];
+  providerConfig: AnyProvider;
   query: string;
   maxResults: number;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   providerContext: { cwd: string; signal?: AbortSignal };
   onProgress?: (message: string) => void;
   planOverride?: ProviderOperationPlan<SearchResponse>;
@@ -758,7 +751,7 @@ async function executeSingleSearchQuery({
 }
 
 type AnswerQueryOutcome =
-  | { query: string; response: ProviderToolOutput; error?: undefined }
+  | { query: string; response: ToolOutput; error?: undefined }
   | { query: string; error: string; response?: undefined };
 
 async function executeAnswerTool({
@@ -771,7 +764,7 @@ async function executeAnswerTool({
   queries,
   planOverrides,
 }: {
-  config: WebProvidersConfig;
+  config: WebProviders;
   explicitProvider?: ProviderId;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
@@ -781,11 +774,11 @@ async function executeAnswerTool({
         details: {};
       }) => void)
     | undefined;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   queries: string[];
-  planOverrides?: ProviderOperationPlan<ProviderToolOutput>[];
+  planOverrides?: ProviderOperationPlan<ToolOutput>[];
 }) {
-  const provider = resolveProviderForCapability(
+  const provider = resolveProviderForTool(
     config,
     ctx.cwd,
     "answer",
@@ -820,7 +813,7 @@ async function executeAnswerTool({
           capability: "answer",
           config,
           provider,
-          providerConfig: providerConfig as ProviderConfigUnion,
+          providerConfig: providerConfig as AnyProvider,
           ctx,
           signal,
           options,
@@ -905,14 +898,12 @@ function formatAnswerOutcomeSection(
 function buildWebAnswerDetails(
   provider: ProviderId,
   outcomes: AnswerQueryOutcome[],
-): ProviderToolDetails {
+): ToolDetails {
   const successfulOutcomes = outcomes.filter(
     (
       outcome,
-    ): outcome is Extract<
-      AnswerQueryOutcome,
-      { response: ProviderToolOutput }
-    > => outcome.response !== undefined,
+    ): outcome is Extract<AnswerQueryOutcome, { response: ToolOutput }> =>
+      outcome.response !== undefined,
   );
   const summary =
     successfulOutcomes.length === 1 && outcomes.length === 1
@@ -947,19 +938,19 @@ async function executeProviderOperation({
   onProgress,
   planOverride,
 }: {
-  capability: Exclude<ProviderCapability, "search">;
-  config: WebProvidersConfig;
-  provider: (typeof PROVIDERS)[number];
-  providerConfig: ProviderConfigUnion;
+  capability: Exclude<Tool, "search">;
+  config: WebProviders;
+  provider: (typeof ADAPTERS)[number];
+  providerConfig: AnyProvider;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   urls?: string[];
   query?: string;
   input?: string;
   onProgress?: (message: string) => void;
-  planOverride?: ProviderOperationPlan<ProviderToolOutput>;
-}): Promise<ProviderToolOutput> {
+  planOverride?: ProviderOperationPlan<ToolOutput>;
+}): Promise<ToolOutput> {
   const plan =
     planOverride ??
     buildProviderPlan(
@@ -1016,8 +1007,8 @@ async function executeProviderTool({
   input,
   planOverride,
 }: {
-  capability: Exclude<ProviderCapability, "search">;
-  config: WebProvidersConfig;
+  capability: Exclude<Tool, "search">;
+  config: WebProviders;
   explicitProvider?: ProviderId;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
@@ -1027,15 +1018,15 @@ async function executeProviderTool({
         details: {};
       }) => void)
     | undefined;
-  options: JsonObject | undefined;
+  options: Record<string, unknown> | undefined;
   urls?: string[];
   query?: string;
   input?: string;
-  planOverride?: ProviderOperationPlan<ProviderToolOutput>;
+  planOverride?: ProviderOperationPlan<ToolOutput>;
 }) {
   await cleanupContentStore();
 
-  const provider = resolveProviderForCapability(
+  const provider = resolveProviderForTool(
     config,
     ctx.cwd,
     capability,
@@ -1052,13 +1043,13 @@ async function executeProviderTool({
     onUpdate,
   );
 
-  let response: ProviderToolOutput;
+  let response: ToolOutput;
   try {
     response = await executeProviderOperation({
       capability,
       config,
       provider,
-      providerConfig: providerConfig as ProviderConfigUnion,
+      providerConfig: providerConfig as AnyProvider,
       ctx,
       signal,
       options,
@@ -1072,7 +1063,7 @@ async function executeProviderTool({
     progress.stop();
   }
 
-  const details: ProviderToolDetails = {
+  const details: ToolDetails = {
     tool: `web_${capability}`,
     provider: response.provider,
     summary: response.summary,
@@ -1087,9 +1078,9 @@ async function executeProviderTool({
 }
 
 function buildOperationRequest(
-  capability: Exclude<ProviderCapability, "search">,
+  capability: Exclude<Tool, "search">,
   args: {
-    options: JsonObject | undefined;
+    options: Record<string, unknown> | undefined;
     urls?: string[];
     query?: string;
     input?: string;
@@ -1119,8 +1110,8 @@ function buildOperationRequest(
 }
 
 function buildProviderPlan(
-  provider: (typeof PROVIDERS)[number],
-  providerConfig: ProviderConfigUnion,
+  provider: (typeof ADAPTERS)[number],
+  providerConfig: AnyProvider,
   request: ProviderOperationRequest,
 ) {
   const plan = provider.buildPlan(request, providerConfig as never);
@@ -1133,17 +1124,17 @@ function buildProviderPlan(
 }
 
 function isSearchResponse(
-  value: SearchResponse | ProviderToolOutput,
+  value: SearchResponse | ToolOutput,
 ): value is SearchResponse {
   return "results" in value;
 }
 
-function normalizeOptions(value: unknown): JsonObject | undefined {
+function normalizeOptions(value: unknown): Record<string, unknown> | undefined {
   return isJsonObject(value) ? value : undefined;
 }
 
 function createToolProgressReporter(
-  capability: ProviderCapability,
+  capability: Tool,
   providerId: ProviderId,
   onUpdate:
     | ((update: {
@@ -1175,7 +1166,7 @@ function createToolProgressReporter(
         return;
       }
 
-      const providerLabel = PROVIDER_MAP[providerId]?.label ?? providerId;
+      const providerLabel = ADAPTERS_BY_ID[providerId]?.label ?? providerId;
       const elapsed = formatElapsed(Date.now() - startedAt);
       emit(`Researching via ${providerLabel} (${elapsed} elapsed)`);
       lastUpdateAt = Date.now();
@@ -1354,7 +1345,7 @@ function renderProviderToolResult(
       : renderBlockText(text ?? "", theme, "toolOutput");
   }
 
-  const details = result.details as ProviderToolDetails | undefined;
+  const details = result.details as ToolDetails | undefined;
   const summary = renderCollapsedProviderToolSummary(details, text);
   let summaryText = theme.fg("success", summary);
   summaryText += theme.fg("muted", ` (${getExpandHint()})`);
@@ -1362,7 +1353,7 @@ function renderProviderToolResult(
 }
 
 function renderCollapsedProviderToolSummary(
-  details: ProviderToolDetails | undefined,
+  details: ToolDetails | undefined,
   text: string | undefined,
 ): string {
   if (
@@ -1371,7 +1362,7 @@ function renderCollapsedProviderToolSummary(
     details.queryCount > 1
   ) {
     const providerLabel =
-      PROVIDER_MAP[details.provider]?.label ?? details.provider;
+      ADAPTERS_BY_ID[details.provider]?.label ?? details.provider;
     const failureSuffix =
       details.failedQueryCount && details.failedQueryCount > 0
         ? `, ${details.failedQueryCount} failed`
@@ -1393,7 +1384,7 @@ function renderCollapsedProviderToolSummary(
 }
 
 function getCompactProviderToolSummary(
-  details: ProviderToolDetails | undefined,
+  details: ToolDetails | undefined,
 ): string | undefined {
   if (!details) {
     return undefined;
@@ -1420,25 +1411,25 @@ interface SettingsEntry {
 
 function getProviderSettings(
   providerId: ProviderId,
-): readonly ProviderSettingDescriptor<ProviderConfigUnion>[] {
+): readonly ProviderSettingDescriptor<AnyProvider>[] {
   return getProviderConfigManifest(providerId)
-    .settings as readonly ProviderSettingDescriptor<ProviderConfigUnion>[];
+    .settings as readonly ProviderSettingDescriptor<AnyProvider>[];
 }
 
 function getEnabledCompatibleProvidersForTool(
-  config: WebProvidersConfig,
+  config: WebProviders,
   cwd: string,
-  toolId: ProviderToolId,
+  toolId: Tool,
 ): ProviderId[] {
   return sortProviderIdsForSettings(
-    getCompatibleProvidersForTool(toolId).filter((providerId) => {
+    getCompatibleProviders(toolId).filter((providerId) => {
       const providerConfig = config.providers?.[providerId] as
-        | ProviderConfigUnion
+        | AnyProvider
         | undefined;
       if (providerConfig?.enabled !== true) {
         return false;
       }
-      return PROVIDER_MAP[providerId].getStatus(
+      return ADAPTERS_BY_ID[providerId].getStatus(
         providerConfig as never,
         cwd,
         toolId,
@@ -1451,7 +1442,7 @@ function sortProviderIdsForSettings(
   providerIds: readonly ProviderId[],
 ): ProviderId[] {
   const displayOrder = new Map(
-    PROVIDERS.map((provider, index) => [provider.id, index] as const),
+    ADAPTERS.map((provider, index) => [provider.id, index] as const),
   );
   return [...providerIds].sort(
     (left, right) =>
@@ -1460,31 +1451,29 @@ function sortProviderIdsForSettings(
   );
 }
 
-function getSearchToolSettings(
-  config: WebProvidersConfig,
-): SearchToolSettings | undefined {
-  return config.toolSettings?.search;
+function getSearchSettings(config: WebProviders): SearchSettings | undefined {
+  return config.settings?.search;
 }
 
 function getSearchPrefetchDefaults(
-  config: WebProvidersConfig,
-): SearchPrefetchSettings | undefined {
-  return getSearchToolSettings(config)?.prefetch;
+  config: WebProviders,
+): SearchSettings | undefined {
+  return getSearchSettings(config);
 }
 
-type GenericSettingId = keyof GenericSettingsConfig & string;
-
-const GENERIC_SETTING_IDS: readonly GenericSettingId[] = [
+const SETTING_IDS = [
   "requestTimeoutMs",
   "retryCount",
   "retryDelayMs",
   "researchPollIntervalMs",
   "researchTimeoutMs",
   "researchMaxConsecutivePollErrors",
-] as const;
+] as const satisfies readonly (keyof ExecutionSettings)[];
 
-const GENERIC_SETTING_META: Record<
-  GenericSettingId,
+type SettingId = (typeof SETTING_IDS)[number];
+
+const SETTING_META: Record<
+  SettingId,
   {
     label: string;
     help: string;
@@ -1547,18 +1536,18 @@ const GENERIC_SETTING_META: Record<
   },
 };
 
-function getGenericSettingValue(
-  config: WebProvidersConfig,
-  id: GenericSettingId,
+function getSharedSettingValue(
+  config: WebProviders,
+  id: SettingId,
 ): number | "mixed" | undefined {
-  const explicitValue = config.genericSettings?.[id];
+  const explicitValue = config.settings?.[id];
   if (typeof explicitValue === "number") {
     return explicitValue;
   }
 
   const values = new Set<number>();
   for (const providerId of PROVIDER_IDS) {
-    const value = config.providers?.[providerId]?.policy?.[id];
+    const value = config.providers?.[providerId]?.settings?.[id];
     if (typeof value === "number") {
       values.add(value);
       if (values.size > 1) {
@@ -1571,11 +1560,11 @@ function getGenericSettingValue(
   return onlyValue;
 }
 
-function getGenericSettingDisplayValue(
-  config: WebProvidersConfig,
-  id: GenericSettingId,
+function getSharedSettingDisplayValue(
+  config: WebProviders,
+  id: SettingId,
 ): string {
-  const value = getGenericSettingValue(config, id);
+  const value = getSharedSettingValue(config, id);
   if (value === "mixed") {
     return "mixed";
   }
@@ -1585,59 +1574,51 @@ function getGenericSettingDisplayValue(
   );
 }
 
-function getGenericSettingRawValue(
-  config: WebProvidersConfig,
-  id: GenericSettingId,
-): string {
-  const value = getGenericSettingValue(config, id);
+function getSharedSettingRawValue(config: WebProviders, id: SettingId): string {
+  const value = getSharedSettingValue(config, id);
   return typeof value === "number" ? String(value) : "";
 }
 
-function ensureGenericSettings(
-  config: WebProvidersConfig,
-): GenericSettingsConfig {
-  config.genericSettings = { ...(config.genericSettings ?? {}) };
-  return config.genericSettings;
+function ensureSettings(config: WebProviders): Settings {
+  config.settings = { ...(config.settings ?? {}) };
+  return config.settings;
 }
 
-function cleanupGenericSettings(config: WebProvidersConfig): void {
-  if (
-    config.genericSettings &&
-    Object.keys(config.genericSettings).length === 0
-  ) {
-    delete config.genericSettings;
+function cleanupSettings(config: WebProviders): void {
+  if (config.settings && Object.keys(config.settings).length === 0) {
+    delete config.settings;
   }
 }
 
-function stripGenericPolicyDuplicates(config: WebProvidersConfig): void {
+function stripDuplicatePolicyOverrides(config: WebProviders): void {
   for (const providerId of PROVIDER_IDS) {
     const providerConfig = config.providers?.[providerId] as
-      | ProviderConfigUnion
+      | AnyProvider
       | undefined;
-    if (!providerConfig?.policy) {
+    if (!providerConfig?.settings) {
       continue;
     }
 
-    for (const key of GENERIC_SETTING_IDS) {
-      if (providerConfig.policy[key] === config.genericSettings?.[key]) {
-        delete providerConfig.policy[key];
+    for (const key of SETTING_IDS) {
+      if (providerConfig.settings[key] === config.settings?.[key]) {
+        delete providerConfig.settings[key];
       }
     }
 
-    if (Object.keys(providerConfig.policy).length === 0) {
-      delete providerConfig.policy;
+    if (Object.keys(providerConfig.settings).length === 0) {
+      delete providerConfig.settings;
     }
   }
 }
 
 class WebProvidersSettingsView implements Component {
-  private config: WebProvidersConfig;
+  private config: WebProviders;
   private activeProvider: ProviderId;
-  private activeSection: "provider" | "tools" | "generic" = "tools";
+  private activeSection: "provider" | "tools" | "settings" = "tools";
   private selection = {
     provider: 0,
     tools: 0,
-    generic: 0,
+    settings: 0,
   };
   private submenu: Component | undefined;
 
@@ -1646,14 +1627,14 @@ class WebProvidersSettingsView implements Component {
     private readonly theme: Theme,
     private readonly done: (result: undefined) => void,
     private readonly ctx: ExtensionCommandContext,
-    initialConfig: WebProvidersConfig,
+    initialConfig: WebProviders,
     initialProvider: ProviderId,
   ) {
     this.config = structuredClone(initialConfig);
     this.activeProvider = initialProvider;
     this.selection.provider = Math.max(
       0,
-      PROVIDERS.findIndex((provider) => provider.id === initialProvider),
+      ADAPTERS.findIndex((provider) => provider.id === initialProvider),
     );
   }
 
@@ -1673,9 +1654,9 @@ class WebProvidersSettingsView implements Component {
     );
     lines.push("");
 
-    const genericItems = this.buildGenericSectionItems();
+    const settingsItems = this.buildSettingsSectionItems();
     lines.push(
-      ...this.renderSection(width, "Generic Settings", "generic", genericItems),
+      ...this.renderSection(width, "Settings", "settings", settingsItems),
     );
 
     const selected = this.getSelectedEntry();
@@ -1740,9 +1721,9 @@ class WebProvidersSettingsView implements Component {
   }
 
   private buildProviderSectionItems(): SettingsEntry[] {
-    return PROVIDERS.map((provider) => {
+    return ADAPTERS.map((provider) => {
       const providerConfig = this.config.providers?.[provider.id] as
-        | ProviderConfigUnion
+        | AnyProvider
         | undefined;
       const status = provider.getStatus(providerConfig as never, this.ctx.cwd);
       const enabled = providerConfig?.enabled === true;
@@ -1760,53 +1741,48 @@ class WebProvidersSettingsView implements Component {
   }
 
   private buildToolSectionItems(): SettingsEntry[] {
-    return (Object.keys(CAPABILITY_TOOL_NAMES) as ProviderToolId[]).map(
-      (toolId) => {
-        const enabledCompatibleProviders = getEnabledCompatibleProvidersForTool(
-          this.config,
-          this.ctx.cwd,
-          toolId,
-        );
-        const mappedProviderId = getMappedProviderIdForCapability(
-          this.config,
-          toolId,
-        );
-        const currentValue =
-          mappedProviderId &&
-          enabledCompatibleProviders.includes(mappedProviderId)
-            ? PROVIDER_MAP[mappedProviderId].label
-            : "off";
-        const compatibleLabels = enabledCompatibleProviders.map(
-          (providerId) => PROVIDER_MAP[providerId].label,
-        );
-        return {
-          id: `tool:${toolId}`,
-          label: PROVIDER_TOOL_META[toolId].label,
-          currentValue,
-          description:
-            `Press Enter to configure web_${toolId}. ${PROVIDER_TOOL_META[toolId].help} Route web_${toolId} to one compatible provider or turn it off.` +
-            (compatibleLabels.length > 0
-              ? ` Enabled compatible providers: ${compatibleLabels.join(", ")}.`
-              : ""),
-          kind: "action",
-        };
-      },
-    );
+    return (Object.keys(CAPABILITY_TOOL_NAMES) as Tool[]).map((toolId) => {
+      const enabledCompatibleProviders = getEnabledCompatibleProvidersForTool(
+        this.config,
+        this.ctx.cwd,
+        toolId,
+      );
+      const mappedProviderId = getMappedProviderIdForTool(this.config, toolId);
+      const currentValue =
+        mappedProviderId &&
+        enabledCompatibleProviders.includes(mappedProviderId)
+          ? ADAPTERS_BY_ID[mappedProviderId].label
+          : "off";
+      const compatibleLabels = enabledCompatibleProviders.map(
+        (providerId) => ADAPTERS_BY_ID[providerId].label,
+      );
+      return {
+        id: `tool:${toolId}`,
+        label: TOOL_INFO[toolId].label,
+        currentValue,
+        description:
+          `Press Enter to configure web_${toolId}. ${TOOL_INFO[toolId].help} Route web_${toolId} to one compatible provider or turn it off.` +
+          (compatibleLabels.length > 0
+            ? ` Enabled compatible providers: ${compatibleLabels.join(", ")}.`
+            : ""),
+        kind: "action",
+      };
+    });
   }
 
-  private buildGenericSectionItems(): SettingsEntry[] {
-    return GENERIC_SETTING_IDS.map((id) => ({
-      id: `generic:${id}`,
-      label: GENERIC_SETTING_META[id].label,
-      currentValue: getGenericSettingDisplayValue(this.config, id),
-      description: GENERIC_SETTING_META[id].help,
+  private buildSettingsSectionItems(): SettingsEntry[] {
+    return SETTING_IDS.map((id) => ({
+      id: `settings:${id}`,
+      label: SETTING_META[id].label,
+      currentValue: getSharedSettingDisplayValue(this.config, id),
+      description: SETTING_META[id].help,
       kind: "text",
     }));
   }
 
   private buildProviderItem(
-    setting: ProviderSettingDescriptor<ProviderConfigUnion>,
-    providerConfig: ProviderConfigUnion | undefined,
+    setting: ProviderSettingDescriptor<AnyProvider>,
+    providerConfig: AnyProvider | undefined,
   ): SettingsEntry {
     if (setting.kind === "values") {
       return {
@@ -1830,10 +1806,10 @@ class WebProvidersSettingsView implements Component {
   }
 
   private getSectionEntries(
-    section: "provider" | "tools" | "generic",
+    section: "provider" | "tools" | "settings",
   ): SettingsEntry[] {
     if (section === "provider") return this.buildProviderSectionItems();
-    if (section === "generic") return this.buildGenericSectionItems();
+    if (section === "settings") return this.buildSettingsSectionItems();
     return this.buildToolSectionItems();
   }
 
@@ -1847,10 +1823,10 @@ class WebProvidersSettingsView implements Component {
   }
 
   private moveSection(direction: 1 | -1): void {
-    const sections: Array<"provider" | "tools" | "generic"> = [
+    const sections: Array<"provider" | "tools" | "settings"> = [
       "tools",
       "provider",
-      "generic",
+      "settings",
     ];
     const index = sections.indexOf(this.activeSection);
     for (let offset = 1; offset <= sections.length; offset++) {
@@ -1867,10 +1843,10 @@ class WebProvidersSettingsView implements Component {
   }
 
   private moveSelection(direction: 1 | -1): void {
-    const sections: Array<"provider" | "tools" | "generic"> = [
+    const sections: Array<"provider" | "tools" | "settings"> = [
       "tools",
       "provider",
-      "generic",
+      "settings",
     ];
     const currentEntries = this.getActiveSectionEntries();
     const currentIndex = this.selection[this.activeSection];
@@ -1909,7 +1885,7 @@ class WebProvidersSettingsView implements Component {
     if (this.activeSection !== "provider") {
       return;
     }
-    const provider = PROVIDERS[this.selection.provider];
+    const provider = ADAPTERS[this.selection.provider];
     if (!provider) {
       return;
     }
@@ -1919,7 +1895,7 @@ class WebProvidersSettingsView implements Component {
   private renderSection(
     width: number,
     title: string,
-    section: "provider" | "tools" | "generic",
+    section: "provider" | "tools" | "settings",
     entries: SettingsEntry[],
   ): string[] {
     const lines = [
@@ -1958,18 +1934,18 @@ class WebProvidersSettingsView implements Component {
     const entry = this.getSelectedEntry();
     if (!entry) return;
 
-    if (entry.id.startsWith("generic:")) {
-      const settingId = entry.id.slice("generic:".length) as GenericSettingId;
+    if (entry.id.startsWith("settings:")) {
+      const settingId = entry.id.slice("settings:".length) as SettingId;
       this.submenu = new TextValueSubmenu(
         this.tui,
         this.theme,
         entry.label,
-        this.currentGenericSettingRawValue(settingId),
+        this.currentSharedSettingRawValue(settingId),
         entry.description,
         (selectedValue) => {
           this.submenu = undefined;
           if (selectedValue !== undefined) {
-            void this.handleGenericSettingChange(settingId, selectedValue);
+            void this.handleSharedSettingChange(settingId, selectedValue);
           }
           this.tui.requestRender();
         },
@@ -1978,7 +1954,7 @@ class WebProvidersSettingsView implements Component {
     }
 
     if (entry.kind === "action" && entry.id.startsWith("tool:")) {
-      const toolId = entry.id.slice("tool:".length) as ProviderToolId;
+      const toolId = entry.id.slice("tool:".length) as Tool;
       this.submenu = new ToolSettingsSubmenu(
         this.tui,
         this.theme,
@@ -2009,7 +1985,7 @@ class WebProvidersSettingsView implements Component {
             config.providers ??= {};
             const providerConfig = getEditableProviderConfig(
               providerId,
-              config.providers?.[providerId] as ProviderConfigUnion | undefined,
+              config.providers?.[providerId] as AnyProvider | undefined,
             );
             mutate(providerConfig);
             config.providers[providerId] = providerConfig as never;
@@ -2024,43 +2000,39 @@ class WebProvidersSettingsView implements Component {
     }
   }
 
-  private currentGenericSettingRawValue(id: GenericSettingId): string {
-    return getGenericSettingRawValue(this.config, id);
+  private currentSharedSettingRawValue(id: SettingId): string {
+    return getSharedSettingRawValue(this.config, id);
   }
 
-  private async handleGenericSettingChange(
-    id: GenericSettingId,
+  private async handleSharedSettingChange(
+    id: SettingId,
     value: string,
   ): Promise<void> {
     await this.persist((config) => {
-      const parsed = GENERIC_SETTING_META[id].parse(value);
-      const settings = ensureGenericSettings(config);
+      const parsed = SETTING_META[id].parse(value);
+      const settings = ensureSettings(config);
       if (parsed === undefined) {
         delete settings[id];
       } else {
         settings[id] = parsed;
       }
-      cleanupGenericSettings(config);
-      stripGenericPolicyDuplicates(config);
+      cleanupSettings(config);
+      stripDuplicatePolicyOverrides(config);
     });
   }
 
   private currentProviderConfigFor(
     providerId: ProviderId,
-  ): ProviderConfigUnion | undefined {
-    return this.config.providers?.[providerId] as
-      | ProviderConfigUnion
-      | undefined;
+  ): AnyProvider | undefined {
+    return this.config.providers?.[providerId] as AnyProvider | undefined;
   }
 
-  private async persist(
-    mutate: (config: WebProvidersConfig) => void,
-  ): Promise<void> {
+  private async persist(mutate: (config: WebProviders) => void): Promise<void> {
     const nextConfig = structuredClone(this.config);
     try {
       mutate(nextConfig);
-      cleanupGenericSettings(nextConfig);
-      stripGenericPolicyDuplicates(nextConfig);
+      cleanupSettings(nextConfig);
+      stripDuplicatePolicyOverrides(nextConfig);
       await writeConfigFile(nextConfig);
       if (didContentsCacheInputsChange(this.config, nextConfig)) {
         resetContentStore();
@@ -2080,11 +2052,11 @@ class ToolSettingsSubmenu implements Component {
   constructor(
     private readonly tui: TUI,
     private readonly theme: Theme,
-    private readonly toolId: ProviderToolId,
+    private readonly toolId: Tool,
     private readonly cwd: string,
-    private readonly getConfig: () => WebProvidersConfig,
+    private readonly getConfig: () => WebProviders,
     private readonly persist: (
-      mutate: (config: WebProvidersConfig) => void,
+      mutate: (config: WebProviders) => void,
     ) => Promise<void>,
     private readonly done: () => void,
   ) {}
@@ -2097,7 +2069,7 @@ class ToolSettingsSubmenu implements Component {
     const entries = this.getEntries();
     const lines = [
       truncateToWidth(
-        this.theme.fg("accent", PROVIDER_TOOL_META[this.toolId].label),
+        this.theme.fg("accent", TOOL_INFO[this.toolId].label),
         width,
       ),
       "",
@@ -2159,10 +2131,7 @@ class ToolSettingsSubmenu implements Component {
 
   private getEntries(): SettingsEntry[] {
     const config = this.getConfig();
-    const mappedProviderId = getMappedProviderIdForCapability(
-      config,
-      this.toolId,
-    );
+    const mappedProviderId = getMappedProviderIdForTool(config, this.toolId);
     const enabledProviderIds = getEnabledCompatibleProvidersForTool(
       config,
       this.cwd,
@@ -2170,11 +2139,13 @@ class ToolSettingsSubmenu implements Component {
     );
     const providerValues = [
       "off",
-      ...enabledProviderIds.map((providerId) => PROVIDER_MAP[providerId].label),
+      ...enabledProviderIds.map(
+        (providerId) => ADAPTERS_BY_ID[providerId].label,
+      ),
     ];
     const currentProviderValue =
       mappedProviderId && enabledProviderIds.includes(mappedProviderId)
-        ? PROVIDER_MAP[mappedProviderId].label
+        ? ADAPTERS_BY_ID[mappedProviderId].label
         : "off";
 
     const entries: SettingsEntry[] = [
@@ -2198,12 +2169,12 @@ class ToolSettingsSubmenu implements Component {
       const prefetchValues = [
         "off",
         ...prefetchProviderIds.map(
-          (providerId) => PROVIDER_MAP[providerId].label,
+          (providerId) => ADAPTERS_BY_ID[providerId].label,
         ),
       ];
       const currentPrefetchProviderValue =
         prefetch?.provider && prefetchProviderIds.includes(prefetch.provider)
-          ? PROVIDER_MAP[prefetch.provider].label
+          ? ADAPTERS_BY_ID[prefetch.provider].label
           : "off";
 
       entries.push(
@@ -2318,7 +2289,7 @@ class ToolSettingsSubmenu implements Component {
                   this.cwd,
                   this.toolId,
                 ).find(
-                  (providerId) => PROVIDER_MAP[providerId].label === value,
+                  (providerId) => ADAPTERS_BY_ID[providerId].label === value,
                 ) ?? null);
           return;
         case "prefetchProvider": {
@@ -2330,23 +2301,20 @@ class ToolSettingsSubmenu implements Component {
                   this.cwd,
                   "contents",
                 ).find(
-                  (candidate) => PROVIDER_MAP[candidate].label === value,
+                  (candidate) => ADAPTERS_BY_ID[candidate].label === value,
                 ) ?? null);
-          ensureSearchToolSettings(config).prefetch ??= {};
-          ensureSearchToolSettings(config).prefetch!.provider = providerId;
+          ensureSearchSettings(config).provider = providerId;
           return;
         }
         case "prefetchMaxUrls":
-          ensureSearchToolSettings(config).prefetch ??= {};
-          ensureSearchToolSettings(config).prefetch!.maxUrls =
+          ensureSearchSettings(config).maxUrls =
             parseOptionalPositiveIntegerInput(
               value,
               "Prefetch URLs must be a positive integer.",
             );
           return;
         case "prefetchTtlMs":
-          ensureSearchToolSettings(config).prefetch ??= {};
-          ensureSearchToolSettings(config).prefetch!.ttlMs =
+          ensureSearchSettings(config).ttlMs =
             parseOptionalPositiveIntegerInput(
               value,
               "Prefetch TTL must be a positive integer.",
@@ -2367,9 +2335,9 @@ class ProviderSettingsSubmenu implements Component {
     private readonly tui: TUI,
     private readonly theme: Theme,
     private readonly providerId: ProviderId,
-    private readonly getProviderConfig: () => ProviderConfigUnion | undefined,
+    private readonly getProviderConfig: () => AnyProvider | undefined,
     private readonly persist: (
-      mutate: (config: ProviderConfigUnion) => void,
+      mutate: (config: AnyProvider) => void,
     ) => Promise<void>,
     private readonly done: () => void,
   ) {}
@@ -2379,7 +2347,7 @@ class ProviderSettingsSubmenu implements Component {
       return this.submenu.render(width);
     }
 
-    const provider = PROVIDER_MAP[this.providerId];
+    const provider = ADAPTERS_BY_ID[this.providerId];
     const providerConfig = this.getProviderConfig();
     const entries = this.getEntries();
     const lines = [
@@ -2464,8 +2432,8 @@ class ProviderSettingsSubmenu implements Component {
   }
 
   private buildProviderItem(
-    setting: ProviderSettingDescriptor<ProviderConfigUnion>,
-    providerConfig: ProviderConfigUnion | undefined,
+    setting: ProviderSettingDescriptor<AnyProvider>,
+    providerConfig: AnyProvider | undefined,
   ): SettingsEntry {
     if (setting.kind === "values") {
       return {
@@ -2566,12 +2534,10 @@ class ProviderSettingsSubmenu implements Component {
   }
 }
 
-function ensureSearchToolSettings(
-  config: WebProvidersConfig,
-): SearchToolSettings {
-  config.toolSettings ??= {};
-  config.toolSettings.search ??= {};
-  return config.toolSettings.search;
+function ensureSearchSettings(config: WebProviders): SearchSettings {
+  config.settings ??= {};
+  config.settings.search ??= {};
+  return config.settings.search;
 }
 
 function parseOptionalPositiveIntegerInput(
@@ -2671,18 +2637,16 @@ class TextValueSubmenu implements Component {
 
 function getEditableProviderConfig(
   providerId: ProviderId,
-  current: ProviderConfigUnion | undefined,
-): ProviderConfigUnion {
+  current: AnyProvider | undefined,
+): AnyProvider {
   return structuredClone(
-    current ?? PROVIDER_MAP[providerId].createTemplate(),
-  ) as ProviderConfigUnion;
+    current ?? ADAPTERS_BY_ID[providerId].createTemplate(),
+  ) as AnyProvider;
 }
 
-function getInitialProviderSelection(config: WebProvidersConfig): ProviderId {
-  for (const capability of Object.keys(
-    CAPABILITY_TOOL_NAMES,
-  ) as ProviderCapability[]) {
-    const providerId = getMappedProviderIdForCapability(config, capability);
+function getInitialProviderSelection(config: WebProviders): ProviderId {
+  for (const capability of Object.keys(CAPABILITY_TOOL_NAMES) as Tool[]) {
+    const providerId = getMappedProviderIdForTool(config, capability);
     if (providerId) {
       return providerId;
     }
@@ -2692,8 +2656,8 @@ function getInitialProviderSelection(config: WebProvidersConfig): ProviderId {
 }
 
 function didContentsCacheInputsChange(
-  previous: WebProvidersConfig,
-  next: WebProvidersConfig,
+  previous: WebProviders,
+  next: WebProviders,
 ): boolean {
   return (
     stableStringify(getContentsCacheInputs(previous)) !==
@@ -2701,20 +2665,20 @@ function didContentsCacheInputsChange(
   );
 }
 
-function getContentsCacheInputs(config: WebProvidersConfig): JsonObject {
+function getContentsCacheInputs(config: WebProviders): Record<string, unknown> {
   const providers: Record<string, unknown> = {};
 
-  for (const provider of PROVIDERS) {
-    if (!supportsProviderCapability(provider, "contents")) {
+  for (const provider of ADAPTERS) {
+    if (!supportsTool(provider, "contents")) {
       continue;
     }
     providers[provider.id] =
       config.providers?.[
-        provider.id as keyof NonNullable<WebProvidersConfig["providers"]>
+        provider.id as keyof NonNullable<WebProviders["providers"]>
       ] ?? null;
   }
 
-  return { providers: providers as JsonObject };
+  return { providers: providers as Record<string, unknown> };
 }
 
 function stableStringify(value: unknown): string {
@@ -2749,7 +2713,7 @@ function summarizeStringValue(
   return truncateInline(value, 40);
 }
 
-function isJsonObject(value: unknown): value is JsonObject {
+function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -2909,7 +2873,7 @@ function renderCollapsedSearchSummary(
   theme: Pick<Theme, "fg">,
 ): Text {
   const providerLabel =
-    PROVIDER_MAP[details.provider]?.label ?? details.provider;
+    ADAPTERS_BY_ID[details.provider]?.label ?? details.provider;
   const count = `${details.resultCount} result${details.resultCount === 1 ? "" : "s"}`;
   const failureSuffix =
     details.failedQueryCount > 0 ? `, ${details.failedQueryCount} failed` : "";
@@ -2923,7 +2887,7 @@ function renderCollapsedSearchSummary(
 }
 
 function appendProviderSummary(summary: string, provider: ProviderId): string {
-  const providerLabel = PROVIDER_MAP[provider]?.label ?? provider;
+  const providerLabel = ADAPTERS_BY_ID[provider]?.label ?? provider;
   const providerSuffix = `via ${providerLabel}`;
   return summary.toLowerCase().includes(providerSuffix.toLowerCase())
     ? summary

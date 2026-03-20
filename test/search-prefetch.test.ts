@@ -224,12 +224,10 @@ describe("search contents prefetch", () => {
       tools: {
         contents: "exa",
       },
-      toolSettings: {
+      settings: {
         search: {
-          prefetch: {
-            provider: "exa",
-            maxUrls: 1,
-          },
+          provider: "exa",
+          maxUrls: 1,
         },
       },
       providers: {
@@ -280,12 +278,10 @@ describe("search contents prefetch", () => {
       tools: {
         contents: "exa",
       },
-      toolSettings: {
+      settings: {
         search: {
-          prefetch: {
-            provider: "exa",
-            maxUrls: 1,
-          },
+          provider: "exa",
+          maxUrls: 1,
         },
       },
       providers: {

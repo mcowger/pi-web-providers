@@ -1,14 +1,20 @@
+import {
+  asStructuredContent,
+  type Content,
+  type ContentsAnswer,
+  type ContentsResponse,
+} from "../contents.js";
 import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
-  CustomCommandConfig,
   Custom,
-  Tool,
-  ProviderContext,
-  ProviderOperationRequest,
-  ProviderStatus,
-  ToolOutput,
-  SearchResponse,
+  CustomCommandConfig,
   ProviderAdapter,
+  ProviderContext,
+  ProviderRequest,
+  ProviderStatus,
+  SearchResponse,
+  Tool,
+  ToolOutput,
 } from "../types.js";
 import { runCliJsonCommand } from "./cli-json.js";
 
@@ -51,7 +57,7 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
       : { available: false, summary: "no commands configured" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Custom) {
+  buildPlan(request: ProviderRequest, config: Custom) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -127,7 +133,7 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
     config: Custom,
     context: ProviderContext,
     options?: Record<string, unknown>,
-  ): Promise<ToolOutput> {
+  ): Promise<ContentsResponse> {
     const output = await this.runCommand<unknown>({
       capability: "contents",
       payload: {
@@ -139,7 +145,7 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
       context,
     });
 
-    return parseToolOutput(output, this.id);
+    return parseContentsResponse(output, this.id, urls);
   }
 
   async answer(
@@ -272,6 +278,100 @@ function parseSearchResult(entry: unknown, index: number) {
     ...(typeof entry.score === "number" ? { score: entry.score } : {}),
     ...(isRecord(entry.metadata) ? { metadata: entry.metadata } : {}),
   };
+}
+
+function parseContentsResponse(
+  value: unknown,
+  providerId: ContentsResponse["provider"],
+  urls: string[],
+): ContentsResponse {
+  if (!isRecord(value)) {
+    throw new Error("Custom contents output must be a JSON object.");
+  }
+
+  if (Array.isArray(value.answers)) {
+    return {
+      provider: providerId,
+      answers: value.answers.map((entry, index) =>
+        parseContentsAnswer(entry, index),
+      ),
+    };
+  }
+
+  if (typeof value.text === "string" && urls.length === 1) {
+    return {
+      provider: providerId,
+      answers: [
+        {
+          url: urls[0] ?? "",
+          content: {
+            text: value.text,
+          },
+        },
+      ],
+    };
+  }
+
+  throw new Error(
+    "Custom contents output must include an 'answers' array (or legacy 'text' for single-URL calls).",
+  );
+}
+
+function parseContentsAnswer(entry: unknown, index: number): ContentsAnswer {
+  if (!isRecord(entry)) {
+    throw new Error(
+      `Custom contents answer at index ${index} must be a JSON object.`,
+    );
+  }
+
+  const url = readRequiredString(entry.url, `answers[${index}].url`);
+  const content =
+    entry.content === undefined
+      ? undefined
+      : parseContent(entry.content, `answers[${index}].content`);
+  const error =
+    entry.error === undefined
+      ? undefined
+      : readRequiredString(entry.error, `answers[${index}].error`);
+
+  if (content === undefined && error === undefined) {
+    throw new Error(
+      `Custom contents answer at index ${index} must include 'content' or 'error'.`,
+    );
+  }
+
+  return {
+    url,
+    ...(content !== undefined ? { content } : {}),
+    ...(error !== undefined ? { error } : {}),
+  };
+}
+
+function parseContent(value: unknown, field: string): Content {
+  if (!isRecord(value)) {
+    throw new Error(`Custom output field '${field}' must be a JSON object.`);
+  }
+
+  if (typeof value.text === "string" && Object.keys(value).length === 1) {
+    return {
+      text: value.text,
+    };
+  }
+
+  if (typeof value.markdown === "string" && Object.keys(value).length === 1) {
+    return {
+      markdown: value.markdown,
+    };
+  }
+
+  const structured = asStructuredContent(value);
+  if (structured) {
+    return structured;
+  }
+
+  throw new Error(
+    `Custom output field '${field}' must be { text: string }, { markdown: string }, or a JSON object.`,
+  );
 }
 
 function parseToolOutput(

@@ -7,7 +7,7 @@ import { createSilentForegroundPlan } from "../provider-plans.js";
 import type {
   Codex,
   ProviderContext,
-  ProviderOperationRequest,
+  ProviderRequest,
   ProviderStatus,
   SearchResponse,
   ProviderAdapter,
@@ -84,7 +84,7 @@ export class CodexAdapter implements ProviderAdapter<Codex> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Codex) {
+  buildPlan(request: ProviderRequest, config: Codex) {
     if (request.capability !== "search") {
       return null;
     }

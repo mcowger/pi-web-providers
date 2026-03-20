@@ -430,10 +430,10 @@ describe("search contents prefetch", () => {
       [["https://exa.ai/pricing", "https://exa.ai/sdk"], undefined],
     ]);
     const cachedText = cachedResult.content[0]?.text ?? "";
-    expect(cachedText).toContain("1. Exa Pricing");
-    expect(cachedText).toContain("2. Exa SDK");
-    expect(cachedText.indexOf("1. Exa Pricing")).toBeLessThan(
-      cachedText.indexOf("2. Exa SDK"),
+    expect(cachedText).toContain("1. https://exa.ai/pricing");
+    expect(cachedText).toContain("2. https://exa.ai/sdk");
+    expect(cachedText.indexOf("1. https://exa.ai/pricing")).toBeLessThan(
+      cachedText.indexOf("2. https://exa.ai/sdk"),
     );
     expect(cachedText).toContain("Fetched body for https://exa.ai/sdk");
     expect(cachedText).toContain("Fetched body for https://exa.ai/pricing");

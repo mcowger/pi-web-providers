@@ -5,17 +5,17 @@ import {
   hashKey,
   MemoryContentStore,
 } from "./content-store.js";
+import {
+  type Content,
+  type ContentsAnswer,
+  type ContentsResponse,
+  renderContentsAnswer,
+} from "./contents.js";
 import { stripLocalExecutionOptions } from "./execution-policy.js";
 import { getEffectiveProviderConfig } from "./provider-resolution.js";
 import { executeOperationPlan } from "./provider-runtime.js";
 import { ADAPTERS_BY_ID } from "./providers/index.js";
-import type { ContentsEntry } from "./contents.js";
-import type {
-  ProviderId,
-  ToolOutput,
-  SearchSettings,
-  WebProviders,
-} from "./types.js";
+import type { ProviderId, SearchSettings, WebProviders } from "./types.js";
 
 const CONTENT_ENTRY_KIND = "web-contents";
 const CONTENT_BATCH_ENTRY_KIND = "web-contents-batch";
@@ -32,12 +32,7 @@ export interface SearchContentsPrefetchOptions {
   contentsOptions?: Record<string, unknown>;
 }
 
-interface StoredContentItem {
-  url?: string;
-  title?: string;
-  body: string;
-  status?: "ready" | "failed";
-}
+interface StoredContentItem extends ContentsAnswer {}
 
 interface StoredContentsValue {
   url: string;
@@ -58,7 +53,6 @@ interface StoredBatchContentsValue {
   urls: string[];
   provider: ProviderId;
   items: StoredContentItem[];
-  itemCount?: number;
   fetchedAt: number;
 }
 
@@ -66,8 +60,6 @@ interface StoredBatchContentsResult {
   value: StoredBatchContentsValue;
   fromCache: boolean;
 }
-
-interface StoredContentsMetadataEntry extends ContentsEntry {}
 
 export interface PrefetchStartResult {
   prefetchId: string;
@@ -136,7 +128,7 @@ export async function cleanupContentStore(): Promise<void> {
   }
 }
 
-async function putContentStoreEntry<TValue extends unknown = unknown>({
+async function putContentStoreEntry<TValue = unknown>({
   entry,
   generation,
 }: {
@@ -463,7 +455,7 @@ export async function resolveContentsFromStore({
   options: Record<string, unknown> | undefined;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
-}): Promise<{ output: ToolOutput; cachedCount: number }> {
+}): Promise<{ output: ContentsResponse; cachedCount: number }> {
   if (await canResolveContentsFromStore({ urls, providerId, options })) {
     if (await hasStoredBatchContents({ urls, providerId, options })) {
       const batch = await ensureBatchContentsStored({
@@ -478,10 +470,7 @@ export async function resolveContentsFromStore({
       return {
         output: {
           provider: batch.value.provider,
-          text: renderStoredContentItems(
-            orderStoredContentItemsForRequest(batch.value.items, urls),
-          ),
-          itemCount: batch.value.itemCount ?? batch.value.urls.length,
+          answers: orderStoredContentItemsForRequest(batch.value.items, urls),
         },
         cachedCount: batch.fromCache ? batch.value.urls.length : 0,
       };
@@ -538,20 +527,18 @@ export async function resolveContentsFromStore({
 
     const cachedCount = results.filter((r) => r.fromCache).length;
     const provider = results[0]?.value.provider ?? providerId;
-    const renderedItems = results.map((result) => result.value.item);
-    const textBlocks = [renderStoredContentItems(renderedItems)].filter(
-      Boolean,
-    );
-
-    for (const failure of failures) {
-      textBlocks.push(`Error: ${failure.url}\n   ${failure.error}`);
-    }
+    const answers = [
+      ...results.map((result) => result.value.item),
+      ...failures.map((failure) => ({
+        url: failure.url,
+        error: failure.error,
+      })),
+    ];
 
     return {
       output: {
         provider,
-        text: textBlocks.join("\n\n").trim() || "No contents found.",
-        itemCount: results.length,
+        answers: orderStoredContentItemsForRequest(answers, urls),
       },
       cachedCount,
     };
@@ -569,10 +556,7 @@ export async function resolveContentsFromStore({
   return {
     output: {
       provider: batch.value.provider,
-      text: renderStoredContentItems(
-        orderStoredContentItemsForRequest(batch.value.items, urls),
-      ),
-      itemCount: batch.value.itemCount ?? batch.value.urls.length,
+      answers: orderStoredContentItemsForRequest(batch.value.items, urls),
     },
     cachedCount: batch.fromCache ? batch.value.urls.length : 0,
   };
@@ -791,24 +775,17 @@ async function ensureBatchContentsStored({
         signal,
         onProgress,
       });
-      if ("results" in result) {
+      if (!isContentsResponse(result)) {
         throw new Error(
           `${provider.label} contents returned an invalid result.`,
         );
       }
 
       const fetchedAt = Date.now();
-      const structuredEntries = extractStoredContentsEntriesFromMetadata(
-        result.metadata,
-      );
       const stored: StoredBatchContentsValue = {
         urls: normalizedUrls,
         provider: result.provider,
-        items:
-          structuredEntries.length > 0
-            ? structuredEntries.map((entry) => toStoredContentItem(entry))
-            : [{ body: result.text }],
-        itemCount: result.itemCount,
+        items: result.answers.map((answer) => toStoredContentItem(answer)),
         fetchedAt,
       };
       await putContentStoreEntry<unknown>({
@@ -829,7 +806,7 @@ async function ensureBatchContentsStored({
         },
       });
       await storePerUrlContentsEntries({
-        entries: structuredEntries,
+        entries: result.answers,
         provider: result.provider,
         options,
         createdAt,
@@ -945,7 +922,7 @@ async function ensureContentsStored({
         signal,
         onProgress,
       });
-      if ("results" in result) {
+      if (!isContentsResponse(result)) {
         throw new Error(
           `${provider.label} contents returned an invalid result.`,
         );
@@ -953,16 +930,13 @@ async function ensureContentsStored({
 
       const now = Date.now();
       const canonicalUrl = canonicalizeUrl(url);
-      const structuredEntry = findStoredContentsEntry(
-        extractStoredContentsEntriesFromMetadata(result.metadata),
-        canonicalUrl,
-      );
+      const answer = findStoredContentsAnswer(result.answers, canonicalUrl);
       const stored: StoredContentsValue = {
         url: canonicalUrl,
         provider: result.provider,
-        item: structuredEntry
-          ? toStoredContentItem(structuredEntry)
-          : { body: result.text },
+        item: answer
+          ? toStoredContentItem(answer)
+          : { url: canonicalUrl, error: "No content returned for this URL." },
         fetchedAt: now,
       };
       await putContentStoreEntry<unknown>({
@@ -1020,7 +994,7 @@ async function storePerUrlContentsEntries({
   ttlMs,
   generation,
 }: {
-  entries: StoredContentsMetadataEntry[];
+  entries: ContentsAnswer[];
   provider: ProviderId;
   options: Record<string, unknown> | undefined;
   createdAt: number;
@@ -1031,7 +1005,11 @@ async function storePerUrlContentsEntries({
   await Promise.all(
     entries.map(async (entry) => {
       const canonicalUrl = canonicalizeUrl(entry.url);
-      if (entry.status === "failed" || !/^https?:\/\//i.test(canonicalUrl)) {
+      if (
+        entry.error !== undefined ||
+        entry.content === undefined ||
+        !/^https?:\/\//i.test(canonicalUrl)
+      ) {
         return;
       }
 
@@ -1061,50 +1039,21 @@ async function storePerUrlContentsEntries({
   );
 }
 
-function extractStoredContentsEntriesFromMetadata(
-  metadata: Record<string, unknown> | undefined,
-): StoredContentsMetadataEntry[] {
-  const rawEntries = metadata?.contentsEntries;
-  if (!Array.isArray(rawEntries)) {
-    return [];
-  }
-
-  return rawEntries.flatMap((entry) =>
-    isStoredContentsMetadataEntry(entry) ? [entry] : [],
-  );
-}
-
-function isStoredContentsMetadataEntry(
-  value: unknown,
-): value is StoredContentsMetadataEntry {
-  return (
-    isJsonObject(value) &&
-    typeof value.url === "string" &&
-    (value.title === undefined || typeof value.title === "string") &&
-    typeof value.body === "string" &&
-    (value.status === undefined ||
-      value.status === "ready" ||
-      value.status === "failed")
-  );
-}
-
-function toStoredContentItem(
-  entry: StoredContentsMetadataEntry,
-): StoredContentItem {
+function toStoredContentItem(entry: ContentsAnswer): StoredContentItem {
   return {
     url: entry.url,
-    title: entry.title,
-    body: entry.body,
-    status: entry.status,
+    ...(entry.content !== undefined ? { content: entry.content } : {}),
+    ...(entry.error !== undefined ? { error: entry.error } : {}),
   };
 }
 
-function findStoredContentsEntry(
-  entries: StoredContentsMetadataEntry[],
+function findStoredContentsAnswer(
+  answers: ContentsAnswer[],
   url: string,
-): StoredContentsMetadataEntry | undefined {
-  return entries.find(
-    (entry) => entry.status !== "failed" && canonicalizeUrl(entry.url) === url,
+): ContentsAnswer | undefined {
+  return answers.find(
+    (answer) =>
+      answer.error === undefined && canonicalizeUrl(answer.url) === url,
   );
 }
 
@@ -1287,29 +1236,7 @@ function renderStoredContentItem(
   item: StoredContentItem,
   index?: number,
 ): string {
-  const hasStructuredHeader = Boolean(item.title || item.url);
-  if (!hasStructuredHeader) {
-    return item.body.trim();
-  }
-
-  const heading =
-    item.status === "failed"
-      ? `Error: ${item.url ?? item.title ?? "Untitled"}`
-      : (item.title ?? item.url ?? "Untitled");
-  const lines = [
-    `${index === undefined ? "" : `${index + 1}. `}${heading}`.trim(),
-  ];
-
-  if (item.status !== "failed" && item.url && item.url !== heading) {
-    lines.push(`   ${item.url}`);
-  }
-  if (item.body.trim()) {
-    for (const line of item.body.trim().split("\n")) {
-      lines.push(`   ${line}`);
-    }
-  }
-
-  return lines.join("\n").trimEnd();
+  return renderContentsAnswer(item, index);
 }
 
 function hashOptions(options: Record<string, unknown> | undefined): string {
@@ -1387,6 +1314,15 @@ function isProviderId(value: unknown): value is ProviderId {
   );
 }
 
+function isContentsResponse(value: unknown): value is ContentsResponse {
+  return (
+    isJsonObject(value) &&
+    isProviderId(value.provider) &&
+    Array.isArray(value.answers) &&
+    value.answers.every((item) => isStoredContentItem(item))
+  );
+}
+
 function isStoredBatchContentsValue(
   value: unknown,
 ): value is StoredBatchContentsValue & Record<string, unknown> {
@@ -1423,11 +1359,16 @@ function isStoredContentItem(
   return (
     isJsonObject(value) &&
     (value.url === undefined || typeof value.url === "string") &&
-    (value.title === undefined || typeof value.title === "string") &&
-    typeof value.body === "string" &&
-    (value.status === undefined ||
-      value.status === "ready" ||
-      value.status === "failed")
+    (value.error === undefined || typeof value.error === "string") &&
+    (value.content === undefined || isStoredContent(value.content))
+  );
+}
+
+function isStoredContent(value: unknown): value is Content {
+  return (
+    (isJsonObject(value) && typeof value.text === "string") ||
+    (isJsonObject(value) && typeof value.markdown === "string") ||
+    isJsonObject(value)
   );
 }
 

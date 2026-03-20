@@ -13,11 +13,11 @@ prompt="$(
 Extract the main textual content from these URLs:
 $urls
 
-Return JSON only with these fields:
-- text: the extracted content
-- summary: a short summary
-- itemCount: the number of processed URLs ($url_count)
-- metadata: include the input URLs under metadata.urls
+Return JSON only with this shape:
+- answers: an array with exactly $url_count items
+- each answer must include the input url, and either:
+  - content: {"markdown":"..."}
+  - or error: a short error string when extraction fails
 EOF
 )"
 

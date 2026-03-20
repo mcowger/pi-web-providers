@@ -1,21 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
 import { resolveConfigValue } from "../config.js";
+import type { ContentsAnswer, ContentsResponse } from "../contents.js";
 import { DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS } from "../execution-policy-defaults.js";
 import {
   createBackgroundResearchPlan,
   createSilentForegroundPlan,
 } from "../provider-plans.js";
-import type { ContentsEntry } from "../contents.js";
 import type {
   Gemini,
+  ProviderAdapter,
   ProviderContext,
-  ProviderOperationRequest,
+  ProviderRequest,
+  ProviderStatus,
   ResearchJob,
   ResearchPollResult,
-  ProviderStatus,
-  ToolOutput,
   SearchResponse,
-  ProviderAdapter,
+  ToolOutput,
 } from "../types.js";
 
 const DEFAULT_SEARCH_MODEL = "gemini-2.5-flash";
@@ -59,7 +59,7 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Gemini) {
+  buildPlan(request: ProviderRequest, config: Gemini) {
     const planConfig = {
       settings: config.settings,
     };
@@ -177,7 +177,7 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
     config: Gemini,
     context: ProviderContext,
     options?: Record<string, unknown>,
-  ): Promise<ToolOutput> {
+  ): Promise<ContentsResponse> {
     const ai = this.createClient(config);
 
     const urlList = urls.map((url) => `- ${url}`).join("\n");
@@ -199,16 +199,16 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
     let text = structuredResponse.text;
     let metadata = structuredResponse.metadata;
-    let contentsEntries = buildGeminiContentsEntries(text, urls, metadata);
-    const hasReadyEntries = contentsEntries.some(
-      (entry) => entry.status !== "failed",
+    let answers = buildGeminiContentsAnswers(text, urls, metadata);
+    const hasReadyAnswers = answers.some(
+      (answer) => answer.error === undefined,
     );
 
     if (
       shouldFallbackToLegacyGeminiContentsPrompt(
         text,
         metadata,
-        hasReadyEntries,
+        hasReadyAnswers,
       )
     ) {
       const fallbackResponse = await requestGeminiContentsExtraction({
@@ -225,7 +225,7 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
       text = fallbackResponse.text;
       metadata = fallbackResponse.metadata;
-      contentsEntries = buildGeminiContentsEntries(text, urls, metadata);
+      answers = buildGeminiContentsAnswers(text, urls, metadata);
     }
 
     if (shouldRetryEmptyGeminiContentsResponse(text, metadata)) {
@@ -233,55 +233,10 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
         "Gemini returned an empty URL Context response. Retrying may succeed.",
       );
     }
-    const lines: string[] = [];
-
-    const successfulEntries = contentsEntries.filter(
-      (entry) => entry.status !== "failed",
-    );
-    if (successfulEntries.length > 0) {
-      lines.push(renderGeminiContentsEntries(successfulEntries));
-    } else if (text) {
-      lines.push(text);
-    }
-
-    const retrievalFailures = metadata.filter(
-      (entry) =>
-        entry.status !== "URL_RETRIEVAL_STATUS_SUCCESS" &&
-        entry.status !== undefined,
-    );
-    if (retrievalFailures.length > 0) {
-      if (lines.length > 0) {
-        lines.push("");
-      }
-      lines.push("Retrieval issues:");
-      for (const failure of retrievalFailures) {
-        lines.push(`- ${failure.url}: ${failure.status}`);
-      }
-    }
-
-    const contentFailures = getGeminiContentFailures(
-      contentsEntries,
-      retrievalFailures,
-    );
-    if (contentFailures.length > 0) {
-      if (lines.length > 0) {
-        lines.push("");
-      }
-      lines.push("Content issues:");
-      for (const failure of contentFailures) {
-        lines.push(`- ${failure.url}: ${failure.body}`);
-      }
-    }
-
-    const successCount = successfulEntries.length;
 
     return {
       provider: this.id,
-      text: lines.join("\n").trimEnd() || "No contents extracted.",
-      itemCount: successCount,
-      metadata: {
-        contentsEntries: contentsEntries as unknown,
-      },
+      answers,
     };
   }
 
@@ -641,50 +596,56 @@ function shouldRetryEmptyGeminiContentsResponse(
   );
 }
 
-function buildGeminiContentsEntries(
+function buildGeminiContentsAnswers(
   text: string,
   urls: string[],
   metadata: Array<{ url: string; status: string | undefined }>,
-): ContentsEntry[] {
-  const parsedEntries = parseGeminiContentsBlocks(text);
-  const orderedReadyEntries = orderGeminiContentsEntries(parsedEntries, urls);
-  const readyEntries =
-    orderedReadyEntries.length > 0
-      ? orderedReadyEntries.map((entry) => ({
-          ...entry,
-          status: "ready" as const,
+): ContentsAnswer[] {
+  const parsedAnswers = parseGeminiContentsBlocks(text);
+  const readyAnswers =
+    parsedAnswers.length > 0
+      ? orderGeminiContentsEntries(parsedAnswers, urls).map((entry) => ({
+          url: entry.url,
+          content: {
+            markdown: entry.body,
+          },
         }))
-      : buildFallbackGeminiContentsEntries(text, urls, metadata);
+      : buildFallbackGeminiContentsAnswers(text, urls, metadata);
 
-  const retrievalFailureEntries = metadata.flatMap<ContentsEntry>((entry) =>
-    entry.status !== undefined &&
-    entry.status !== "URL_RETRIEVAL_STATUS_SUCCESS" &&
-    !hasGeminiContentsEntryForUrl(readyEntries, entry.url)
-      ? [
-          {
-            url: entry.url,
-            title: entry.url,
-            body: entry.status,
-            status: "failed",
-          },
-        ]
-      : [],
-  );
-  const formatFailureEntries = metadata.flatMap<ContentsEntry>((entry) =>
-    isGeminiMetadataSuccess(entry) &&
-    !hasGeminiContentsEntryForUrl(readyEntries, entry.url)
-      ? [
-          {
-            url: entry.url,
-            title: entry.url,
-            body: "Gemini returned content for this URL in an unexpected format.",
-            status: "failed",
-          },
-        ]
-      : [],
-  );
+  return urls.map((url) => {
+    const readyAnswer = takeGeminiContentsAnswerForUrl(readyAnswers, url);
+    if (readyAnswer) {
+      return readyAnswer;
+    }
 
-  return [...readyEntries, ...retrievalFailureEntries, ...formatFailureEntries];
+    const retrievalFailure = metadata.find(
+      (entry) =>
+        normalizeGeminiUrl(entry.url) === normalizeGeminiUrl(url) &&
+        entry.status !== undefined &&
+        entry.status !== "URL_RETRIEVAL_STATUS_SUCCESS",
+    );
+    if (retrievalFailure?.status) {
+      return {
+        url,
+        error: retrievalFailure.status,
+      };
+    }
+
+    const metadataEntry = metadata.find(
+      (entry) => normalizeGeminiUrl(entry.url) === normalizeGeminiUrl(url),
+    );
+    if (isGeminiMetadataSuccess(metadataEntry ?? { status: undefined })) {
+      return {
+        url,
+        error: "Gemini returned content for this URL in an unexpected format.",
+      };
+    }
+
+    return {
+      url,
+      error: "No contents extracted.",
+    };
+  });
 }
 
 function parseGeminiContentsBlocks(
@@ -752,11 +713,11 @@ function orderGeminiContentsEntries<T extends { url: string }>(
   return ordered;
 }
 
-function buildFallbackGeminiContentsEntries(
+function buildFallbackGeminiContentsAnswers(
   text: string,
   urls: string[],
   metadata: Array<{ url: string; status: string | undefined }>,
-): ContentsEntry[] {
+): ContentsAnswer[] {
   if (!text) {
     return [];
   }
@@ -780,23 +741,11 @@ function buildFallbackGeminiContentsEntries(
   return [
     {
       url: fallbackUrl,
-      title: extractGeminiContentsTitle(text),
-      body: text,
-      status: "ready",
+      content: {
+        markdown: text,
+      },
     },
   ];
-}
-
-function extractGeminiContentsTitle(text: string): string | undefined {
-  const firstLine = text
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
-  if (!firstLine) {
-    return undefined;
-  }
-
-  return firstLine.replace(/^#+\s*/, "").trim() || undefined;
 }
 
 function isGeminiMetadataSuccess(entry: {
@@ -808,26 +757,18 @@ function isGeminiMetadataSuccess(entry: {
   );
 }
 
-function getGeminiContentFailures(
-  entries: ContentsEntry[],
-  retrievalFailures: Array<{ url: string; status: string | undefined }>,
-): ContentsEntry[] {
-  const retrievalFailureUrls = new Set(
-    retrievalFailures.map((entry) => normalizeGeminiUrl(entry.url)),
-  );
-  return entries.filter(
-    (entry) =>
-      entry.status === "failed" &&
-      !retrievalFailureUrls.has(normalizeGeminiUrl(entry.url)),
-  );
-}
-
-function hasGeminiContentsEntryForUrl(
-  entries: ContentsEntry[],
+function takeGeminiContentsAnswerForUrl(
+  answers: ContentsAnswer[],
   url: string,
-): boolean {
+): ContentsAnswer | undefined {
   const normalized = normalizeGeminiUrl(url);
-  return entries.some((entry) => normalizeGeminiUrl(entry.url) === normalized);
+  const index = answers.findIndex(
+    (answer) => normalizeGeminiUrl(answer.url) === normalized,
+  );
+  if (index === -1) {
+    return undefined;
+  }
+  return answers.splice(index, 1)[0];
 }
 
 function normalizeGeminiUrl(url: string): string {
@@ -838,23 +779,6 @@ function normalizeGeminiUrl(url: string): string {
   } catch {
     return url.trim();
   }
-}
-
-function renderGeminiContentsEntries(entries: ContentsEntry[]): string {
-  return entries
-    .map((entry, index) => {
-      const heading = entry.title ?? entry.url;
-      const lines = [`${index + 1}. ${heading}`];
-      if (entry.url && entry.url !== heading) {
-        lines.push(`   ${entry.url}`);
-      }
-      for (const line of entry.body.trim().split("\n")) {
-        lines.push(`   ${line}`);
-      }
-      return lines.join("\n");
-    })
-    .join("\n\n")
-    .trim();
 }
 
 function formatInteractionOutputs(outputs: unknown): string {

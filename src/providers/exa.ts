@@ -1,6 +1,6 @@
 import { Exa as ExaClient } from "exa-js";
 import { resolveConfigValue } from "../config.js";
-import type { ContentsEntry } from "../contents.js";
+import { type ContentsResponse, toContent } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
   createBackgroundResearchPlan,
@@ -10,20 +10,14 @@ import type {
   Exa,
   ProviderAdapter,
   ProviderContext,
-  ProviderOperationRequest,
+  ProviderRequest,
   ProviderStatus,
   ResearchJob,
   ResearchPollResult,
   SearchResponse,
   ToolOutput,
 } from "../types.js";
-import {
-  asJsonObject,
-  formatJson,
-  normalizeContentText,
-  pushIndentedBlock,
-  trimSnippet,
-} from "./shared.js";
+import { asJsonObject, formatJson, trimSnippet } from "./shared.js";
 
 export class ExaAdapter implements ProviderAdapter<Exa> {
   readonly id: "exa" = "exa";
@@ -58,7 +52,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Exa) {
+  buildPlan(request: ProviderRequest, config: Exa) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -167,59 +161,26 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     config: Exa,
     context: ProviderContext,
     options?: Record<string, unknown>,
-  ): Promise<ToolOutput> {
+  ): Promise<ContentsResponse> {
     const client = this.createClient(config);
     const response = await client.getContents(urls, options as never);
 
     const results = response.results ?? [];
-    const lines: string[] = [];
-    const contentsEntries: ContentsEntry[] = results.flatMap(
-      (result, index) => {
-        const title = String(result.title ?? result.url ?? "Untitled");
-        const url = String(result.url ?? "");
-        const entryLines = [`${index + 1}. ${title}`, `   ${url}`];
-
-        const summary =
-          typeof result.summary === "string"
-            ? result.summary
-            : result.summary
-              ? formatJson(result.summary)
-              : undefined;
-        const fullText =
-          typeof result.text === "string"
-            ? result.text
-            : summary
-              ? summary
-              : Array.isArray(result.highlights)
-                ? result.highlights.join("\n\n")
-                : "";
-        const body = normalizeContentText(fullText);
-        pushIndentedBlock(entryLines, body);
-
-        lines.push(...entryLines, "");
-
-        if (!url) {
-          return [];
-        }
-
-        return [
-          {
-            url,
-            title,
-            body,
-            status: "ready",
-          },
-        ];
-      },
-    );
 
     return {
       provider: this.id,
-      text: lines.join("\n").trimEnd() || "No contents found.",
-      itemCount: results.length,
-      metadata: {
-        contentsEntries: contentsEntries as unknown,
-      },
+      answers: urls.map((url, index) => {
+        const result = results[index];
+        return result
+          ? {
+              url,
+              content: toContent(result) ?? { text: formatJson(result) },
+            }
+          : {
+              url,
+              error: "No content returned for this URL.",
+            };
+      }),
     };
   }
 

@@ -1,4 +1,5 @@
 import type { ModelReasoningEffort, WebSearchMode } from "@openai/codex-sdk";
+import type { ContentsResponse } from "./contents.js";
 
 export const PROVIDER_IDS = [
   "claude",
@@ -210,36 +211,36 @@ export interface ExecutionSettings {
   researchMaxConsecutivePollErrors?: number;
 }
 
-export interface SearchOperationRequest {
+export interface SearchRequest {
   capability: "search";
   query: string;
   maxResults: number;
   options?: Record<string, unknown>;
 }
 
-export interface ContentsOperationRequest {
+export interface ContentsRequest {
   capability: "contents";
   urls: string[];
   options?: Record<string, unknown>;
 }
 
-export interface AnswerOperationRequest {
+export interface AnswerRequest {
   capability: "answer";
   query: string;
   options?: Record<string, unknown>;
 }
 
-export interface ResearchOperationRequest {
+export interface ResearchRequest {
   capability: "research";
   input: string;
   options?: Record<string, unknown>;
 }
 
-export type ProviderOperationRequest =
-  | SearchOperationRequest
-  | ContentsOperationRequest
-  | AnswerOperationRequest
-  | ResearchOperationRequest;
+export type ProviderRequest =
+  | SearchRequest
+  | ContentsRequest
+  | AnswerRequest
+  | ResearchRequest;
 
 export interface ProviderResearchLifecycleTraits {
   supportsStartRetries?: boolean;
@@ -280,7 +281,7 @@ export type ProviderDeliveryMode =
   | "streaming-foreground"
   | "background-research";
 
-export interface SingleProviderOperationPlan<TResult> {
+export interface SingleProviderPlan<TResult> {
   capability: Tool;
   providerId: ProviderId;
   providerLabel: string;
@@ -289,7 +290,7 @@ export interface SingleProviderOperationPlan<TResult> {
   execute: (context: ProviderContext) => Promise<TResult>;
 }
 
-export interface BackgroundResearchOperationPlan {
+export interface BackgroundResearchPlan {
   capability: "research";
   providerId: ProviderId;
   providerLabel: string;
@@ -299,9 +300,11 @@ export interface BackgroundResearchOperationPlan {
   poll: (id: string, context: ProviderContext) => Promise<ResearchPollResult>;
 }
 
-export type ProviderOperationPlan<TResult = SearchResponse | ToolOutput> =
-  | SingleProviderOperationPlan<TResult>
-  | BackgroundResearchOperationPlan;
+export type ProviderResult = SearchResponse | ContentsResponse | ToolOutput;
+
+export type ProviderPlan<TResult = ProviderResult> =
+  | SingleProviderPlan<TResult>
+  | BackgroundResearchPlan;
 
 export interface ProviderAdapter<TConfig> {
   readonly id: ProviderId;
@@ -315,8 +318,5 @@ export interface ProviderAdapter<TConfig> {
     cwd: string,
     tool?: Tool,
   ): ProviderStatus;
-  buildPlan(
-    request: ProviderOperationRequest,
-    config: TConfig,
-  ): ProviderOperationPlan | null;
+  buildPlan(request: ProviderRequest, config: TConfig): ProviderPlan | null;
 }

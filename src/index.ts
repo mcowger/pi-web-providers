@@ -28,6 +28,7 @@ import {
 } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { loadConfig, writeConfigFile } from "./config.js";
+import { type ContentsResponse, renderContentsAnswers } from "./contents.js";
 import {
   formatElapsed,
   formatErrorMessage,
@@ -51,8 +52,8 @@ import {
 import {
   getEffectiveProviderConfig,
   getMappedProviderIdForTool,
-  resolveSearchProvider,
   resolveProviderForTool,
+  resolveSearchProvider,
   supportsTool,
 } from "./provider-resolution.js";
 import {
@@ -70,14 +71,14 @@ import type {
   Gemini,
   Parallel,
   ProviderId,
-  ProviderOperationPlan,
-  ProviderOperationRequest,
-  ToolDetails,
-  ToolOutput,
+  ProviderPlan,
+  ProviderRequest,
   SearchResponse,
   SearchSettings,
   Settings,
   Tool,
+  ToolDetails,
+  ToolOutput,
   Valyu,
   WebProviders,
   WebSearchDetails,
@@ -548,9 +549,7 @@ function getSupportedExecutionControlsForCapability(
   return EXECUTION_CONTROL_KEYS.filter((key) => supportedControls.has(key));
 }
 
-function createExecutionSupportProbeRequest(
-  capability: Tool,
-): ProviderOperationRequest {
+function createExecutionSupportProbeRequest(capability: Tool): ProviderRequest {
   switch (capability) {
     case "search":
       return {
@@ -602,7 +601,7 @@ async function executeSearchTool({
   options: Record<string, unknown> | undefined;
   maxResults?: number;
   queries: string[];
-  planOverrides?: ProviderOperationPlan<SearchResponse>[];
+  planOverrides?: ProviderPlan<SearchResponse>[];
 }) {
   await cleanupContentStore();
 
@@ -729,7 +728,7 @@ async function executeSingleSearchQuery({
   options: Record<string, unknown> | undefined;
   providerContext: { cwd: string; signal?: AbortSignal };
   onProgress?: (message: string) => void;
-  planOverride?: ProviderOperationPlan<SearchResponse>;
+  planOverride?: ProviderPlan<SearchResponse>;
 }): Promise<SearchResponse> {
   const plan =
     planOverride ??
@@ -777,7 +776,7 @@ async function executeAnswerTool({
     | undefined;
   options: Record<string, unknown> | undefined;
   queries: string[];
-  planOverrides?: ProviderOperationPlan<ToolOutput>[];
+  planOverrides?: ProviderPlan<ToolOutput>[];
 }) {
   const provider = resolveProviderForTool(
     config,
@@ -929,6 +928,54 @@ async function executeProviderOperation({
   signal,
   options,
   urls,
+  onProgress,
+  planOverride,
+}: {
+  capability: "contents";
+  config: WebProviders;
+  provider: (typeof ADAPTERS)[number];
+  providerConfig: AnyProvider;
+  ctx: { cwd: string };
+  signal: AbortSignal | null | undefined;
+  options: Record<string, unknown> | undefined;
+  urls?: string[];
+  onProgress?: (message: string) => void;
+  planOverride?: ProviderPlan<ContentsResponse>;
+}): Promise<ContentsResponse>;
+async function executeProviderOperation({
+  capability,
+  config,
+  provider,
+  providerConfig,
+  ctx,
+  signal,
+  options,
+  query,
+  input,
+  onProgress,
+  planOverride,
+}: {
+  capability: Exclude<Tool, "search" | "contents">;
+  config: WebProviders;
+  provider: (typeof ADAPTERS)[number];
+  providerConfig: AnyProvider;
+  ctx: { cwd: string };
+  signal: AbortSignal | null | undefined;
+  options: Record<string, unknown> | undefined;
+  query?: string;
+  input?: string;
+  onProgress?: (message: string) => void;
+  planOverride?: ProviderPlan<ToolOutput>;
+}): Promise<ToolOutput>;
+async function executeProviderOperation({
+  capability,
+  config,
+  provider,
+  providerConfig,
+  ctx,
+  signal,
+  options,
+  urls,
   query,
   input,
   onProgress,
@@ -945,8 +992,8 @@ async function executeProviderOperation({
   query?: string;
   input?: string;
   onProgress?: (message: string) => void;
-  planOverride?: ProviderOperationPlan<ToolOutput>;
-}): Promise<ToolOutput> {
+  planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
+}): Promise<ContentsResponse | ToolOutput> {
   const plan =
     planOverride ??
     buildProviderPlan(
@@ -1031,7 +1078,7 @@ async function executeProviderTool({
   urls?: string[];
   query?: string;
   input?: string;
-  planOverride?: ProviderOperationPlan<ToolOutput>;
+  planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
 }) {
   await cleanupContentStore();
 
@@ -1052,22 +1099,38 @@ async function executeProviderTool({
     onUpdate,
   );
 
-  let response: ToolOutput;
+  let response: ContentsResponse | ToolOutput;
   try {
-    response = await executeProviderOperation({
-      capability,
-      config,
-      provider,
-      providerConfig: providerConfig as AnyProvider,
-      ctx,
-      signal,
-      options,
-      urls,
-      query,
-      input,
-      onProgress: progress.report,
-      planOverride,
-    });
+    if (capability === "contents") {
+      response = await executeProviderOperation({
+        capability,
+        config,
+        provider,
+        providerConfig: providerConfig as AnyProvider,
+        ctx,
+        signal,
+        options,
+        urls,
+        onProgress: progress.report,
+        planOverride: planOverride as
+          | ProviderPlan<ContentsResponse>
+          | undefined,
+      });
+    } else {
+      response = await executeProviderOperation({
+        capability,
+        config,
+        provider,
+        providerConfig: providerConfig as AnyProvider,
+        ctx,
+        signal,
+        options,
+        query,
+        input,
+        onProgress: progress.report,
+        planOverride: planOverride as ProviderPlan<ToolOutput> | undefined,
+      });
+    }
   } finally {
     progress.stop();
   }
@@ -1075,9 +1138,16 @@ async function executeProviderTool({
   const details: ToolDetails = {
     tool: `web_${capability}`,
     provider: response.provider,
-    itemCount: response.itemCount,
+    itemCount: isContentsResponse(response)
+      ? response.answers.length
+      : response.itemCount,
   };
-  const text = await truncateAndSave(response.text, capability);
+  const text = await truncateAndSave(
+    isContentsResponse(response)
+      ? formatContentsResponse(response)
+      : response.text,
+    capability,
+  );
 
   return {
     content: [{ type: "text" as const, text }],
@@ -1093,7 +1163,7 @@ function buildOperationRequest(
     query?: string;
     input?: string;
   },
-): ProviderOperationRequest {
+): ProviderRequest {
   if (capability === "contents") {
     return {
       capability,
@@ -1120,7 +1190,7 @@ function buildOperationRequest(
 function buildProviderPlan(
   provider: (typeof ADAPTERS)[number],
   providerConfig: AnyProvider,
-  request: ProviderOperationRequest,
+  request: ProviderRequest,
 ) {
   const plan = provider.buildPlan(request, providerConfig as never);
   if (!plan) {
@@ -1132,9 +1202,19 @@ function buildProviderPlan(
 }
 
 function isSearchResponse(
-  value: SearchResponse | ToolOutput,
+  value: SearchResponse | ContentsResponse | ToolOutput,
 ): value is SearchResponse {
   return "results" in value;
+}
+
+function isContentsResponse(
+  value: ContentsResponse | ToolOutput,
+): value is ContentsResponse {
+  return "answers" in value;
+}
+
+function formatContentsResponse(response: ContentsResponse): string {
+  return renderContentsAnswers(response.answers);
 }
 
 function normalizeOptions(value: unknown): Record<string, unknown> | undefined {

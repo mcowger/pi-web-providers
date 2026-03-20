@@ -1,6 +1,6 @@
 import { Valyu as ValyuClient } from "valyu-js";
 import { resolveConfigValue } from "../config.js";
-import type { ContentsEntry } from "../contents.js";
+import { type ContentsResponse, toContent } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
   createBackgroundResearchPlan,
@@ -9,7 +9,7 @@ import {
 import type {
   ProviderAdapter,
   ProviderContext,
-  ProviderOperationRequest,
+  ProviderRequest,
   ProviderStatus,
   ResearchJob,
   ResearchPollResult,
@@ -17,13 +17,7 @@ import type {
   ToolOutput,
   Valyu,
 } from "../types.js";
-import {
-  asJsonObject,
-  formatJson,
-  normalizeContentText,
-  pushIndentedBlock,
-  trimSnippet,
-} from "./shared.js";
+import { asJsonObject, formatJson, trimSnippet } from "./shared.js";
 
 export class ValyuAdapter implements ProviderAdapter<Valyu> {
   readonly id: "valyu" = "valyu";
@@ -56,7 +50,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Valyu) {
+  buildPlan(request: ProviderRequest, config: Valyu) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -161,7 +155,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     config: Valyu,
     context: ProviderContext,
     options?: Record<string, unknown>,
-  ): Promise<ToolOutput> {
+  ): Promise<ContentsResponse> {
     const client = this.createClient(config);
     const response = await client.contents(urls, options as never);
     const finalResponse =
@@ -173,60 +167,33 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
       throw new Error(finalResponse.error || "Valyu contents failed.");
     }
 
-    const results = finalResponse.results ?? [];
-    const lines: string[] = [];
-    const contentsEntries: ContentsEntry[] = results.flatMap<ContentsEntry>(
-      (result, index) => {
-        const entryLines = [`${index + 1}. ${result.url}`];
-        if (result.status === "failed") {
-          const body = normalizeContentText(`Failed: ${result.error}`);
-          pushIndentedBlock(entryLines, body);
-          lines.push(...entryLines, "");
-          return [
-            {
-              url: result.url,
-              title: result.url,
-              body,
-              status: "failed",
-            },
-          ];
-        }
-
-        const contentText =
-          typeof result.content === "string" ||
-          typeof result.content === "number"
-            ? String(result.content)
-            : result.content
-              ? formatJson(result.content)
-              : typeof result.summary === "string"
-                ? result.summary
-                : result.summary
-                  ? formatJson(result.summary)
-                  : "";
-        const body = normalizeContentText(contentText);
-        if (result.title) {
-          entryLines.push(`   ${result.title}`);
-        }
-        pushIndentedBlock(entryLines, body);
-        lines.push(...entryLines, "");
-        return [
-          {
-            url: result.url,
-            title: result.title,
-            body,
-            status: "ready",
-          },
-        ];
-      },
+    const resultsByUrl = new Map(
+      (finalResponse.results ?? []).map(
+        (result) => [result.url, result] as const,
+      ),
     );
 
     return {
       provider: this.id,
-      text: lines.join("\n").trimEnd() || "No contents found.",
-      itemCount: results.length,
-      metadata: {
-        contentsEntries: contentsEntries as unknown,
-      },
+      answers: urls.map((url) => {
+        const result = resultsByUrl.get(url);
+        if (!result) {
+          return {
+            url,
+            error: "No content returned for this URL.",
+          };
+        }
+
+        return result.status === "failed"
+          ? {
+              url,
+              error: result.error ?? formatJson(result),
+            }
+          : {
+              url,
+              content: toContent(result) ?? { text: formatJson(result) },
+            };
+      }),
     };
   }
 

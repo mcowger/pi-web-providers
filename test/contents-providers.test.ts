@@ -85,12 +85,16 @@ describe("contents providers", () => {
       undefined,
     );
 
-    expect(result.text).toContain(longParagraph);
-    expect(result.text).toContain("   Heading");
-    expect(result.text).not.toContain("short summary");
-    expect((result.metadata as any)?.contentsEntries?.[0]?.body).toContain(
-      longParagraph,
-    );
+    expect(result.answers).toHaveLength(1);
+    expect(result.answers[0]).toMatchObject({
+      url: "https://example.com",
+      content: {
+        title: "Example",
+        url: "https://example.com",
+        text: `Heading\n\n${longParagraph}`,
+        summary: "short summary",
+      },
+    });
   });
 
   it("requests full Parallel page contents by default and prefers full_content", async () => {
@@ -127,9 +131,15 @@ describe("contents providers", () => {
       }),
       undefined,
     );
-    expect(result.text).toContain("Section 1");
-    expect(result.text).toContain("Section 2");
-    expect(result.text).not.toContain("short excerpt");
+    expect(result.answers[0]).toMatchObject({
+      url: "https://parallel.ai/docs",
+      content: {
+        title: "Parallel Docs",
+        url: "https://parallel.ai/docs",
+        excerpts: ["short excerpt"],
+        full_content: "Section 1\n\nSection 2",
+      },
+    });
   });
 
   it("prefers Valyu content over summaries and preserves line breaks", async () => {
@@ -158,12 +168,14 @@ describe("contents providers", () => {
       undefined,
     );
 
-    expect(result.text).toContain("Intro");
-    expect(result.text).toContain("- Item 1");
-    expect(result.text).toContain("- Item 2");
-    expect(result.text).not.toContain("summary only");
-    expect((result.metadata as any)?.contentsEntries?.[0]?.body).toBe(
-      "Intro\n\n- Item 1\n- Item 2",
-    );
+    expect(result.answers[0]).toMatchObject({
+      url: "https://valyu.ai/docs",
+      content: {
+        url: "https://valyu.ai/docs",
+        title: "Valyu Docs",
+        summary: "summary only",
+        content: "Intro\n\n- Item 1\n- Item 2",
+      },
+    });
   });
 });

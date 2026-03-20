@@ -8,7 +8,7 @@ import {
 import type {
   Perplexity,
   ProviderContext,
-  ProviderOperationRequest,
+  ProviderRequest,
   ProviderStatus,
   ToolOutput,
   SearchResponse,
@@ -66,7 +66,7 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Perplexity) {
+  buildPlan(request: ProviderRequest, config: Perplexity) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({

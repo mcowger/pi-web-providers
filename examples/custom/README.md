@@ -196,7 +196,22 @@ printf '%s' '{
 }
 ```
 
-### Contents, answer, and research response
+### Contents response
+
+```json
+{
+  "answers": [
+    {
+      "url": "https://example.com",
+      "content": {
+        "markdown": "# Example\n\nMain page content"
+      }
+    }
+  ]
+}
+```
+
+### Answer and research response
 
 ```json
 {

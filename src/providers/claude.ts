@@ -8,7 +8,7 @@ import type {
   Claude,
   ProviderAdapter,
   ProviderContext,
-  ProviderOperationRequest,
+  ProviderRequest,
   ProviderStatus,
   SearchResponse,
   ToolOutput,
@@ -106,7 +106,7 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Claude) {
+  buildPlan(request: ProviderRequest, config: Claude) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({

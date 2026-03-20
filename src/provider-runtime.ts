@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ContentsResponse } from "./contents.js";
 import {
   executeResearchWithLifecycle,
   parseLocalExecutionOptions,
@@ -13,16 +14,16 @@ import {
   type ExecutionSettings,
   type ExecutionSupport,
   type ProviderContext,
-  type ProviderOperationPlan,
-  type ToolOutput,
+  type ProviderPlan,
   type SearchResponse,
-  type SingleProviderOperationPlan,
+  type SingleProviderPlan,
+  type ToolOutput,
 } from "./types.js";
 
 export async function executeOperationPlan<
-  TResult extends SearchResponse | ToolOutput,
+  TResult extends SearchResponse | ContentsResponse | ToolOutput,
 >(
-  plan: ProviderOperationPlan<TResult>,
+  plan: ProviderPlan<TResult>,
   options: Record<string, unknown> | undefined,
   context: ProviderContext,
 ): Promise<TResult> {
@@ -72,8 +73,8 @@ export async function executeOperationPlan<
 }
 
 export function resolvePlanExecutionSupport<
-  TResult extends SearchResponse | ToolOutput,
->(plan: ProviderOperationPlan<TResult>): Required<ExecutionSupport> {
+  TResult extends SearchResponse | ContentsResponse | ToolOutput,
+>(plan: ProviderPlan<TResult>): Required<ExecutionSupport> {
   const explicit = plan.traits?.executionSupport ?? {};
 
   return {
@@ -95,9 +96,9 @@ export function resolvePlanExecutionSupport<
 }
 
 function resolveForegroundExecutionPolicy<
-  TResult extends SearchResponse | ToolOutput,
+  TResult extends SearchResponse | ContentsResponse | ToolOutput,
 >(
-  plan: SingleProviderOperationPlan<TResult>,
+  plan: SingleProviderPlan<TResult>,
   options: Record<string, unknown> | undefined,
 ) {
   const localOptions = parseLocalExecutionOptions(options);
@@ -132,9 +133,9 @@ function resolveForegroundExecutionPolicy<
 }
 
 function resolveBackgroundResearchExecutionPolicy<
-  TResult extends SearchResponse | ToolOutput,
+  TResult extends SearchResponse | ContentsResponse | ToolOutput,
 >(
-  plan: ProviderOperationPlan<TResult>,
+  plan: ProviderPlan<TResult>,
   options: Record<string, unknown> | undefined,
 ): ResearchExecutionPolicy {
   const localOptions = parseLocalExecutionOptions(options);
@@ -162,10 +163,9 @@ function resolveBackgroundResearchExecutionPolicy<
   );
 }
 
-function inferExecutionSupport<TResult extends SearchResponse | ToolOutput>(
-  plan: ProviderOperationPlan<TResult>,
-  key: ExecutionControlKey,
-): boolean {
+function inferExecutionSupport<
+  TResult extends SearchResponse | ContentsResponse | ToolOutput,
+>(plan: ProviderPlan<TResult>, key: ExecutionControlKey): boolean {
   switch (key) {
     case "requestTimeoutMs":
       if (plan.deliveryMode !== "background-research") {
@@ -230,7 +230,7 @@ function filterPolicyDefaults(
 
 function formatSupportedControls(
   executionSupport: Required<ExecutionSupport>,
-  capability: SingleProviderOperationPlan<unknown>["capability"],
+  capability: SingleProviderPlan<unknown>["capability"],
 ): string {
   const supportedControls = EXECUTION_CONTROL_KEYS.filter(
     (key) => executionSupport[key] === true,
@@ -242,7 +242,7 @@ function formatSupportedControls(
 }
 
 function formatForegroundMode(
-  deliveryMode: SingleProviderOperationPlan<unknown>["deliveryMode"],
+  deliveryMode: SingleProviderPlan<unknown>["deliveryMode"],
 ): "silent foreground" | "streaming foreground" {
   return deliveryMode === "streaming-foreground"
     ? "streaming foreground"

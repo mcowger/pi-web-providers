@@ -1,23 +1,17 @@
 import ParallelClient from "parallel-web";
 import { resolveConfigValue } from "../config.js";
+import { type ContentsResponse, toContent } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import { createSilentForegroundPlan } from "../provider-plans.js";
-import type { ContentsEntry } from "../contents.js";
 import type {
   Parallel,
-  ProviderContext,
-  ProviderOperationRequest,
-  ProviderStatus,
-  ToolOutput,
-  SearchResponse,
   ProviderAdapter,
+  ProviderContext,
+  ProviderRequest,
+  ProviderStatus,
+  SearchResponse,
 } from "../types.js";
-import {
-  asJsonObject,
-  normalizeContentText,
-  pushIndentedBlock,
-  trimSnippet,
-} from "./shared.js";
+import { asJsonObject, formatJson, trimSnippet } from "./shared.js";
 
 export class ParallelAdapter implements ProviderAdapter<Parallel> {
   readonly id: "parallel" = "parallel";
@@ -55,7 +49,7 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
     return { available: true, summary: "enabled" };
   }
 
-  buildPlan(request: ProviderOperationRequest, config: Parallel) {
+  buildPlan(request: ProviderRequest, config: Parallel) {
     switch (request.capability) {
       case "search":
         return createSilentForegroundPlan({
@@ -123,7 +117,7 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
     config: Parallel,
     context: ProviderContext,
     options?: Record<string, unknown>,
-  ): Promise<ToolOutput> {
+  ): Promise<ContentsResponse> {
     const client = this.createClient(config);
     const providerOptions = config.options;
     const defaults =
@@ -138,53 +132,35 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
       buildRequestOptions(context),
     );
 
-    const lines: string[] = [];
-    const contentsEntries: ContentsEntry[] = response.results.map(
-      (result, index) => {
-        const title = result.title ?? result.url;
-        const entryLines = [`${index + 1}. ${title}`, `   ${result.url}`];
-
-        const text = result.full_content ?? result.excerpts?.join("\n\n") ?? "";
-        const body = normalizeContentText(text);
-        pushIndentedBlock(entryLines, body);
-
-        lines.push(...entryLines, "");
-        return {
-          url: result.url,
-          title,
-          body,
-          status: "ready",
-        };
-      },
+    const resultsByUrl = new Map(
+      response.results.map((result) => [result.url, result] as const),
+    );
+    const errorsByUrl = new Map(
+      response.errors.map((error) => [error.url, error] as const),
     );
 
-    for (const error of response.errors) {
-      const detailLines = [error.error_type];
-      if (error.content) {
-        detailLines.push(trimSnippet(error.content));
-      }
-
-      lines.push(`Error: ${error.url}`);
-      for (const line of detailLines) {
-        lines.push(`   ${line}`);
-      }
-      lines.push("");
-      contentsEntries.push({
-        url: error.url,
-        title: error.url,
-        body: detailLines.join("\n"),
-        status: "failed",
-      });
-    }
-
-    const itemCount = response.results.length;
     return {
       provider: this.id,
-      text: lines.join("\n").trimEnd() || "No contents found.",
-      itemCount,
-      metadata: {
-        contentsEntries: contentsEntries as unknown,
-      },
+      answers: urls.map((url) => {
+        const result = resultsByUrl.get(url);
+        if (result) {
+          return {
+            url,
+            content: toContent(result) ?? { text: formatJson(result) },
+          };
+        }
+
+        const error = errorsByUrl.get(url);
+        return error
+          ? {
+              url,
+              error: formatJson(error),
+            }
+          : {
+              url,
+              error: "No content returned for this URL.",
+            };
+      }),
     };
   }
 

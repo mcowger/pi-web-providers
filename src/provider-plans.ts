@@ -1,8 +1,8 @@
 import type {
-  BackgroundResearchOperationPlan,
+  BackgroundResearchPlan,
   ExecutionSettings,
   ProviderPlanTraits,
-  SingleProviderOperationPlan,
+  SingleProviderPlan,
 } from "./types.js";
 
 interface ConfigWithPolicy {
@@ -15,10 +15,10 @@ export function createSilentForegroundPlan<TResult>({
   config,
   traits,
   ...plan
-}: Omit<SingleProviderOperationPlan<TResult>, "deliveryMode" | "traits"> & {
+}: Omit<SingleProviderPlan<TResult>, "deliveryMode" | "traits"> & {
   config: ConfigWithPolicy;
   traits?: Omit<ProviderPlanTraits, "settings">;
-}): SingleProviderOperationPlan<TResult> {
+}): SingleProviderPlan<TResult> {
   return buildSinglePlan("silent-foreground", config.settings, traits, plan);
 }
 
@@ -28,10 +28,10 @@ export function createStreamingForegroundPlan<TResult>({
   config,
   traits,
   ...plan
-}: Omit<SingleProviderOperationPlan<TResult>, "deliveryMode" | "traits"> & {
+}: Omit<SingleProviderPlan<TResult>, "deliveryMode" | "traits"> & {
   config: ConfigWithPolicy;
   traits?: Omit<ProviderPlanTraits, "settings">;
-}): SingleProviderOperationPlan<TResult> {
+}): SingleProviderPlan<TResult> {
   return buildSinglePlan("streaming-foreground", config.settings, traits, plan);
 }
 
@@ -41,10 +41,10 @@ export function createBackgroundResearchPlan({
   config,
   traits,
   ...plan
-}: Omit<BackgroundResearchOperationPlan, "deliveryMode" | "traits"> & {
+}: Omit<BackgroundResearchPlan, "deliveryMode" | "traits"> & {
   config: ConfigWithPolicy;
   traits?: Omit<ProviderPlanTraits, "settings">;
-}): BackgroundResearchOperationPlan {
+}): BackgroundResearchPlan {
   const builtTraits = buildTraits(config.settings, traits);
 
   return {
@@ -55,11 +55,11 @@ export function createBackgroundResearchPlan({
 }
 
 function buildSinglePlan<TResult>(
-  deliveryMode: SingleProviderOperationPlan<TResult>["deliveryMode"],
+  deliveryMode: SingleProviderPlan<TResult>["deliveryMode"],
   settings: ExecutionSettings | undefined,
   traits: Omit<ProviderPlanTraits, "settings"> | undefined,
-  plan: Omit<SingleProviderOperationPlan<TResult>, "deliveryMode" | "traits">,
-): SingleProviderOperationPlan<TResult> {
+  plan: Omit<SingleProviderPlan<TResult>, "deliveryMode" | "traits">,
+): SingleProviderPlan<TResult> {
   const builtTraits = buildTraits(settings, traits);
 
   return {

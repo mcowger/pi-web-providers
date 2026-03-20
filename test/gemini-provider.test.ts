@@ -7,6 +7,38 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function getContentText(
+  response: {
+    answers: Array<{
+      content?: { text?: string; markdown?: string } | Record<string, unknown>;
+      error?: string;
+    }>;
+  },
+  index: number,
+): string | undefined {
+  const answer = response.answers[index];
+  if (!answer || !answer.content || typeof answer.content !== "object") {
+    return undefined;
+  }
+  if ("text" in answer.content && typeof answer.content.text === "string") {
+    return answer.content.text;
+  }
+  if (
+    "markdown" in answer.content &&
+    typeof answer.content.markdown === "string"
+  ) {
+    return answer.content.markdown;
+  }
+  return undefined;
+}
+
+function getErrorText(
+  response: { answers: Array<{ error?: string }> },
+  index: number,
+): string | undefined {
+  return response.answers[index]?.error;
+}
+
 describe("GeminiAdapter search", () => {
   it("forces Google Search via interactions and returns search results", async () => {
     const create = vi.fn().mockResolvedValue({
@@ -381,9 +413,11 @@ describe("GeminiAdapter contents", () => {
         tools: [{ urlContext: {} }],
       },
     });
-    expect(response.text).toContain("This is the main content of the page.");
-    expect(response.text).not.toContain("Retrieval issues");
-    expect(response.itemCount).toBe(1);
+    expect(response.answers).toHaveLength(1);
+    expect(getContentText(response, 0)).toContain(
+      "This is the main content of the page.",
+    );
+    expect(getErrorText(response, 0)).toBeUndefined();
   });
 
   it("reports retrieval failures in the output", async () => {
@@ -411,11 +445,12 @@ describe("GeminiAdapter contents", () => {
       undefined,
     );
 
-    expect(response.text).toContain("Retrieval issues:");
-    expect(response.text).toContain(
-      "https://paywall.example.com: URL_RETRIEVAL_STATUS_PAYWALL",
-    );
-    expect(response.itemCount).toBe(0);
+    expect(response.answers).toEqual([
+      {
+        url: "https://paywall.example.com",
+        error: "URL_RETRIEVAL_STATUS_PAYWALL",
+      },
+    ]);
   });
 
   it("handles multiple URLs with mixed retrieval statuses", async () => {
@@ -471,37 +506,24 @@ describe("GeminiAdapter contents", () => {
       undefined,
     );
 
-    expect(response.text).toContain("1. Page A");
-    expect(response.text).toContain("Content from the first URL.");
-    expect(response.text).toContain("2. Page C");
-    expect(response.text).toContain("Content from the third URL.");
-    expect(response.text).toContain("Retrieval issues:");
-    expect(response.text).toContain(
-      "https://example.com/b: URL_RETRIEVAL_STATUS_ERROR",
-    );
-    expect(response.itemCount).toBe(2);
-    expect(response.metadata).toEqual({
-      contentsEntries: [
-        {
-          url: "https://example.com/a",
-          title: "Page A",
-          body: "Content from the first URL.",
-          status: "ready",
+    expect(response.answers).toEqual([
+      {
+        url: "https://example.com/a",
+        content: {
+          markdown: "Content from the first URL.",
         },
-        {
-          url: "https://example.com/c",
-          title: "Page C",
-          body: "Content from the third URL.",
-          status: "ready",
+      },
+      {
+        url: "https://example.com/b",
+        error: "URL_RETRIEVAL_STATUS_ERROR",
+      },
+      {
+        url: "https://example.com/c",
+        content: {
+          markdown: "Content from the third URL.",
         },
-        {
-          url: "https://example.com/b",
-          title: "https://example.com/b",
-          body: "URL_RETRIEVAL_STATUS_ERROR",
-          status: "failed",
-        },
-      ],
-    });
+      },
+    ]);
   });
 
   it("marks successfully retrieved URLs as failed when Gemini returns only a partial structured response", async () => {
@@ -545,29 +567,18 @@ describe("GeminiAdapter contents", () => {
       undefined,
     );
 
-    expect(response.text).toContain("1. Page A");
-    expect(response.text).toContain("Content from the first URL.");
-    expect(response.text).toContain("Content issues:");
-    expect(response.text).toContain(
-      "https://example.com/b: Gemini returned content for this URL in an unexpected format.",
-    );
-    expect(response.itemCount).toBe(1);
-    expect(response.metadata).toEqual({
-      contentsEntries: [
-        {
-          url: "https://example.com/a",
-          title: "Page A",
-          body: "Content from the first URL.",
-          status: "ready",
+    expect(response.answers).toEqual([
+      {
+        url: "https://example.com/a",
+        content: {
+          markdown: "Content from the first URL.",
         },
-        {
-          url: "https://example.com/b",
-          title: "https://example.com/b",
-          body: "Gemini returned content for this URL in an unexpected format.",
-          status: "failed",
-        },
-      ],
-    });
+      },
+      {
+        url: "https://example.com/b",
+        error: "Gemini returned content for this URL in an unexpected format.",
+      },
+    ]);
   });
 
   it("passes provider-specific generateContent config for contents", async () => {
@@ -666,8 +677,10 @@ describe("GeminiAdapter contents", () => {
     );
 
     expect(generateContent).toHaveBeenCalledTimes(2);
-    expect(response.text).toContain("This is the main content of the page.");
-    expect(response.itemCount).toBe(1);
+    expect(response.answers).toHaveLength(1);
+    expect(getContentText(response, 0)).toContain(
+      "This is the main content of the page.",
+    );
   });
 
   it("throws on an empty response so the caller can retry", async () => {
@@ -748,11 +761,12 @@ describe("GeminiAdapter contents", () => {
       undefined,
     );
 
-    expect(response.text).toContain("Retrieval issues:");
-    expect(response.text).toContain(
-      "https://paywall.example.com: URL_RETRIEVAL_STATUS_PAYWALL",
-    );
-    expect(response.itemCount).toBe(0);
+    expect(response.answers).toEqual([
+      {
+        url: "https://paywall.example.com",
+        error: "URL_RETRIEVAL_STATUS_PAYWALL",
+      },
+    ]);
   });
 });
 

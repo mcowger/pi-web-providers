@@ -1,21 +1,21 @@
 import { Valyu as ValyuClient } from "valyu-js";
 import { resolveConfigValue } from "../config.js";
+import type { ContentsEntry } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
   createBackgroundResearchPlan,
   createSilentForegroundPlan,
 } from "../provider-plans.js";
-import type { ContentsEntry } from "../contents.js";
 import type {
+  ProviderAdapter,
   ProviderContext,
   ProviderOperationRequest,
+  ProviderStatus,
   ResearchJob,
   ResearchPollResult,
-  ProviderStatus,
-  ToolOutput,
   SearchResponse,
+  ToolOutput,
   Valyu,
-  ProviderAdapter,
 } from "../types.js";
 import {
   asJsonObject,
@@ -129,12 +129,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     config: Valyu,
     context: ProviderContext,
   ): Promise<SearchResponse> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Valyu is missing an API key.");
-    }
-
-    const client = new ValyuClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const providerOptions = config.options;
     const options = {
       ...(stripLocalExecutionOptions(asJsonObject(providerOptions)) ?? {}),
@@ -167,12 +162,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     config: Valyu,
     context: ProviderContext,
   ): Promise<ToolOutput> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Valyu is missing an API key.");
-    }
-
-    const client = new ValyuClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const response = await client.contents(urls, options as never);
     const finalResponse =
       "jobId" in response
@@ -246,12 +236,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     config: Valyu,
     context: ProviderContext,
   ): Promise<ToolOutput> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Valyu is missing an API key.");
-    }
-
-    const client = new ValyuClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const response = await client.answer(query, {
       ...(options ?? {}),
       streaming: false,
@@ -295,12 +280,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     config: Valyu,
     context: ProviderContext,
   ): Promise<ResearchJob> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Valyu is missing an API key.");
-    }
-
-    const client = new ValyuClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const task = await client.deepresearch.create({
       input,
       ...(options ?? {}),
@@ -319,12 +299,7 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     config: Valyu,
     context: ProviderContext,
   ): Promise<ResearchPollResult> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Valyu is missing an API key.");
-    }
-
-    const client = new ValyuClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const result = await client.deepresearch.status(id);
 
     if (!result.success) {
@@ -376,5 +351,14 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     }
 
     return { status: "in_progress" };
+  }
+
+  private createClient(config: Valyu): ValyuClient {
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      throw new Error("Valyu is missing an API key.");
+    }
+
+    return new ValyuClient(apiKey, resolveConfigValue(config.baseUrl));
   }
 }

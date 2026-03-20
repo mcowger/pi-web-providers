@@ -1,21 +1,21 @@
 import { Exa as ExaClient } from "exa-js";
 import { resolveConfigValue } from "../config.js";
+import type { ContentsEntry } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import {
   createBackgroundResearchPlan,
   createSilentForegroundPlan,
 } from "../provider-plans.js";
-import type { ContentsEntry } from "../contents.js";
 import type {
   Exa,
+  ProviderAdapter,
   ProviderContext,
   ProviderOperationRequest,
+  ProviderStatus,
   ResearchJob,
   ResearchPollResult,
-  ProviderStatus,
-  ToolOutput,
   SearchResponse,
-  ProviderAdapter,
+  ToolOutput,
 } from "../types.js";
 import {
   asJsonObject,
@@ -131,12 +131,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     config: Exa,
     context: ProviderContext,
   ): Promise<SearchResponse> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Exa is missing an API key.");
-    }
-
-    const client = new ExaClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const providerOptions = config.options;
     const options = {
       ...(stripLocalExecutionOptions(asJsonObject(providerOptions)) ?? {}),
@@ -173,12 +168,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     config: Exa,
     context: ProviderContext,
   ): Promise<ToolOutput> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Exa is missing an API key.");
-    }
-
-    const client = new ExaClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const response = await client.getContents(urls, options as never);
 
     const results = response.results ?? [];
@@ -239,12 +229,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     config: Exa,
     context: ProviderContext,
   ): Promise<ToolOutput> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Exa is missing an API key.");
-    }
-
-    const client = new ExaClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const response = await client.answer(query, options as never);
 
     const lines: string[] = [];
@@ -279,12 +264,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     config: Exa,
     context: ProviderContext,
   ): Promise<ResearchJob> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Exa is missing an API key.");
-    }
-
-    const client = new ExaClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const task = await client.research.create({
       instructions: input,
       ...(options ?? {}),
@@ -299,12 +279,7 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     config: Exa,
     _context: ProviderContext,
   ): Promise<ResearchPollResult> {
-    const apiKey = resolveConfigValue(config.apiKey);
-    if (!apiKey) {
-      throw new Error("Exa is missing an API key.");
-    }
-
-    const client = new ExaClient(apiKey, config.baseUrl);
+    const client = this.createClient(config);
     const result = await client.research.get(id, { events: false });
 
     if (result.status === "completed") {
@@ -338,5 +313,14 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     }
 
     return { status: "in_progress" };
+  }
+
+  private createClient(config: Exa): ExaClient {
+    const apiKey = resolveConfigValue(config.apiKey);
+    if (!apiKey) {
+      throw new Error("Exa is missing an API key.");
+    }
+
+    return new ExaClient(apiKey, resolveConfigValue(config.baseUrl));
   }
 }

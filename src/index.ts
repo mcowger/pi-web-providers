@@ -1382,12 +1382,7 @@ function renderListCallHeader(
   toolName: string,
   items: string[],
   theme: Theme,
-  options: {
-    singleItemFormatter?: (item: string) => string;
-    multiItemFormatter?: (item: string) => string;
-    suffix?: string;
-    forceMultiline?: boolean;
-  } = {},
+  suffix?: string,
 ): Component {
   return {
     invalidate() {},
@@ -1395,18 +1390,10 @@ function renderListCallHeader(
       const normalizedItems = items
         .map((item) => cleanSingleLine(item))
         .filter((item) => item.length > 0);
-      const showItemsInline =
-        normalizedItems.length === 1 && options.forceMultiline !== true;
 
       let header = theme.fg("toolTitle", theme.bold(toolName));
-      if (showItemsInline) {
-        const singleItem =
-          options.singleItemFormatter?.(normalizedItems[0]) ??
-          normalizedItems[0];
-        header += ` ${theme.fg("accent", singleItem)}`;
-      }
-      if (options.suffix) {
-        header += theme.fg("muted", options.suffix);
+      if (suffix) {
+        header += theme.fg("muted", suffix);
       }
 
       const lines: string[] = [];
@@ -1415,18 +1402,14 @@ function renderListCallHeader(
         headerLine + " ".repeat(Math.max(0, width - visibleWidth(headerLine))),
       );
 
-      if (normalizedItems.length > (showItemsInline ? 1 : 0)) {
-        for (const item of normalizedItems) {
-          const renderedItem =
-            options.multiItemFormatter?.(item) ?? truncateInline(item, 120);
-          const itemLine = truncateToWidth(
-            `  ${theme.fg("accent", renderedItem)}`,
-            width,
-          );
-          lines.push(
-            itemLine + " ".repeat(Math.max(0, width - visibleWidth(itemLine))),
-          );
-        }
+      for (const item of normalizedItems) {
+        const itemLine = truncateToWidth(
+          `  ${theme.fg("accent", truncateInline(item, 120))}`,
+          width,
+        );
+        lines.push(
+          itemLine + " ".repeat(Math.max(0, width - visibleWidth(itemLine))),
+        );
       }
 
       return lines;
@@ -1444,10 +1427,7 @@ function renderToolCallHeader(
     toolName,
     primary.trim().length > 0 ? [primary] : [],
     theme,
-    {
-      singleItemFormatter: (item) => item,
-      suffix: details.length > 0 ? ` ${details.join(" ")}` : undefined,
-    },
+    details.length > 0 ? ` ${details.join(" ")}` : undefined,
   );
 }
 
@@ -1459,11 +1439,10 @@ function renderQuestionCallHeader(
 ): Component {
   return renderListCallHeader(
     "web_answer",
-    getAnswerQueriesForDisplay(params.queries),
+    getAnswerQueriesForDisplay(params.queries).map((question) =>
+      formatQuotedPreview(question),
+    ),
     theme,
-    {
-      singleItemFormatter: (question) => formatQuotedPreview(question),
-    },
   );
 }
 
@@ -1473,9 +1452,7 @@ function renderResearchCallHeader(
   },
   theme: Theme,
 ): Component {
-  return renderListCallHeader("web_research", [params.input], theme, {
-    forceMultiline: true,
-  });
+  return renderListCallHeader("web_research", [params.input], theme);
 }
 
 function renderSearchToolResult(
@@ -3029,10 +3006,7 @@ function renderCallHeader(
     "web_search",
     getSearchQueriesForDisplay(params.queries),
     theme,
-    {
-      singleItemFormatter: (query) => formatQuotedPreview(query),
-      suffix: maxResultsSuffix,
-    },
+    maxResultsSuffix,
   );
 }
 

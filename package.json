@@ -65,7 +65,6 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*",
     "@types/node": "^24.3.0",
     "esbuild": "^0.25.10",

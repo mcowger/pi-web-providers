@@ -156,7 +156,7 @@ function registerWebSearchTool(
       `Find likely sources on the public web for up to ${MAX_SEARCH_QUERIES} queries in a single call and return titles, URLs, and snippets grouped by query. ` +
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} when needed.`,
     promptGuidelines: [
-      "Prefer batching related searches into one web_search call instead of making multiple calls.",
+      "Batch related searches when grouped comparison matters; use separate sibling web_search calls when independent results should surface as soon as they are ready.",
     ],
     parameters: Type.Object({
       queries: Type.Array(Type.String({ minLength: 1 }), {
@@ -218,7 +218,8 @@ function registerWebContentsTool(
   pi.registerTool({
     name: "web_contents",
     label: "Web Contents",
-    description: "Read and extract the main contents of one or more web pages.",
+    description:
+      "Read and extract the main contents of one or more web pages. Batch related pages together, or use separate sibling calls when each page can be acted on independently.",
     parameters: Type.Object({
       urls: Type.Array(Type.String({ minLength: 1 }), {
         minItems: 1,
@@ -278,7 +279,7 @@ function registerWebAnswerTool(
       options: jsonOptionsSchema(describeOptionsField("answer", providerIds)),
     }),
     promptGuidelines: [
-      "Prefer batching related questions into one web_answer call instead of making multiple calls.",
+      "Batch related questions when the answers belong together; use separate sibling web_answer calls when earlier independent answers can unblock the next step.",
     ],
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       return executeAnswerTool({
@@ -639,6 +640,15 @@ async function executeSearchTool({
   }
 
   const progress = createToolProgressReporter("search", provider.id, onUpdate);
+  const batchProgress =
+    searchQueries.length > 1
+      ? createBatchCompletionReporter(
+          "Searching",
+          provider.label,
+          searchQueries.length,
+          progress.report,
+        )
+      : undefined;
   const providerContext = {
     cwd: ctx.cwd,
     signal: signal ?? undefined,
@@ -647,6 +657,7 @@ async function executeSearchTool({
 
   let outcomes: SearchQueryOutcome[];
   try {
+    batchProgress?.start();
     const settled = await Promise.allSettled(
       searchQueries.map((searchQuery, index) =>
         executeSingleSearchQuery({
@@ -656,13 +667,19 @@ async function executeSearchTool({
           maxResults: clampedMaxResults,
           options: providerOptions,
           providerContext,
-          onProgress: createBatchProgressReporter(
-            progress.report,
-            searchQueries,
-            index,
-          ),
+          onProgress:
+            searchQueries.length > 1 ? undefined : progress.report,
           planOverride: planOverrides?.[index],
-        }),
+        }).then(
+          (value) => {
+            batchProgress?.markCompleted();
+            return value;
+          },
+          (error) => {
+            batchProgress?.markFailed();
+            throw error;
+          },
+        ),
       ),
     );
     outcomes = settled.map((result, index) =>
@@ -904,13 +921,18 @@ async function executeAnswerTool({
   }
 
   const progress = createToolProgressReporter("answer", provider.id, onUpdate);
-  const providerContext = {
-    cwd: ctx.cwd,
-    signal: signal ?? undefined,
-  };
-
+  const batchProgress =
+    answerQueries.length > 1
+      ? createBatchCompletionReporter(
+          "Answering",
+          provider.label,
+          answerQueries.length,
+          progress.report,
+        )
+      : undefined;
   let outcomes: AnswerQueryOutcome[];
   try {
+    batchProgress?.start();
     const settled = await Promise.allSettled(
       answerQueries.map((answerQuery, index) =>
         executeProviderOperation({
@@ -922,13 +944,19 @@ async function executeAnswerTool({
           signal,
           options,
           query: answerQuery,
-          onProgress: createBatchProgressReporter(
-            progress.report,
-            answerQueries,
-            index,
-          ),
+          onProgress:
+            answerQueries.length > 1 ? undefined : progress.report,
           planOverride: planOverrides?.[index],
-        }),
+        }).then(
+          (value) => {
+            batchProgress?.markCompleted();
+            return value;
+          },
+          (error) => {
+            batchProgress?.markFailed();
+            throw error;
+          },
+        ),
       ),
     );
     outcomes = settled.map((result, index) =>
@@ -1166,6 +1194,7 @@ async function executeProviderTool({
   query,
   input,
   planOverride,
+  planOverrides,
 }: {
   capability: Exclude<Tool, "search">;
   config: WebProviders;
@@ -1183,6 +1212,7 @@ async function executeProviderTool({
   query?: string;
   input?: string;
   planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
+  planOverrides?: ProviderPlan<ContentsResponse>[];
 }) {
   await cleanupContentStore();
 
@@ -1206,20 +1236,34 @@ async function executeProviderTool({
   let response: ContentsResponse | ToolOutput;
   try {
     if (capability === "contents") {
-      response = await executeProviderOperation({
-        capability,
-        config,
-        provider,
-        providerConfig: providerConfig as AnyProvider,
-        ctx,
-        signal,
-        options,
-        urls,
-        onProgress: progress.report,
-        planOverride: planOverride as
-          | ProviderPlan<ContentsResponse>
-          | undefined,
-      });
+      response =
+        planOverrides !== undefined ||
+        (planOverride === undefined && (urls?.length ?? 0) > 1)
+          ? await executeBatchedContentsTool({
+              config,
+              provider,
+              providerConfig: providerConfig as AnyProvider,
+              ctx,
+              signal,
+              options,
+              urls: urls ?? [],
+              progressReport: progress.report,
+              planOverrides,
+            })
+          : await executeProviderOperation({
+              capability,
+              config,
+              provider,
+              providerConfig: providerConfig as AnyProvider,
+              ctx,
+              signal,
+              options,
+              urls,
+              onProgress: progress.report,
+              planOverride: planOverride as
+                | ProviderPlan<ContentsResponse>
+                | undefined,
+            });
     } else {
       response = await executeProviderOperation({
         capability,
@@ -1256,6 +1300,141 @@ async function executeProviderTool({
   return {
     content: [{ type: "text" as const, text }],
     details,
+  };
+}
+
+async function executeBatchedContentsTool({
+  config,
+  provider,
+  providerConfig,
+  ctx,
+  signal,
+  options,
+  urls,
+  progressReport,
+  planOverrides,
+}: {
+  config: WebProviders;
+  provider: (typeof ADAPTERS)[number];
+  providerConfig: AnyProvider;
+  ctx: { cwd: string };
+  signal: AbortSignal | null | undefined;
+  options: Record<string, unknown> | undefined;
+  urls: string[];
+  progressReport: ((message: string) => void) | undefined;
+  planOverrides?: ProviderPlan<ContentsResponse>[];
+}): Promise<ContentsResponse> {
+  if (planOverrides !== undefined && planOverrides.length !== urls.length) {
+    throw new Error(
+      "planOverrides length must match the number of contents URLs.",
+    );
+  }
+
+  const batchProgress = createBatchCompletionReporter(
+    "Fetching contents",
+    provider.label,
+    urls.length,
+    progressReport,
+  );
+  batchProgress.start();
+
+  const settled = await Promise.allSettled(
+    urls.map((url, index) =>
+      executeProviderOperation({
+        capability: "contents",
+        config,
+        provider,
+        providerConfig,
+        ctx,
+        signal,
+        options,
+        urls: [url],
+        onProgress: undefined,
+        planOverride: planOverrides?.[index],
+      }).then(
+        (value) => {
+          batchProgress.markCompleted();
+          return value;
+        },
+        (error) => {
+          batchProgress.markFailed();
+          throw error;
+        },
+      ),
+    ),
+  );
+
+  const successful = settled
+    .map((result, index) => {
+      if (result.status !== "fulfilled") {
+        return undefined;
+      }
+      return {
+        url: urls[index] ?? "",
+        response: result.value,
+      };
+    })
+    .filter(
+      (
+        value,
+      ): value is {
+        url: string;
+        response: ContentsResponse;
+      } => value !== undefined,
+    );
+  const failures = settled
+    .map((result, index) =>
+      result.status === "rejected"
+        ? {
+            url: urls[index] ?? "",
+            error: formatErrorMessage(result.reason),
+          }
+        : undefined,
+    )
+    .filter(
+      (value): value is { url: string; error: string } => value !== undefined,
+    );
+
+  if (successful.length === 0 && failures.length > 0) {
+    throw new Error(
+      failures.length === 1
+        ? (failures[0]?.error ?? "web_contents failed.")
+        : `web_contents failed for all ${failures.length} URL(s): ${failures
+            .map(
+              (failure, index) =>
+                `${index + 1}. ${failure.url} — ${failure.error}`,
+            )
+            .join("; ")}`,
+    );
+  }
+
+  const answersByUrl = new Map<string, ContentsResponse["answers"][number]>();
+  for (const entry of successful) {
+    answersByUrl.set(
+      entry.url,
+      entry.response.answers[0] ?? {
+        url: entry.url,
+        error: "No content returned for this URL.",
+      },
+    );
+  }
+  for (const failure of failures) {
+    answersByUrl.set(failure.url, {
+      url: failure.url,
+      error: failure.error,
+    });
+  }
+
+  return {
+    provider: successful[0]?.response.provider ?? provider.id,
+    answers: urls.map((url) => {
+      return (
+        answersByUrl.get(url) ?? {
+          url,
+          error: "No content returned for this URL.",
+        }
+      );
+    }),
   };
 }
 
@@ -1464,7 +1643,7 @@ function renderSearchToolResult(
   expanded: boolean,
   isPartial: boolean,
   theme: Theme,
-): Component | undefined {
+): Component {
   const text = extractTextContent(result.content);
   const isError = Boolean((result as { isError?: boolean }).isError);
 
@@ -1497,7 +1676,7 @@ function renderProviderToolResult(
   options: {
     markdownWhenExpanded?: boolean;
   } = {},
-): Component | undefined {
+): Component {
   const text = extractTextContent(result.content);
 
   if (isPartial) {
@@ -2940,22 +3119,45 @@ function getAnswerQueriesForDisplay(queries: string[]): string[] {
   return getSearchQueriesForDisplay(queries);
 }
 
-function createBatchProgressReporter(
+function createBatchCompletionReporter(
+  verb: string,
+  providerLabel: string,
+  total: number,
   report: ((message: string) => void) | undefined,
-  queries: string[],
-  index: number,
-): ((message: string) => void) | undefined {
+): {
+  start: () => void;
+  markCompleted: () => void;
+  markFailed: () => void;
+} {
   if (!report) {
-    return undefined;
+    return {
+      start: () => {},
+      markCompleted: () => {},
+      markFailed: () => {},
+    };
   }
 
-  if (queries.length <= 1) {
-    return report;
-  }
+  let completedCount = 0;
+  let failedCount = 0;
 
-  const label = `query ${index + 1}/${queries.length}`;
-  return (message: string) => {
-    report(`${message} (${label})`);
+  const emit = () => {
+    let message = `${verb} via ${providerLabel}: ${completedCount}/${total} completed`;
+    if (failedCount > 0) {
+      message += `, ${failedCount} failed`;
+    }
+    report(message);
+  };
+
+  return {
+    start: emit,
+    markCompleted: () => {
+      completedCount += 1;
+      emit();
+    },
+    markFailed: () => {
+      failedCount += 1;
+      emit();
+    },
   };
 }
 

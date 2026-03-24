@@ -85,10 +85,12 @@ describe("managed tool availability", () => {
     expect(webSearch?.parameters?.properties).toHaveProperty("queries");
     expect(webSearch?.parameters?.properties).toHaveProperty("options");
     expect(webSearch?.parameters?.properties).not.toHaveProperty("provider");
-    expect(webContents?.description).toBe(
+    expect(webContents?.description).toContain(
       "Read and extract the main contents of one or more web pages.",
     );
-    expect(webContents?.description).not.toContain("web_search");
+    expect(webContents?.description).toContain(
+      "use separate sibling calls",
+    );
     expect(webAnswer?.description).toBe(
       "Answer one or more questions using web-grounded evidence (up to 10 per call).",
     );

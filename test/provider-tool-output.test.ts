@@ -156,7 +156,7 @@ describe("provider tool output", () => {
     });
   });
 
-  it("labels batched search progress as query indices instead of completion", async () => {
+  it("emits shared completion counts for batched search progress", async () => {
     const config: WebProviders = {
       providers: {
         exa: {
@@ -205,8 +205,11 @@ describe("provider tool output", () => {
       ],
     });
 
-    expect(updates).toContain("Searching via Exa: exa sdk (query 1/2)");
-    expect(updates).toContain("Searching via Exa: exa pricing (query 2/2)");
+    expect(updates).toEqual([
+      "Searching via Exa: 0/2 completed",
+      "Searching via Exa: 1/2 completed",
+      "Searching via Exa: 2/2 completed",
+    ]);
   });
 
   it("fails the batch when every query fails", async () => {
@@ -520,6 +523,141 @@ describe("provider tool output", () => {
       queryCount: 1,
       failedQueryCount: 0,
     });
+  });
+
+  it("emits shared completion counts for batched answers", async () => {
+    const config: WebProviders = {
+      providers: {
+        gemini: {
+          enabled: true,
+          apiKey: "literal-key",
+        },
+      },
+    };
+    const updates: string[] = [];
+
+    await __test__.executeAnswerTool({
+      config,
+      explicitProvider: "gemini",
+      ctx: { cwd: process.cwd() },
+      signal: undefined,
+      onUpdate: (update) => {
+        const text = update.content[0]?.text;
+        if (text) {
+          updates.push(text);
+        }
+      },
+      options: undefined,
+      queries: [
+        "What are common Tenzir use cases?",
+        "How does Tenzir help with SIEM migration?",
+      ],
+      planOverrides: [
+        {
+          capability: "answer",
+          providerId: "gemini",
+          providerLabel: "Gemini",
+          deliveryMode: "silent-foreground",
+          execute: async () => ({
+            provider: "gemini",
+            text: "Answer one",
+          }),
+        },
+        {
+          capability: "answer",
+          providerId: "gemini",
+          providerLabel: "Gemini",
+          deliveryMode: "silent-foreground",
+          execute: async () => ({
+            provider: "gemini",
+            text: "Answer two",
+          }),
+        },
+      ],
+    });
+
+    expect(updates).toEqual([
+      "Answering via Gemini: 0/2 completed",
+      "Answering via Gemini: 1/2 completed",
+      "Answering via Gemini: 2/2 completed",
+    ]);
+  });
+
+  it("streams multi-url contents progress while preserving input order", async () => {
+    const config: WebProviders = {
+      providers: {
+        exa: {
+          enabled: true,
+          apiKey: "literal-key",
+        },
+      },
+    };
+    const updates: string[] = [];
+
+    const result = await __test__.executeProviderTool({
+      capability: "contents",
+      config,
+      explicitProvider: "exa",
+      ctx: { cwd: process.cwd() },
+      signal: undefined,
+      onUpdate: (update) => {
+        const text = update.content[0]?.text;
+        if (text) {
+          updates.push(text);
+        }
+      },
+      options: undefined,
+      urls: ["https://slow.example", "https://fast.example"],
+      planOverrides: [
+        {
+          capability: "contents",
+          providerId: "exa",
+          providerLabel: "Exa",
+          deliveryMode: "silent-foreground",
+          execute: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+            return {
+              provider: "exa",
+              answers: [
+                {
+                  url: "https://slow.example",
+                  content: "content for https://slow.example",
+                },
+              ],
+            };
+          },
+        },
+        {
+          capability: "contents",
+          providerId: "exa",
+          providerLabel: "Exa",
+          deliveryMode: "silent-foreground",
+          execute: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            return {
+              provider: "exa",
+              answers: [
+                {
+                  url: "https://fast.example",
+                  content: "content for https://fast.example",
+                },
+              ],
+            };
+          },
+        },
+      ],
+    });
+
+    expect(updates).toContain("Fetching contents via Exa: 0/2 completed");
+    expect(updates).toContain("Fetching contents via Exa: 1/2 completed");
+    expect(updates).toContain("Fetching contents via Exa: 2/2 completed");
+
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("## 1. https://slow.example");
+    expect(text).toContain("## 2. https://fast.example");
+    expect(text.indexOf("https://slow.example")).toBeLessThan(
+      text.indexOf("https://fast.example"),
+    );
   });
 
   it("truncates oversized non-search output and saves the full response", async () => {

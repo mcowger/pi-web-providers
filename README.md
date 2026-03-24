@@ -66,7 +66,9 @@ settings live under `settings`; today search-specific settings live under
 #### `web_search`
 
 Search the public web for up to 10 queries in one call. It returns grouped
-titles, URLs, and snippets for each query.
+titles, URLs, and snippets for each query. Batch related queries when grouped
+comparison matters; use separate sibling `web_search` calls when independent
+results should arrive as soon as they are ready.
 
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
@@ -88,7 +90,9 @@ set. `/web-providers` can also persist default search prefetch settings under
 #### `web_contents`
 
 Read the main text from one or more web pages. It reuses cached pages when they
-match and fetches only missing or stale URLs.
+match and fetches only missing or stale URLs. Batch related pages when they are
+meant to be read as one bundle; use separate sibling `web_contents` calls when
+each page can be acted on independently.
 
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
@@ -107,7 +111,9 @@ fetches missing or stale URLs.
 #### `web_answer`
 
 Answer one or more questions using web-grounded evidence. When you ask more
-than one question, the response is grouped into per-question sections.
+than one question, the response is grouped into per-question sections. Batch
+related questions when the answers belong together; split them into sibling
+calls when earlier independent answers can unblock the next step.
 
 <details>
 <summary><strong>Parameters and behavior</strong></summary>

@@ -27,7 +27,6 @@ describe("execution policy", () => {
 
   it("uses Gemini config defaults for parent-side request execution", () => {
     const config: Gemini = {
-      enabled: true,
       apiKey: "literal-key",
       settings: {
         requestTimeoutMs: 45000,

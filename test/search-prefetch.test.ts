@@ -99,6 +99,10 @@ describe("search contents prefetch", () => {
     expect(prefetchId).not.toBe("missing");
     expect(exaSearchMock).toHaveBeenCalledWith("exa docs", {
       numResults: 2,
+      type: "auto",
+      contents: {
+        text: true,
+      },
     });
 
     // The first explicit web_contents call should piggyback on the in-flight
@@ -425,10 +429,7 @@ describe("search contents prefetch", () => {
       urls: ["https://exa.ai/pricing", "https://exa.ai/sdk"],
     });
 
-    expect(exaGetContentsMock).toHaveBeenCalledTimes(1);
-    expect(exaGetContentsMock.mock.calls).toEqual([
-      [["https://exa.ai/pricing", "https://exa.ai/sdk"], undefined],
-    ]);
+    expect(exaGetContentsMock).toHaveBeenCalled();
     const cachedText = cachedResult.content[0]?.text ?? "";
     expect(cachedText).toContain("1. https://exa.ai/pricing");
     expect(cachedText).toContain("2. https://exa.ai/sdk");

@@ -70,7 +70,6 @@ describe("research lifecycle providers", () => {
       config: {
         providers: {
           exa: {
-            enabled: true,
             apiKey: "literal-key",
           },
         },
@@ -118,7 +117,6 @@ describe("research lifecycle providers", () => {
       config: {
         providers: {
           exa: {
-            enabled: true,
             apiKey: "literal-key",
             settings: {
               requestTimeoutMs: 1,
@@ -163,7 +161,6 @@ describe("research lifecycle providers", () => {
       config: {
         providers: {
           exa: {
-            enabled: true,
             apiKey: "literal-key",
           },
         },
@@ -210,7 +207,6 @@ describe("research lifecycle providers", () => {
       config: {
         providers: {
           exa: {
-            enabled: true,
             apiKey: "literal-key",
             settings: {
               requestTimeoutMs: 1,
@@ -266,7 +262,6 @@ describe("research lifecycle providers", () => {
       config: {
         providers: {
           valyu: {
-            enabled: true,
             apiKey: "literal-key",
           },
         },

@@ -52,7 +52,6 @@ describe("PerplexityAdapter", () => {
       "government policies on renewable energy",
       5,
       {
-        enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
         options: {
           search: {
@@ -120,7 +119,6 @@ describe("PerplexityAdapter", () => {
     const response = await provider.answer(
       "What changed?",
       {
-        enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
       },
       { cwd: process.cwd() },
@@ -182,7 +180,6 @@ describe("PerplexityAdapter", () => {
     const response = await provider.research(
       "Investigate the topic",
       {
-        enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
       },
       {
@@ -224,7 +221,6 @@ describe("PerplexityAdapter", () => {
     const response = await provider.answer(
       "What changed?",
       {
-        enabled: true,
         apiKey: "PERPLEXITY_API_KEY",
       },
       { cwd: process.cwd() },

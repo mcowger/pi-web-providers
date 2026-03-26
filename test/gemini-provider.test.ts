@@ -623,7 +623,6 @@ function createProvider(client: unknown): GeminiAdapter {
 
 function createConfig(): Gemini {
   return {
-    enabled: true,
     apiKey: "literal-key",
     options: {
       searchModel: "gemini-2.5-flash",

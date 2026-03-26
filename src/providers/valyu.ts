@@ -4,9 +4,9 @@ import type { ContentsResponse } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import type {
   ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   ResearchJob,
   ResearchPollResult,
   SearchResponse,
@@ -28,7 +28,6 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
 
   createTemplate(): Valyu {
     return {
-      enabled: false,
       apiKey: "VALYU_API_KEY",
       options: {
         searchType: "all",
@@ -37,18 +36,12 @@ export class ValyuAdapter implements ProviderAdapter<Valyu> {
     };
   }
 
-  getStatus(config: Valyu | undefined): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-    const apiKey = resolveConfigValue(config.apiKey);
+  getCapabilityStatus(config: Valyu | undefined): ProviderCapabilityStatus {
+    const apiKey = resolveConfigValue(config?.apiKey);
     if (!apiKey) {
-      return { available: false, summary: "missing apiKey" };
+      return { state: "missing_api_key" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Valyu) {

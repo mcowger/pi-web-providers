@@ -38,16 +38,14 @@ describe("ClaudeAdapter", () => {
     const provider = new ClaudeAdapter();
 
     expect(
-      provider.getStatus(
+      provider.getCapabilityStatus(
         {
-          enabled: true,
           pathToClaudeCodeExecutable: process.execPath,
         },
         process.cwd(),
       ),
     ).toEqual({
-      available: false,
-      summary: "missing Claude auth",
+      state: "missing_auth",
     });
     expect(execFileSyncMock).toHaveBeenCalledTimes(1);
   });
@@ -58,16 +56,14 @@ describe("ClaudeAdapter", () => {
     const provider = new ClaudeAdapter();
 
     expect(
-      provider.getStatus(
+      provider.getCapabilityStatus(
         {
-          enabled: true,
           pathToClaudeCodeExecutable: process.execPath,
         },
         process.cwd(),
       ),
     ).toEqual({
-      available: true,
-      summary: "enabled",
+      state: "ready",
     });
     expect(execFileSyncMock).toHaveBeenCalledTimes(1);
   });
@@ -76,17 +72,18 @@ describe("ClaudeAdapter", () => {
     execFileSyncMock.mockImplementation(mockClaudeAvailable);
 
     const config = {
-      enabled: true,
       pathToClaudeCodeExecutable: process.execPath,
     };
 
-    expect(new ClaudeAdapter().getStatus(config, process.cwd())).toEqual({
-      available: true,
-      summary: "enabled",
+    expect(
+      new ClaudeAdapter().getCapabilityStatus(config, process.cwd()),
+    ).toEqual({
+      state: "ready",
     });
-    expect(new ClaudeAdapter().getStatus(config, process.cwd())).toEqual({
-      available: true,
-      summary: "enabled",
+    expect(
+      new ClaudeAdapter().getCapabilityStatus(config, process.cwd()),
+    ).toEqual({
+      state: "ready",
     });
     expect(execFileSyncMock).toHaveBeenCalledTimes(1);
   });
@@ -100,7 +97,6 @@ describe("ClaudeAdapter", () => {
         maxResults: 5,
       },
       {
-        enabled: true,
         settings: {
           requestTimeoutMs: 1500,
           retryCount: 2,
@@ -147,7 +143,7 @@ describe("ClaudeAdapter", () => {
     await provider.search(
       "latest Claude docs",
       1,
-      { enabled: true },
+      {},
       {
         cwd: process.cwd(),
       },
@@ -194,7 +190,7 @@ describe("ClaudeAdapter", () => {
     const searchPromise = provider.search(
       "latest Claude docs",
       1,
-      { enabled: true },
+      {},
       {
         cwd: process.cwd(),
         signal: controller.signal,
@@ -235,7 +231,6 @@ describe("ClaudeAdapter", () => {
       "latest Claude docs",
       1,
       {
-        enabled: true,
         options: {
           model: "claude-sonnet-4-6",
           effort: "medium",
@@ -293,7 +288,6 @@ describe("ClaudeAdapter", () => {
     const response = await provider.answer(
       "What changed?",
       {
-        enabled: true,
         options: {
           model: "claude-sonnet-4-6",
           maxTurns: 2,

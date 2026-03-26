@@ -5,9 +5,9 @@ import { stripLocalExecutionOptions } from "../execution-policy.js";
 import type {
   Exa,
   ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   ResearchJob,
   ResearchPollResult,
   SearchResponse,
@@ -28,7 +28,6 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
 
   createTemplate(): Exa {
     return {
-      enabled: false,
       apiKey: "EXA_API_KEY",
       options: {
         type: "auto",
@@ -39,18 +38,12 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
     };
   }
 
-  getStatus(config: Exa | undefined): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-    const apiKey = resolveConfigValue(config.apiKey);
+  getCapabilityStatus(config: Exa | undefined): ProviderCapabilityStatus {
+    const apiKey = resolveConfigValue(config?.apiKey);
     if (!apiKey) {
-      return { available: false, summary: "missing apiKey" };
+      return { state: "missing_api_key" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Exa) {
@@ -104,7 +97,11 @@ export class ExaAdapter implements ProviderAdapter<Exa> {
               supportsRequestTimeouts: false,
             },
           },
-          start: (researchRequest, providerConfig: Exa, context: ProviderContext) =>
+          start: (
+            researchRequest,
+            providerConfig: Exa,
+            context: ProviderContext,
+          ) =>
             this.startResearch(
               researchRequest.input,
               providerConfig,

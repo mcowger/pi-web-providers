@@ -151,7 +151,6 @@ describe("provider resolution", () => {
       },
       providers: {
         custom: {
-          enabled: true,
           options: {
             answer: {
               argv: [process.execPath, "./answer-wrapper.mjs"],

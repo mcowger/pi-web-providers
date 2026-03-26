@@ -3,15 +3,15 @@ import type {
   Custom,
   CustomCommandConfig,
   ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   SearchResponse,
   Tool,
   ToolOutput,
 } from "../types.js";
-import { buildProviderPlan, silentForegroundHandler } from "./framework.js";
 import { runCliJsonCommand } from "./cli-json.js";
+import { buildProviderPlan, silentForegroundHandler } from "./framework.js";
 
 export class CustomAdapter implements ProviderAdapter<Custom> {
   readonly id: "custom" = "custom";
@@ -21,35 +21,23 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
   readonly tools = ["search", "contents", "answer", "research"] as const;
 
   createTemplate(): Custom {
-    return {
-      enabled: false,
-    };
+    return {};
   }
 
-  getStatus(
+  getCapabilityStatus(
     config: Custom | undefined,
     _cwd: string,
     capability?: Tool,
-  ): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-
+  ): ProviderCapabilityStatus {
     if (capability) {
       return hasCommandForCapability(config, capability)
-        ? { available: true, summary: "enabled" }
-        : {
-            available: false,
-            summary: `no command configured for ${capability}`,
-          };
+        ? { state: "ready" }
+        : { state: "missing_command" };
     }
 
     return hasAnyCommand(config)
-      ? { available: true, summary: "enabled" }
-      : { available: false, summary: "no commands configured" };
+      ? { state: "ready" }
+      : { state: "missing_command" };
   }
 
   buildPlan(request: ProviderRequest, config: Custom) {
@@ -211,19 +199,22 @@ export class CustomAdapter implements ProviderAdapter<Custom> {
 }
 
 function getCommandConfig(
-  config: Custom,
+  config: Custom | undefined,
   capability: Tool,
 ): CustomCommandConfig | undefined {
-  return config.options?.[capability];
+  return config?.options?.[capability];
 }
 
-function hasCommandForCapability(config: Custom, capability: Tool): boolean {
+function hasCommandForCapability(
+  config: Custom | undefined,
+  capability: Tool,
+): boolean {
   return (
     normalizeConfiguredArgv(getCommandConfig(config, capability)).length > 0
   );
 }
 
-function hasAnyCommand(config: Custom): boolean {
+function hasAnyCommand(config: Custom | undefined): boolean {
   return (
     hasCommandForCapability(config, "search") ||
     hasCommandForCapability(config, "contents") ||

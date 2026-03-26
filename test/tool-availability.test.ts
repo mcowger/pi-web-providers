@@ -88,9 +88,7 @@ describe("managed tool availability", () => {
     expect(webContents?.description).toContain(
       "Read and extract the main contents of one or more web pages.",
     );
-    expect(webContents?.description).toContain(
-      "use separate sibling calls",
-    );
+    expect(webContents?.description).toContain("use separate sibling calls");
     expect(webAnswer?.description).toBe(
       "Answer one or more questions using web-grounded evidence (up to 10 per call).",
     );
@@ -132,9 +130,7 @@ describe("managed tool availability", () => {
 
     const config = createConfig({
       tools: {
-        search: null,
         contents: "exa",
-        answer: null,
         research: "exa",
       },
       providers: {
@@ -179,7 +175,6 @@ describe("managed tool availability", () => {
       },
       providers: {
         custom: {
-          enabled: true,
           options: {
             answer: {
               argv: [process.execPath, "./answer-wrapper.mjs"],
@@ -198,7 +193,6 @@ describe("managed tool availability", () => {
     const config = createConfig({
       providers: {
         custom: {
-          enabled: true,
           options: {
             answer: {
               argv: [process.execPath, "./answer-wrapper.mjs"],

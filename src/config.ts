@@ -2,25 +2,21 @@ import { execSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
-import {
-  createDefaultExecutionSettings,
-  DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
-} from "./execution-policy-defaults.js";
 import { supportsTool } from "./provider-tools.js";
 import type {
   Claude,
   Codex,
-  CustomCommandConfig,
   Custom,
+  CustomCommandConfig,
   Exa,
   ExecutionSettings,
   Gemini,
   Parallel,
   Perplexity,
-  Tool,
   ProviderId,
   SearchSettings,
   Settings,
+  Tool,
   Tools,
   Valyu,
   WebProviders,
@@ -41,82 +37,6 @@ export function createDefaultConfig(): WebProviders {
   return {
     tools: {
       search: "codex",
-      contents: null,
-      answer: null,
-      research: null,
-    },
-    settings: createDefaultExecutionSettings(),
-    providers: {
-      claude: {
-        enabled: false,
-      },
-      codex: {
-        enabled: true,
-        options: {
-          networkAccessEnabled: true,
-          webSearchEnabled: true,
-          webSearchMode: "live",
-        },
-      },
-      custom: {
-        enabled: false,
-      },
-      exa: {
-        enabled: false,
-        apiKey: "EXA_API_KEY",
-        options: {
-          type: "auto",
-          contents: {
-            text: true,
-          },
-        },
-      },
-      gemini: {
-        enabled: false,
-        apiKey: "GOOGLE_API_KEY",
-        options: {
-          searchModel: "gemini-2.5-flash",
-          answerModel: "gemini-2.5-flash",
-          researchAgent: "deep-research-pro-preview-12-2025",
-        },
-        settings: {
-          researchMaxConsecutivePollErrors:
-            DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
-        },
-      },
-      perplexity: {
-        enabled: false,
-        apiKey: "PERPLEXITY_API_KEY",
-        options: {
-          answer: {
-            model: "sonar",
-          },
-          research: {
-            model: "sonar-deep-research",
-          },
-        },
-      },
-      parallel: {
-        enabled: false,
-        apiKey: "PARALLEL_API_KEY",
-        options: {
-          search: {
-            mode: "agentic",
-          },
-          extract: {
-            excerpts: true,
-            full_content: false,
-          },
-        },
-      },
-      valyu: {
-        enabled: false,
-        apiKey: "VALYU_API_KEY",
-        options: {
-          searchType: "all",
-          responseLength: "short",
-        },
-      },
     },
   };
 }
@@ -140,7 +60,9 @@ export async function readConfigFile(path: string): Promise<WebProviders> {
 export async function writeConfigFile(config: WebProviders): Promise<string> {
   const path = getConfigPath();
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, serializeConfig(config), "utf-8");
+  const cleaned = structuredClone(config);
+  cleanupConfig(cleaned);
+  await writeFile(path, serializeConfig(cleaned), "utf-8");
   return path;
 }
 
@@ -335,14 +257,7 @@ function normalizeConfig(raw: unknown, source: string): WebProviders {
     }
   }
 
-  if (config.providers) {
-    for (const providerId of Object.keys(config.providers) as ProviderId[]) {
-      const provider = config.providers[providerId];
-      if (provider && provider.enabled === undefined) {
-        provider.enabled = inferProviderEnabled(config, providerId);
-      }
-    }
-  }
+  cleanupConfig(config);
 
   return config;
 }
@@ -356,12 +271,9 @@ function normalizeClaudeProvider(raw: unknown, source: string): Claude {
     "providers.claude.options",
   );
 
+  rejectRemovedProviderEnabledField(provider, source, "claude");
+
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.claude.enabled",
-    ),
     pathToClaudeCodeExecutable: parseOptionalString(
       provider.pathToClaudeCodeExecutable,
       source,
@@ -404,12 +316,8 @@ function normalizeCodexProvider(raw: unknown, source: string): Codex {
     source,
     "providers.codex.options",
   );
+  rejectRemovedProviderEnabledField(provider, source, "codex");
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.codex.enabled",
-    ),
     codexPath: parseOptionalString(
       provider.codexPath,
       source,
@@ -479,12 +387,8 @@ function normalizeCodexProvider(raw: unknown, source: string): Codex {
 function normalizeExaProvider(raw: unknown, source: string): Exa {
   const provider = parseProviderObject(raw, source, "exa");
   rejectLegacyProviderToolFields(provider, source, "exa");
+  rejectRemovedProviderEnabledField(provider, source, "exa");
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.exa.enabled",
-    ),
     apiKey: parseOptionalString(
       provider.apiKey,
       source,
@@ -511,12 +415,8 @@ function normalizeExaProvider(raw: unknown, source: string): Exa {
 function normalizeValyuProvider(raw: unknown, source: string): Valyu {
   const provider = parseProviderObject(raw, source, "valyu");
   rejectLegacyProviderToolFields(provider, source, "valyu");
+  rejectRemovedProviderEnabledField(provider, source, "valyu");
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.valyu.enabled",
-    ),
     apiKey: parseOptionalString(
       provider.apiKey,
       source,
@@ -549,12 +449,9 @@ function normalizeGeminiProvider(raw: unknown, source: string): Gemini {
     "providers.gemini.options",
   );
 
+  rejectRemovedProviderEnabledField(provider, source, "gemini");
+
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.gemini.enabled",
-    ),
     apiKey: parseOptionalString(
       provider.apiKey,
       source,
@@ -602,12 +499,9 @@ function normalizePerplexityProvider(raw: unknown, source: string): Perplexity {
     "providers.perplexity.options",
   );
 
+  rejectRemovedProviderEnabledField(provider, source, "perplexity");
+
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.perplexity.enabled",
-    ),
     apiKey: parseOptionalString(
       provider.apiKey,
       source,
@@ -655,12 +549,9 @@ function normalizeParallelProvider(raw: unknown, source: string): Parallel {
     "providers.parallel.options",
   );
 
+  rejectRemovedProviderEnabledField(provider, source, "parallel");
+
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.parallel.enabled",
-    ),
     apiKey: parseOptionalString(
       provider.apiKey,
       source,
@@ -703,12 +594,9 @@ function normalizeCustomProvider(raw: unknown, source: string): Custom {
     "providers.custom.options",
   );
 
+  rejectRemovedProviderEnabledField(provider, source, "custom");
+
   return {
-    enabled: parseOptionalBoolean(
-      provider.enabled,
-      source,
-      "providers.custom.enabled",
-    ),
     options:
       options === undefined
         ? undefined
@@ -770,7 +658,6 @@ function toPublicProviderConfig(
     | Valyu,
 ): Record<string, unknown> {
   return {
-    ...(provider.enabled !== undefined ? { enabled: provider.enabled } : {}),
     ...("pathToClaudeCodeExecutable" in provider &&
     provider.pathToClaudeCodeExecutable !== undefined
       ? {
@@ -949,10 +836,7 @@ function parseToolProviderMappingEntry(
   value: unknown,
   source: string,
   field: string,
-): ProviderId | null {
-  if (value === null) {
-    return null;
-  }
+): ProviderId {
   const providerId = parseLiteral(value, source, field, PROVIDER_IDS);
   if (!supportsTool(providerId, tool)) {
     throw new Error(
@@ -999,12 +883,9 @@ function parseOptionalToolProviderId(
   source: string,
   field: string,
   tool: Tool,
-): ProviderId | null | undefined {
+): ProviderId | undefined {
   if (value === undefined) {
     return undefined;
-  }
-  if (value === null) {
-    return null;
   }
   const providerId = parseLiteral(value, source, field, PROVIDER_IDS);
   if (!supportsTool(providerId, tool)) {
@@ -1027,13 +908,16 @@ function rejectLegacyProviderToolFields(
   }
 }
 
-function inferProviderEnabled(
-  config: WebProviders,
+function rejectRemovedProviderEnabledField(
+  provider: Record<string, unknown>,
+  source: string,
   providerId: ProviderId,
-): boolean {
-  return (
-    Object.values(config.tools ?? {}) as Array<ProviderId | null | undefined>
-  ).some((mappedProviderId) => mappedProviderId === providerId);
+): void {
+  if (provider.enabled !== undefined) {
+    throw new Error(
+      `'providers.${providerId}.enabled' in ${source} is no longer supported. Providers are always on; use top-level 'tools' mappings to route or disable capabilities.`,
+    );
+  }
 }
 
 function parseOptionalCustomCommand(
@@ -1183,6 +1067,68 @@ function parseLiteral<T extends readonly string[]>(
     );
   }
   return parsed;
+}
+
+function cleanupConfig(config: WebProviders): void {
+  if (config.settings) {
+    if (
+      config.settings.search &&
+      Object.keys(config.settings.search).length === 0
+    ) {
+      delete config.settings.search;
+    }
+
+    if (Object.keys(config.settings).length === 0) {
+      delete config.settings;
+    }
+  }
+
+  if (config.providers) {
+    for (const providerId of Object.keys(config.providers) as ProviderId[]) {
+      const provider = config.providers[providerId] as
+        | Record<string, unknown>
+        | undefined;
+      if (!provider) {
+        delete config.providers[providerId];
+        continue;
+      }
+      cleanupNestedEmptyObjects(provider);
+      if (Object.keys(provider).length === 0) {
+        delete config.providers[providerId];
+      }
+    }
+
+    if (Object.keys(config.providers).length === 0) {
+      delete config.providers;
+    }
+  }
+
+  if (config.tools && Object.keys(config.tools).length === 0) {
+    delete config.tools;
+  }
+}
+
+function cleanupNestedEmptyObjects(value: Record<string, unknown>): void {
+  for (const [key, entry] of Object.entries(value)) {
+    if (Array.isArray(entry)) {
+      if (entry.length === 0) {
+        delete value[key];
+      }
+      continue;
+    }
+
+    if (isPlainObject(entry)) {
+      cleanupNestedEmptyObjects(entry);
+      if (Object.keys(entry).length === 0) {
+        delete value[key];
+      }
+      continue;
+    }
+
+    if (entry === undefined) {
+      delete value[key];
+    }
+  }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

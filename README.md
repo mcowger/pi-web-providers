@@ -52,16 +52,16 @@ Advanced option: `custom` is a configurable adapter provider that can route
 any managed tool through a local wrapper command using a JSON stdin/stdout
 contract.
 
-See [`example-config.json`](example-config.json) for a full default
+See [`example-config.json`](example-config.json) for the minimal default
 configuration.
 
 ### Tools
 
-Each managed tool maps to one provider id or `null` for off under the top-level
-`tools` key. A tool is only exposed when it is mapped to a compatible provider
-and that provider is currently available. Shared defaults and tool-specific
-settings live under `settings`; today search-specific settings live under
-`settings.search`.
+Each managed tool maps to one provider id under the top-level `tools` key.
+Removing a tool mapping turns that tool off. A tool is only exposed when it is
+mapped to a compatible provider and that provider is currently available.
+Shared defaults and tool-specific settings live under `settings`; today
+search-specific settings live under `settings.search`.
 
 #### `web_search`
 
@@ -294,7 +294,6 @@ Copy the example wrappers into a local `./wrappers/` directory, then configure:
   },
   "providers": {
     "custom": {
-      "enabled": true,
       "options": {
         "search": {
           "argv": ["bash", "./wrappers/codex-search.sh"]

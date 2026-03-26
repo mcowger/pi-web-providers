@@ -3,12 +3,12 @@ import { resolveConfigValue } from "../config.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import type {
   Perplexity,
+  ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
-  ToolOutput,
   SearchResponse,
-  ProviderAdapter,
+  ToolOutput,
 } from "../types.js";
 import {
   buildProviderPlan,
@@ -40,7 +40,6 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
 
   createTemplate(): Perplexity {
     return {
-      enabled: false,
       apiKey: "PERPLEXITY_API_KEY",
       options: {
         answer: {
@@ -53,18 +52,14 @@ export class PerplexityAdapter implements ProviderAdapter<Perplexity> {
     };
   }
 
-  getStatus(config: Perplexity | undefined): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-    const apiKey = resolveConfigValue(config.apiKey);
+  getCapabilityStatus(
+    config: Perplexity | undefined,
+  ): ProviderCapabilityStatus {
+    const apiKey = resolveConfigValue(config?.apiKey);
     if (!apiKey) {
-      return { available: false, summary: "missing apiKey" };
+      return { state: "missing_api_key" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Perplexity) {

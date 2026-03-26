@@ -11,7 +11,11 @@ import {
   renderContentsAnswer,
 } from "./contents.js";
 import { stripLocalExecutionOptions } from "./execution-policy.js";
-import { getEffectiveProviderConfig } from "./provider-resolution.js";
+import {
+  getEffectiveProviderConfig,
+  getProviderCapabilityStatus,
+  isProviderCapabilityReady,
+} from "./provider-resolution.js";
 import { executeOperationPlan } from "./provider-runtime.js";
 import { ADAPTERS_BY_ID } from "./providers/index.js";
 import type { ProviderId, SearchSettings, WebProviders } from "./types.js";
@@ -20,8 +24,8 @@ const CONTENT_ENTRY_KIND = "web-contents";
 const CONTENT_BATCH_ENTRY_KIND = "web-contents-batch";
 const PREFETCH_JOB_KIND = "web-prefetch-job";
 const CONTENT_CACHE_VERSION = 2;
-const DEFAULT_CONTENT_TTL_MS = 30 * 60 * 1000;
-const DEFAULT_PREFETCH_MAX_URLS = 3;
+export const DEFAULT_CONTENT_TTL_MS = 30 * 60 * 1000;
+export const DEFAULT_PREFETCH_MAX_URLS = 3;
 const MAX_PREFETCH_URLS = 5;
 
 export interface SearchContentsPrefetchOptions {
@@ -730,9 +734,6 @@ async function ensureBatchContentsStored({
 
     const provider = ADAPTERS_BY_ID[providerId];
     const providerConfig = getEffectiveProviderConfig(config, providerId);
-    if (!providerConfig) {
-      throw new Error(`Provider '${providerId}' is not configured.`);
-    }
 
     const createdAt = now;
     await putContentStoreEntry<unknown>({
@@ -879,9 +880,6 @@ async function ensureContentsStored({
 
     const provider = ADAPTERS_BY_ID[providerId];
     const providerConfig = getEffectiveProviderConfig(config, providerId);
-    if (!providerConfig) {
-      throw new Error(`Provider '${providerId}' is not configured.`);
-    }
 
     const createdAt = now;
     await putContentStoreEntry<unknown>({
@@ -1105,8 +1103,13 @@ function resolveContentsProvider(
   }
 
   const providerConfig = getEffectiveProviderConfig(config, explicitProvider);
-  const status = provider.getStatus(providerConfig as never, cwd, "contents");
-  if (status.available) {
+  const status = getProviderCapabilityStatus(
+    config,
+    cwd,
+    explicitProvider,
+    "contents",
+  );
+  if (isProviderCapabilityReady(status)) {
     return provider;
   }
   // Explicit prefetch provider is unavailable, so skip prefetch instead of

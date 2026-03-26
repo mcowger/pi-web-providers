@@ -15,10 +15,10 @@ export const PROVIDER_IDS = [
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const TOOLS = ["search", "contents", "answer", "research"] as const;
 export type Tool = (typeof TOOLS)[number];
-export type Tools = Partial<Record<Tool, ProviderId | null>>;
+export type Tools = Partial<Record<Tool, ProviderId>>;
 
 export interface SearchSettings {
-  provider?: ProviderId | null;
+  provider?: ProviderId;
   maxUrls?: number;
   ttlMs?: number;
 }
@@ -116,7 +116,6 @@ export interface CustomOptions {
 }
 
 export interface Provider<TOptions> {
-  enabled?: boolean;
   options?: TOptions;
   settings?: ExecutionSettings;
 }
@@ -190,10 +189,15 @@ export interface WebProviders {
   providers?: Providers;
 }
 
-export interface ProviderStatus {
-  available: boolean;
-  summary: string;
-}
+export type ProviderSetupState = "builtin" | "configured" | "none";
+
+export type ProviderCapabilityStatus =
+  | { state: "ready" }
+  | { state: "missing_api_key" }
+  | { state: "missing_auth" }
+  | { state: "missing_executable" }
+  | { state: "missing_command" }
+  | { state: "invalid_config"; detail: string };
 
 export interface ProviderContext {
   cwd: string;
@@ -313,10 +317,10 @@ export interface ProviderAdapter<TConfig> {
   readonly tools: readonly Tool[];
 
   createTemplate(): TConfig;
-  getStatus(
+  getCapabilityStatus(
     config: TConfig | undefined,
     cwd: string,
     tool?: Tool,
-  ): ProviderStatus;
+  ): ProviderCapabilityStatus;
   buildPlan(request: ProviderRequest, config: TConfig): ProviderPlan | null;
 }

@@ -5,11 +5,11 @@ import { Codex as CodexClient } from "@openai/codex-sdk";
 import { resolveConfigValue, resolveEnvMap } from "../config.js";
 import type {
   Codex,
+  ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   SearchResponse,
-  ProviderAdapter,
 } from "../types.js";
 import { buildProviderPlan, silentForegroundHandler } from "./framework.js";
 import { trimSnippet } from "./shared.js";
@@ -51,7 +51,6 @@ export class CodexAdapter implements ProviderAdapter<Codex> {
 
   createTemplate(): Codex {
     return {
-      enabled: true,
       options: {
         networkAccessEnabled: true,
         webSearchEnabled: true,
@@ -60,28 +59,26 @@ export class CodexAdapter implements ProviderAdapter<Codex> {
     };
   }
 
-  getStatus(config: Codex | undefined, _cwd: string): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
+  getCapabilityStatus(
+    config: Codex | undefined,
+    _cwd: string,
+  ): ProviderCapabilityStatus {
+    const effectiveConfig = config ?? this.createTemplate();
     try {
       new CodexClient({
-        codexPathOverride: config.codexPath,
-        config: config.config as never,
+        codexPathOverride: effectiveConfig.codexPath,
+        config: effectiveConfig.config as never,
       });
     } catch (error) {
       return {
-        available: false,
-        summary: (error as Error).message,
+        state: "invalid_config",
+        detail: (error as Error).message,
       };
     }
-    if (!hasCodexCredentials(config)) {
-      return { available: false, summary: "missing Codex auth" };
+    if (!hasCodexCredentials(effectiveConfig)) {
+      return { state: "missing_auth" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Codex) {

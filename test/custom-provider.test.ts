@@ -50,7 +50,6 @@ describe("CustomAdapter", () => {
       "custom query",
       3,
       {
-        enabled: true,
         options: {
           search: {
             argv: [process.execPath, scriptPath],
@@ -106,7 +105,6 @@ describe("CustomAdapter", () => {
     const result = await provider.answer(
       "what is this?",
       {
-        enabled: true,
         options: {
           answer: {
             argv: [process.execPath, scriptPath],
@@ -147,7 +145,6 @@ describe("CustomAdapter", () => {
         "broken",
         1,
         {
-          enabled: true,
           options: {
             search: {
               argv: [process.execPath, scriptPath],

@@ -78,7 +78,6 @@ describe("contents providers", () => {
     const result = await provider.contents(
       ["https://example.com"],
       {
-        enabled: true,
         apiKey: "literal-key",
       },
       { cwd: process.cwd() },
@@ -103,7 +102,6 @@ describe("contents providers", () => {
     const { ParallelAdapter } = await import("../src/providers/parallel.js");
     const provider = new ParallelAdapter();
     const config = provider.createTemplate();
-    config.enabled = true;
     config.apiKey = "literal-key";
 
     parallelExtractMock.mockResolvedValue({
@@ -164,7 +162,6 @@ describe("contents providers", () => {
     const result = await provider.contents(
       ["https://valyu.ai/docs"],
       {
-        enabled: true,
         apiKey: "literal-key",
       },
       { cwd: process.cwd() },

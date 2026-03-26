@@ -5,9 +5,9 @@ import { stripLocalExecutionOptions } from "../execution-policy.js";
 import type {
   Parallel,
   ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   SearchResponse,
 } from "../types.js";
 import { buildProviderPlan, silentForegroundHandler } from "./framework.js";
@@ -21,7 +21,6 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
 
   createTemplate(): Parallel {
     return {
-      enabled: false,
       apiKey: "PARALLEL_API_KEY",
       options: {
         search: {
@@ -35,18 +34,12 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
     };
   }
 
-  getStatus(config: Parallel | undefined): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-    const apiKey = resolveConfigValue(config.apiKey);
+  getCapabilityStatus(config: Parallel | undefined): ProviderCapabilityStatus {
+    const apiKey = resolveConfigValue(config?.apiKey);
     if (!apiKey) {
-      return { available: false, summary: "missing apiKey" };
+      return { state: "missing_api_key" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Parallel) {
@@ -57,11 +50,7 @@ export class ParallelAdapter implements ProviderAdapter<Parallel> {
       providerLabel: this.label,
       handlers: {
         search: silentForegroundHandler(
-          (
-            searchRequest,
-            providerConfig: Parallel,
-            context: ProviderContext,
-          ) =>
+          (searchRequest, providerConfig: Parallel, context: ProviderContext) =>
             this.search(
               searchRequest.query,
               searchRequest.maxResults,

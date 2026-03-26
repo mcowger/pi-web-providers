@@ -1,6 +1,6 @@
 import {
-  TOOLS,
   type ProviderId,
+  TOOLS,
   type Tool,
   type WebProviders,
 } from "./types.js";
@@ -48,6 +48,6 @@ export function getCompatibleProviders(toolId: Tool): ProviderId[] {
 export function getMappedProviderForTool(
   config: WebProviders,
   tool: Tool,
-): ProviderId | null | undefined {
+): ProviderId | undefined {
   return config.tools?.[tool];
 }

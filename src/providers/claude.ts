@@ -6,9 +6,9 @@ import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
   Claude,
   ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   SearchResponse,
   ToolOutput,
 } from "../types.js";
@@ -83,27 +83,22 @@ export class ClaudeAdapter implements ProviderAdapter<Claude> {
   readonly tools = ["search", "answer"] as const;
 
   createTemplate(): Claude {
-    return {
-      enabled: false,
-    };
+    return {};
   }
 
-  getStatus(config: Claude | undefined, _cwd: string): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-    const executablePath = resolveClaudeExecutablePath(config);
+  getCapabilityStatus(
+    config: Claude | undefined,
+    _cwd: string,
+  ): ProviderCapabilityStatus {
+    const executablePath = resolveClaudeExecutablePath(config ?? {});
     if (executablePath && !existsSync(executablePath)) {
-      return { available: false, summary: "missing Claude Code executable" };
+      return { state: "missing_executable" };
     }
     const authStatus = getClaudeAuthStatus(executablePath);
     if (!authStatus.loggedIn) {
-      return { available: false, summary: "missing Claude auth" };
+      return { state: "missing_auth" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Claude) {

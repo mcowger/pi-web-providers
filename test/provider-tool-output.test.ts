@@ -20,7 +20,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -97,7 +96,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -160,7 +158,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -216,7 +213,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -262,7 +258,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -286,7 +281,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -310,7 +304,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         gemini: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -376,7 +369,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         gemini: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -436,7 +428,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         gemini: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -484,7 +475,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         gemini: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -529,7 +519,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         gemini: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -587,7 +576,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -664,7 +652,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -712,7 +699,6 @@ describe("provider tool output", () => {
       const config: WebProviders = {
         providers: {
           perplexity: {
-            enabled: true,
             apiKey: "literal-key",
           },
         },
@@ -763,7 +749,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         perplexity: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -795,7 +780,6 @@ describe("provider tool output", () => {
       const config: WebProviders = {
         providers: {
           perplexity: {
-            enabled: true,
             apiKey: "literal-key",
           },
         },
@@ -857,7 +841,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -899,7 +882,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -935,7 +917,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -992,7 +973,6 @@ describe("provider tool output", () => {
     const config: WebProviders = {
       providers: {
         gemini: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },

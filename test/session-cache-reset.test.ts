@@ -76,7 +76,6 @@ describe("session cache reset", () => {
     const config = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -142,7 +141,6 @@ describe("session cache reset", () => {
     const config = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },
@@ -242,7 +240,6 @@ describe("session cache reset", () => {
     const config = {
       providers: {
         exa: {
-          enabled: true,
           apiKey: "literal-key",
         },
       },

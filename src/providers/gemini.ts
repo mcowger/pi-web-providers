@@ -4,9 +4,9 @@ import { DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS } from "../executio
 import type {
   Gemini,
   ProviderAdapter,
+  ProviderCapabilityStatus,
   ProviderContext,
   ProviderRequest,
-  ProviderStatus,
   ResearchJob,
   ResearchPollResult,
   SearchResponse,
@@ -30,7 +30,6 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
 
   createTemplate(): Gemini {
     return {
-      enabled: false,
       apiKey: "GOOGLE_API_KEY",
       options: {
         searchModel: DEFAULT_SEARCH_MODEL,
@@ -44,18 +43,12 @@ export class GeminiAdapter implements ProviderAdapter<Gemini> {
     };
   }
 
-  getStatus(config: Gemini | undefined): ProviderStatus {
-    if (!config) {
-      return { available: false, summary: "not configured" };
-    }
-    if (config.enabled === false) {
-      return { available: false, summary: "disabled" };
-    }
-    const apiKey = resolveConfigValue(config.apiKey);
+  getCapabilityStatus(config: Gemini | undefined): ProviderCapabilityStatus {
+    const apiKey = resolveConfigValue(config?.apiKey);
     if (!apiKey) {
-      return { available: false, summary: "missing apiKey" };
+      return { state: "missing_api_key" };
     }
-    return { available: true, summary: "enabled" };
+    return { state: "ready" };
   }
 
   buildPlan(request: ProviderRequest, config: Gemini) {
@@ -379,9 +372,7 @@ function extractGoogleSearchResults(
   return results;
 }
 
-function normalizeGoogleSearchResult(
-  record: Record<string, unknown>,
-): Array<{
+function normalizeGoogleSearchResult(record: Record<string, unknown>): Array<{
   title?: string;
   url?: string;
   rendered_content?: string;

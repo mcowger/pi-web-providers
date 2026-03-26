@@ -32,7 +32,6 @@ describe("CodexAdapter", () => {
         maxResults: 5,
       },
       {
-        enabled: true,
         settings: {
           requestTimeoutMs: 1500,
           retryCount: 2,
@@ -81,7 +80,6 @@ describe("CodexAdapter", () => {
       "latest docs",
       5,
       {
-        enabled: true,
         apiKey: "literal-key",
         options: {
           model: "gpt-4.1",

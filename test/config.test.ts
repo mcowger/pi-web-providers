@@ -58,19 +58,19 @@ describe("config parsing", () => {
     ).toThrow(/Unknown tools in test-config.json: summarize/);
   });
 
-  it("accepts provider enablement", () => {
-    const parsed = parseConfig(
-      JSON.stringify({
-        providers: {
-          codex: {
-            enabled: true,
+  it("rejects provider enablement", () => {
+    expect(() =>
+      parseConfig(
+        JSON.stringify({
+          providers: {
+            codex: {
+              enabled: true,
+            },
           },
-        },
-      }),
-      "test-config.json",
-    );
-
-    expect(parsed.providers?.codex?.enabled).toBe(true);
+        }),
+        "test-config.json",
+      ),
+    ).toThrow(/providers\.codex\.enabled/);
   });
 
   it("rejects legacy provider-local tool toggles", () => {
@@ -141,7 +141,6 @@ describe("config parsing", () => {
       JSON.stringify({
         providers: {
           custom: {
-            enabled: true,
             options: {
               search: {
                 argv: ["node", "./scripts/search-wrapper.mjs"],
@@ -158,7 +157,6 @@ describe("config parsing", () => {
     );
 
     expect(parsed.providers?.["custom"]).toEqual({
-      enabled: true,
       options: {
         search: {
           argv: ["node", "./scripts/search-wrapper.mjs"],
@@ -217,7 +215,8 @@ describe("config parsing", () => {
     await mkdir(process.env.PI_CODING_AGENT_DIR, { recursive: true });
 
     const config = createDefaultConfig();
-    config.providers!.claude = {
+    config.providers ??= {};
+    config.providers.claude = {
       pathToClaudeCodeExecutable: "/tmp/claude-code",
       options: {
         model: "claude-sonnet-4-5",
@@ -225,14 +224,18 @@ describe("config parsing", () => {
         maxTurns: 6,
       },
     };
-    config.providers!.codex!.options!.additionalDirectories = ["docs"];
-    config.providers!.exa = {
+    config.providers.codex = {
+      options: {
+        additionalDirectories: ["docs"],
+      },
+    };
+    config.providers.exa = {
       apiKey: "EXA_API_KEY",
       options: {
         type: "auto",
       },
     };
-    config.providers!.parallel = {
+    config.providers.parallel = {
       apiKey: "PARALLEL_API_KEY",
       options: {
         search: {
@@ -240,7 +243,7 @@ describe("config parsing", () => {
         },
       },
     };
-    config.providers!.gemini = {
+    config.providers.gemini = {
       apiKey: "GOOGLE_API_KEY",
       options: {
         apiVersion: "v1alpha",
@@ -255,7 +258,7 @@ describe("config parsing", () => {
         researchMaxConsecutivePollErrors: 12,
       },
     };
-    config.providers!.perplexity = {
+    config.providers.perplexity = {
       apiKey: "PERPLEXITY_API_KEY",
       options: {
         search: {
@@ -270,10 +273,9 @@ describe("config parsing", () => {
       },
     };
 
-    config.providers!.codex!.options!.webSearchMode = "cached";
-    config.providers!.codex!.options!.additionalDirectories = ["notes"];
+    config.providers.codex.options!.webSearchMode = "cached";
+    config.providers.codex.options!.additionalDirectories = ["notes"];
     config.settings = {
-      ...(config.settings ?? {}),
       search: {
         provider: "exa",
         maxUrls: 2,
@@ -320,52 +322,29 @@ describe("config parsing", () => {
     });
   });
 
-  it("seeds shared settings and only keeps provider-specific overrides", () => {
+  it("creates a sparse default config", () => {
     const config = createDefaultConfig();
 
-    expect(config.settings).toEqual({
-      requestTimeoutMs: 30000,
-      retryCount: 3,
-      retryDelayMs: 2000,
-      researchPollIntervalMs: 3000,
-      researchTimeoutMs: 21600000,
-      researchMaxConsecutivePollErrors: 3,
+    expect(config).toEqual({
+      tools: {
+        search: "codex",
+      },
     });
-    expect(config.providers?.claude?.settings).toBeUndefined();
-    expect(config.providers?.codex?.settings).toBeUndefined();
-    expect(config.providers?.exa?.settings).toBeUndefined();
-    expect(config.providers?.gemini?.settings).toEqual({
-      researchMaxConsecutivePollErrors: 10,
-    });
-    expect(config.providers?.perplexity?.settings).toBeUndefined();
-    expect(config.providers?.parallel?.settings).toBeUndefined();
-    expect(config.providers?.valyu?.settings).toBeUndefined();
   });
 
-  it("keeps provider templates aligned with provider-specific default config blocks", () => {
+  it("keeps provider templates independent from persisted default config", () => {
     const config = createDefaultConfig();
 
-    expect(ADAPTERS_BY_ID.claude.createTemplate().settings).toEqual(
-      config.providers?.claude?.settings,
-    );
-    expect(ADAPTERS_BY_ID.codex.createTemplate().settings).toEqual(
-      config.providers?.codex?.settings,
-    );
-    expect(ADAPTERS_BY_ID.exa.createTemplate().settings).toEqual(
-      config.providers?.exa?.settings,
-    );
-    expect(ADAPTERS_BY_ID.gemini.createTemplate().settings).toEqual(
-      config.providers?.gemini?.settings,
-    );
-    expect(ADAPTERS_BY_ID.perplexity.createTemplate().settings).toEqual(
-      config.providers?.perplexity?.settings,
-    );
-    expect(ADAPTERS_BY_ID.parallel.createTemplate().settings).toEqual(
-      config.providers?.parallel?.settings,
-    );
-    expect(ADAPTERS_BY_ID.valyu.createTemplate().settings).toEqual(
-      config.providers?.valyu?.settings,
-    );
+    expect(config.providers).toBeUndefined();
+    expect(ADAPTERS_BY_ID.claude.createTemplate()).toEqual({});
+    expect(ADAPTERS_BY_ID.codex.createTemplate().options).toEqual({
+      networkAccessEnabled: true,
+      webSearchEnabled: true,
+      webSearchMode: "live",
+    });
+    expect(ADAPTERS_BY_ID.gemini.createTemplate().settings).toEqual({
+      researchMaxConsecutivePollErrors: 10,
+    });
   });
 
   it("keeps example-config.json in sync with createDefaultConfig()", async () => {

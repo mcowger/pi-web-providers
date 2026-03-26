@@ -35,7 +35,7 @@ describe("provider config manifests", () => {
   });
 
   it("round-trips custom cwd and env settings and cleans up empty commands", () => {
-    const config: Custom = { enabled: true };
+    const config: Custom = {};
 
     getTextSetting("customSearchArgv").setValue(
       config,
@@ -70,7 +70,7 @@ describe("provider config manifests", () => {
   });
 
   it("rejects empty custom argv arrays in the settings manifest", () => {
-    const config: Custom = { enabled: true };
+    const config: Custom = {};
 
     expect(() =>
       getTextSetting("customSearchArgv").setValue(config, "[]"),

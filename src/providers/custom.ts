@@ -23,9 +23,6 @@ const searchResponseSchema = z.object({
 const contentsAnswersResponseSchema = z.object({
   answers: z.array(z.unknown()),
 });
-const legacyContentsResponseSchema = z.object({
-  text: z.string(),
-});
 const toolOutputSchema = z.object({
   text: z.string(),
   itemCount: z.unknown().optional(),
@@ -193,7 +190,7 @@ export const customAdapter: CustomAdapter = {
       context,
     });
 
-    return parseContentsResponse(output, customAdapter.id, urls);
+    return parseContentsResponse(output, customAdapter.id);
   },
 
   async answer(
@@ -337,7 +334,6 @@ function parseSearchResult(entry: unknown, index: number) {
 function parseContentsResponse(
   value: unknown,
   providerId: ContentsResponse["provider"],
-  urls: string[],
 ): ContentsResponse {
   const parsed = jsonObjectSchema.safeParse(value);
   if (!parsed.success) {
@@ -354,22 +350,7 @@ function parseContentsResponse(
     };
   }
 
-  const legacyResponse = legacyContentsResponseSchema.safeParse(parsed.data);
-  if (legacyResponse.success && urls.length === 1) {
-    return {
-      provider: providerId,
-      answers: [
-        {
-          url: urls[0] ?? "",
-          content: legacyResponse.data.text,
-        },
-      ],
-    };
-  }
-
-  throw new Error(
-    "contents output must include an 'answers' array (or legacy 'text' for single-URL calls)",
-  );
+  throw new Error("contents output must include an 'answers' array");
 }
 
 function parseContentsAnswer(entry: unknown, index: number): ContentsAnswer {

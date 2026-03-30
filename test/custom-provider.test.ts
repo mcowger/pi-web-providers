@@ -125,6 +125,35 @@ describe("customAdapter", () => {
     });
   });
 
+  it("rejects legacy contents text payloads from the wrapped command", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-"));
+    cleanupDirs.push(root);
+
+    const scriptPath = join(root, "legacy-contents.mjs");
+    await writeFile(
+      scriptPath,
+      ['process.stdout.write(JSON.stringify({ text: "legacy" }));'].join("\n"),
+      "utf8",
+    );
+
+    await expect(
+      customAdapter.contents(
+        ["https://example.com"],
+        {
+          options: {
+            contents: {
+              argv: [process.execPath, scriptPath],
+            },
+          },
+        },
+        {
+          cwd: process.cwd(),
+        },
+        undefined,
+      ),
+    ).rejects.toThrow(/contents output must include an 'answers' array/);
+  });
+
   it("rejects invalid search payloads from the wrapped command", async () => {
     const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-"));
     cleanupDirs.push(root);

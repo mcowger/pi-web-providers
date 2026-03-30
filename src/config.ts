@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
+import { z } from "zod";
 import { supportsTool } from "./provider-tools.js";
 import type {
   Claude,
@@ -24,6 +25,146 @@ import type {
 import { PROVIDER_IDS, TOOLS } from "./types.js";
 
 const CONFIG_FILE_NAME = "web-providers.json";
+const jsonObjectSchema = z.object({}).catchall(z.unknown());
+const stringSchema = z.string();
+const booleanSchema = z.boolean();
+const positiveIntegerSchema = z.number().int().positive();
+const nonNegativeIntegerSchema = z.number().int().nonnegative();
+const stringArraySchema = z.array(z.string());
+const stringMapSchema = z.record(z.string(), z.string());
+const nonEmptyStringArraySchema = z
+  .array(z.string().refine((value) => value.trim().length > 0))
+  .nonempty();
+const executionSettingsSchema = z
+  .object({
+    requestTimeoutMs: positiveIntegerSchema.optional(),
+    retryCount: nonNegativeIntegerSchema.optional(),
+    retryDelayMs: positiveIntegerSchema.optional(),
+    researchPollIntervalMs: positiveIntegerSchema.optional(),
+    researchTimeoutMs: positiveIntegerSchema.optional(),
+    researchMaxConsecutivePollErrors: positiveIntegerSchema.optional(),
+  })
+  .strict();
+const searchSettingsSchema = z
+  .object({
+    provider: z.enum(PROVIDER_IDS).optional(),
+    maxUrls: positiveIntegerSchema.optional(),
+    ttlMs: positiveIntegerSchema.optional(),
+  })
+  .strict();
+const settingsSchema = executionSettingsSchema.extend({
+  search: jsonObjectSchema.optional(),
+});
+const claudeOptionsSchema = z
+  .object({
+    model: stringSchema.optional(),
+    effort: z.enum(["low", "medium", "high", "max"]).optional(),
+    maxTurns: positiveIntegerSchema.optional(),
+  })
+  .strict();
+const claudeProviderSchema = z
+  .object({
+    pathToClaudeCodeExecutable: stringSchema.optional(),
+    options: claudeOptionsSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const codexOptionsSchema = z
+  .object({
+    model: stringSchema.optional(),
+    modelReasoningEffort: z
+      .enum(["minimal", "low", "medium", "high", "xhigh"])
+      .optional(),
+    networkAccessEnabled: booleanSchema.optional(),
+    webSearchMode: z.enum(["disabled", "cached", "live"]).optional(),
+    webSearchEnabled: booleanSchema.optional(),
+    additionalDirectories: stringArraySchema.optional(),
+  })
+  .strict();
+const codexProviderSchema = z
+  .object({
+    codexPath: stringSchema.optional(),
+    baseUrl: stringSchema.optional(),
+    apiKey: stringSchema.optional(),
+    env: stringMapSchema.optional(),
+    config: jsonObjectSchema.optional(),
+    options: codexOptionsSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const geminiOptionsSchema = z
+  .object({
+    apiVersion: stringSchema.optional(),
+    searchModel: stringSchema.optional(),
+    answerModel: stringSchema.optional(),
+    researchAgent: stringSchema.optional(),
+  })
+  .strict();
+const geminiProviderSchema = z
+  .object({
+    apiKey: stringSchema.optional(),
+    options: geminiOptionsSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const perplexityOptionsSchema = z
+  .object({
+    search: jsonObjectSchema.optional(),
+    answer: jsonObjectSchema.optional(),
+    research: jsonObjectSchema.optional(),
+  })
+  .strict();
+const perplexityProviderSchema = z
+  .object({
+    apiKey: stringSchema.optional(),
+    baseUrl: stringSchema.optional(),
+    options: perplexityOptionsSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const parallelOptionsSchema = z
+  .object({
+    search: jsonObjectSchema.optional(),
+    extract: jsonObjectSchema.optional(),
+  })
+  .strict();
+const parallelProviderSchema = z
+  .object({
+    apiKey: stringSchema.optional(),
+    baseUrl: stringSchema.optional(),
+    options: parallelOptionsSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const simpleApiProviderSchema = z
+  .object({
+    apiKey: stringSchema.optional(),
+    baseUrl: stringSchema.optional(),
+    options: jsonObjectSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const customCommandSchema = z
+  .object({
+    argv: nonEmptyStringArraySchema.optional(),
+    cwd: stringSchema.optional(),
+    env: stringMapSchema.optional(),
+  })
+  .strict();
+const customProviderSchema = z
+  .object({
+    options: z
+      .object({
+        search: customCommandSchema.optional(),
+        contents: customCommandSchema.optional(),
+        answer: customCommandSchema.optional(),
+        research: customCommandSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
 const commandValueCache = new Map<
   string,
   { value?: string; errorMessage?: string }
@@ -233,320 +374,45 @@ function normalizeConfig(raw: unknown, source: string): WebProviders {
 }
 
 function normalizeClaudeProvider(raw: unknown, source: string): Claude {
-  const { provider, options } = parseProviderRoot(raw, source, "claude");
-
-  return {
-    pathToClaudeCodeExecutable: parseOptionalString(
-      provider.pathToClaudeCodeExecutable,
-      source,
-      "providers.claude.pathToClaudeCodeExecutable",
-    ),
-    options:
-      options === undefined
-        ? undefined
-        : {
-            model: parseOptionalString(
-              options.model,
-              source,
-              "providers.claude.options.model",
-            ),
-            effort: parseOptionalLiteral(
-              options.effort,
-              source,
-              "providers.claude.options.effort",
-              ["low", "medium", "high", "max"] as const,
-            ),
-            maxTurns: parseOptionalInteger(
-              options.maxTurns,
-              source,
-              "providers.claude.options.maxTurns",
-            ),
-          },
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.claude.settings",
-    ),
-  };
+  return parseProviderWithSchema(raw, source, "claude", claudeProviderSchema);
 }
 
 function normalizeCodexProvider(raw: unknown, source: string): Codex {
-  const { provider, options } = parseProviderRoot(raw, source, "codex");
-  return {
-    codexPath: parseOptionalString(
-      provider.codexPath,
-      source,
-      "providers.codex.codexPath",
-    ),
-    baseUrl: parseOptionalString(
-      provider.baseUrl,
-      source,
-      "providers.codex.baseUrl",
-    ),
-    apiKey: parseOptionalString(
-      provider.apiKey,
-      source,
-      "providers.codex.apiKey",
-    ),
-    env: parseOptionalStringMap(provider.env, source, "providers.codex.env"),
-    config: parseOptionalJsonObject(
-      provider.config,
-      source,
-      "providers.codex.config",
-    ),
-    options:
-      options === undefined
-        ? undefined
-        : {
-            model: parseOptionalString(
-              options.model,
-              source,
-              "providers.codex.options.model",
-            ),
-            modelReasoningEffort: parseOptionalLiteral(
-              options.modelReasoningEffort,
-              source,
-              "providers.codex.options.modelReasoningEffort",
-              ["minimal", "low", "medium", "high", "xhigh"] as const,
-            ),
-            networkAccessEnabled: parseOptionalBoolean(
-              options.networkAccessEnabled,
-              source,
-              "providers.codex.options.networkAccessEnabled",
-            ),
-            webSearchMode: parseOptionalLiteral(
-              options.webSearchMode,
-              source,
-              "providers.codex.options.webSearchMode",
-              ["disabled", "cached", "live"] as const,
-            ),
-            webSearchEnabled: parseOptionalBoolean(
-              options.webSearchEnabled,
-              source,
-              "providers.codex.options.webSearchEnabled",
-            ),
-            additionalDirectories: parseOptionalStringArray(
-              options.additionalDirectories,
-              source,
-              "providers.codex.options.additionalDirectories",
-            ),
-          },
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.codex.settings",
-    ),
-  };
+  return parseProviderWithSchema(raw, source, "codex", codexProviderSchema);
 }
 
 function normalizeExaProvider(raw: unknown, source: string): Exa {
-  const { provider } = parseProviderRoot(raw, source, "exa");
-  return {
-    apiKey: parseOptionalString(
-      provider.apiKey,
-      source,
-      "providers.exa.apiKey",
-    ),
-    baseUrl: parseOptionalString(
-      provider.baseUrl,
-      source,
-      "providers.exa.baseUrl",
-    ),
-    options: parseOptionalJsonObject(
-      provider.options,
-      source,
-      "providers.exa.options",
-    ),
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.exa.settings",
-    ),
-  };
+  return parseProviderWithSchema(raw, source, "exa", simpleApiProviderSchema);
 }
 
 function normalizeValyuProvider(raw: unknown, source: string): Valyu {
-  const { provider } = parseProviderRoot(raw, source, "valyu");
-  return {
-    apiKey: parseOptionalString(
-      provider.apiKey,
-      source,
-      "providers.valyu.apiKey",
-    ),
-    baseUrl: parseOptionalString(
-      provider.baseUrl,
-      source,
-      "providers.valyu.baseUrl",
-    ),
-    options: parseOptionalJsonObject(
-      provider.options,
-      source,
-      "providers.valyu.options",
-    ),
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.valyu.settings",
-    ),
-  };
+  return parseProviderWithSchema(raw, source, "valyu", simpleApiProviderSchema);
 }
 
 function normalizeGeminiProvider(raw: unknown, source: string): Gemini {
-  const { provider, options } = parseProviderRoot(raw, source, "gemini");
-
-  return {
-    apiKey: parseOptionalString(
-      provider.apiKey,
-      source,
-      "providers.gemini.apiKey",
-    ),
-    options:
-      options === undefined
-        ? undefined
-        : {
-            apiVersion: parseOptionalString(
-              options.apiVersion,
-              source,
-              "providers.gemini.options.apiVersion",
-            ),
-            searchModel: parseOptionalString(
-              options.searchModel,
-              source,
-              "providers.gemini.options.searchModel",
-            ),
-            answerModel: parseOptionalString(
-              options.answerModel,
-              source,
-              "providers.gemini.options.answerModel",
-            ),
-            researchAgent: parseOptionalString(
-              options.researchAgent,
-              source,
-              "providers.gemini.options.researchAgent",
-            ),
-          },
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.gemini.settings",
-    ),
-  };
+  return parseProviderWithSchema(raw, source, "gemini", geminiProviderSchema);
 }
 
 function normalizePerplexityProvider(raw: unknown, source: string): Perplexity {
-  const { provider, options } = parseProviderRoot(raw, source, "perplexity");
-
-  return {
-    apiKey: parseOptionalString(
-      provider.apiKey,
-      source,
-      "providers.perplexity.apiKey",
-    ),
-    baseUrl: parseOptionalString(
-      provider.baseUrl,
-      source,
-      "providers.perplexity.baseUrl",
-    ),
-    options:
-      options === undefined
-        ? undefined
-        : {
-            search: parseOptionalJsonObject(
-              options.search,
-              source,
-              "providers.perplexity.options.search",
-            ),
-            answer: parseOptionalJsonObject(
-              options.answer,
-              source,
-              "providers.perplexity.options.answer",
-            ),
-            research: parseOptionalJsonObject(
-              options.research,
-              source,
-              "providers.perplexity.options.research",
-            ),
-          },
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.perplexity.settings",
-    ),
-  };
+  return parseProviderWithSchema(
+    raw,
+    source,
+    "perplexity",
+    perplexityProviderSchema,
+  );
 }
 
 function normalizeParallelProvider(raw: unknown, source: string): Parallel {
-  const { provider, options } = parseProviderRoot(raw, source, "parallel");
-
-  return {
-    apiKey: parseOptionalString(
-      provider.apiKey,
-      source,
-      "providers.parallel.apiKey",
-    ),
-    baseUrl: parseOptionalString(
-      provider.baseUrl,
-      source,
-      "providers.parallel.baseUrl",
-    ),
-    options:
-      options === undefined
-        ? undefined
-        : {
-            search: parseOptionalJsonObject(
-              options.search,
-              source,
-              "providers.parallel.options.search",
-            ),
-            extract: parseOptionalJsonObject(
-              options.extract,
-              source,
-              "providers.parallel.options.extract",
-            ),
-          },
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.parallel.settings",
-    ),
-  };
+  return parseProviderWithSchema(
+    raw,
+    source,
+    "parallel",
+    parallelProviderSchema,
+  );
 }
 
 function normalizeCustomProvider(raw: unknown, source: string): Custom {
-  const { provider, options } = parseProviderRoot(raw, source, "custom");
-
-  return {
-    options:
-      options === undefined
-        ? undefined
-        : {
-            search: parseOptionalCustomCommand(
-              options.search,
-              source,
-              "providers.custom.options.search",
-            ),
-            contents: parseOptionalCustomCommand(
-              options.contents,
-              source,
-              "providers.custom.options.contents",
-            ),
-            answer: parseOptionalCustomCommand(
-              options.answer,
-              source,
-              "providers.custom.options.answer",
-            ),
-            research: parseOptionalCustomCommand(
-              options.research,
-              source,
-              "providers.custom.options.research",
-            ),
-          },
-    settings: parseOptionalExecutionPolicy(
-      provider.settings,
-      source,
-      "providers.custom.settings",
-    ),
-  };
+  return parseProviderWithSchema(raw, source, "custom", customProviderSchema);
 }
 
 function toPublicConfig(config: WebProviders): Record<string, unknown> {
@@ -565,25 +431,33 @@ function toPublicConfig(config: WebProviders): Record<string, unknown> {
   } as unknown as Record<string, unknown>;
 }
 
-function parseProviderRoot(
+function parseProviderWithSchema<T>(
   raw: unknown,
   source: string,
   providerId: ProviderId,
-): {
-  provider: Record<string, unknown>;
-  options: Record<string, unknown> | undefined;
-} {
+  schema: z.ZodType<T>,
+): T {
   const provider = parseProviderObject(raw, source, providerId);
   rejectLegacyProviderToolFields(provider, source, providerId);
   rejectRemovedProviderEnabledField(provider, source, providerId);
-  return {
-    provider,
-    options: parseOptionalJsonObject(
-      provider.options,
-      source,
-      `providers.${providerId}.options`,
-    ),
-  };
+
+  const parsed = schema.safeParse(provider);
+  if (!parsed.success) {
+    const argvIssue = parsed.error.issues.find((issue) =>
+      issue.path.includes("argv"),
+    );
+    if (argvIssue) {
+      const commandField = argvIssue.path.slice(0, -1).join(".");
+      throw new Error(
+        `'providers.${providerId}.${commandField}' in ${source} must be a non-empty array of non-empty strings.`,
+      );
+    }
+    throw new Error(
+      `'providers.${providerId}' in ${source} must be a valid provider config.`,
+    );
+  }
+
+  return parsed.data;
 }
 
 function toPublicProviderConfig(
@@ -624,102 +498,30 @@ function toPublicProviderConfig(
   } as unknown as Record<string, unknown>;
 }
 
-function parseOptionalExecutionPolicy(
-  value: unknown,
-  source: string,
-  field: string,
-): ExecutionSettings | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const settings = parseOptionalJsonObject(value, source, field);
-  if (!settings) {
-    return undefined;
-  }
-
-  const parsed: ExecutionSettings = {
-    requestTimeoutMs: parseOptionalInteger(
-      settings.requestTimeoutMs,
-      source,
-      `${field}.requestTimeoutMs`,
-    ),
-    retryCount: parseOptionalNonNegativeInteger(
-      settings.retryCount,
-      source,
-      `${field}.retryCount`,
-    ),
-    retryDelayMs: parseOptionalInteger(
-      settings.retryDelayMs,
-      source,
-      `${field}.retryDelayMs`,
-    ),
-    researchPollIntervalMs: parseOptionalInteger(
-      settings.researchPollIntervalMs,
-      source,
-      `${field}.researchPollIntervalMs`,
-    ),
-    researchTimeoutMs: parseOptionalInteger(
-      settings.researchTimeoutMs,
-      source,
-      `${field}.researchTimeoutMs`,
-    ),
-    researchMaxConsecutivePollErrors: parseOptionalInteger(
-      settings.researchMaxConsecutivePollErrors,
-      source,
-      `${field}.researchMaxConsecutivePollErrors`,
-    ),
-  };
-
-  return Object.values(parsed).some((entry) => entry !== undefined)
-    ? parsed
-    : undefined;
-}
-
 function parseSettingsConfig(value: unknown, source: string): Settings {
-  if (!isPlainObject(value)) {
-    throw new Error(`'settings' in ${source} must be a JSON object.`);
-  }
+  const parsed = parseWithSchema(
+    value,
+    settingsSchema,
+    source,
+    "settings",
+    "must be a JSON object.",
+  );
 
-  const parsed: Settings = {
-    requestTimeoutMs: parseOptionalInteger(
-      value.requestTimeoutMs,
-      source,
-      "settings.requestTimeoutMs",
-    ),
-    retryCount: parseOptionalNonNegativeInteger(
-      value.retryCount,
-      source,
-      "settings.retryCount",
-    ),
-    retryDelayMs: parseOptionalInteger(
-      value.retryDelayMs,
-      source,
-      "settings.retryDelayMs",
-    ),
-    researchPollIntervalMs: parseOptionalInteger(
-      value.researchPollIntervalMs,
-      source,
-      "settings.researchPollIntervalMs",
-    ),
-    researchTimeoutMs: parseOptionalInteger(
-      value.researchTimeoutMs,
-      source,
-      "settings.researchTimeoutMs",
-    ),
-    researchMaxConsecutivePollErrors: parseOptionalInteger(
-      value.researchMaxConsecutivePollErrors,
-      source,
-      "settings.researchMaxConsecutivePollErrors",
-    ),
+  const settings: Settings = {
+    requestTimeoutMs: parsed.requestTimeoutMs,
+    retryCount: parsed.retryCount,
+    retryDelayMs: parsed.retryDelayMs,
+    researchPollIntervalMs: parsed.researchPollIntervalMs,
+    researchTimeoutMs: parsed.researchTimeoutMs,
+    researchMaxConsecutivePollErrors: parsed.researchMaxConsecutivePollErrors,
     search:
-      value.search !== undefined
-        ? parseSearchSettings(value.search, source, "settings.search")
+      parsed.search !== undefined
+        ? parseSearchSettings(parsed.search, source, "settings.search")
         : undefined,
   };
 
-  return Object.values(parsed).some((entry) => entry !== undefined)
-    ? parsed
+  return Object.values(settings).some((entry) => entry !== undefined)
+    ? settings
     : {};
 }
 
@@ -728,22 +530,13 @@ function parseProviderObject(
   source: string,
   field: string,
 ): Record<string, unknown> {
-  if (!isPlainObject(raw)) {
-    throw new Error(`'providers.${field}' in ${source} must be a JSON object.`);
-  }
-  return raw;
-}
-
-function parseOptionalJsonObject(
-  value: unknown,
-  source: string,
-  field: string,
-): Record<string, unknown> | undefined {
-  if (value === undefined) return undefined;
-  if (!isPlainObject(value)) {
-    throw new Error(`'${field}' in ${source} must be a JSON object.`);
-  }
-  return value;
+  return parseWithSchema(
+    raw,
+    jsonObjectSchema,
+    source,
+    `providers.${field}`,
+    "must be a JSON object.",
+  );
 }
 
 function parseToolProviderMapping(
@@ -791,22 +584,15 @@ function parseSearchSettings(
   source: string,
   field: string,
 ): SearchSettings {
-  if (!isPlainObject(value)) {
-    throw new Error(`'${field}' in ${source} must be a JSON object.`);
-  }
+  const raw = parseWithSchema(
+    value,
+    jsonObjectSchema,
+    source,
+    field,
+    "must be a JSON object.",
+  );
 
-  const parsed: SearchSettings = {
-    provider: parseOptionalToolProviderId(
-      value.provider,
-      source,
-      `${field}.provider`,
-      "contents",
-    ),
-    maxUrls: parseOptionalInteger(value.maxUrls, source, `${field}.maxUrls`),
-    ttlMs: parseOptionalInteger(value.ttlMs, source, `${field}.ttlMs`),
-  };
-
-  const unknownFields = Object.keys(value).filter(
+  const unknownFields = Object.keys(raw).filter(
     (key) => key !== "provider" && key !== "maxUrls" && key !== "ttlMs",
   );
   if (unknownFields.length > 0) {
@@ -815,25 +601,24 @@ function parseSearchSettings(
     );
   }
 
-  return parsed;
-}
+  const parsed = parseWithSchema(
+    raw,
+    searchSettingsSchema,
+    source,
+    field,
+    "must be a JSON object.",
+  );
 
-function parseOptionalToolProviderId(
-  value: unknown,
-  source: string,
-  field: string,
-  tool: Tool,
-): ProviderId | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  const providerId = parseLiteral(value, source, field, PROVIDER_IDS);
-  if (!supportsTool(providerId, tool)) {
+  if (
+    parsed.provider !== undefined &&
+    !supportsTool(parsed.provider, "contents")
+  ) {
     throw new Error(
-      `'${field}' in ${source} must name a provider that supports '${tool}'.`,
+      `'${field}.provider' in ${source} must name a provider that supports 'contents'.`,
     );
   }
-  return providerId;
+
+  return parsed;
 }
 
 function rejectLegacyProviderToolFields(
@@ -860,123 +645,41 @@ function rejectRemovedProviderEnabledField(
   }
 }
 
-function parseOptionalCustomCommand(
+function parseOptionalWithSchema<T>(
   value: unknown,
+  schema: z.ZodType<T>,
   source: string,
   field: string,
-): CustomCommandConfig | undefined {
-  const config = parseOptionalJsonObject(value, source, field);
-  if (!config) {
+  errorMessage: string,
+): T | undefined {
+  if (value === undefined) {
     return undefined;
   }
-
-  const argv = parseOptionalStringArray(config.argv, source, `${field}.argv`);
-  if (
-    argv !== undefined &&
-    (argv.length === 0 || argv.some((entry) => entry.trim().length === 0))
-  ) {
-    throw new Error(
-      `'${field}.argv' in ${source} must be a non-empty array of non-empty strings.`,
-    );
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error(`'${field}' in ${source} ${errorMessage}`);
   }
-
-  return {
-    argv,
-    cwd: parseOptionalString(config.cwd, source, `${field}.cwd`),
-    env: parseOptionalStringMap(config.env, source, `${field}.env`),
-  };
+  return parsed.data;
 }
 
-function parseOptionalStringMap(
+function parseWithSchema<T>(
   value: unknown,
+  schema: z.ZodType<T>,
   source: string,
   field: string,
-): Record<string, string> | undefined {
-  if (value === undefined) return undefined;
-  if (!isPlainObject(value)) {
-    throw new Error(
-      `'${field}' in ${source} must be a JSON object of strings.`,
-    );
-  }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [
-      key,
-      parseString(entry, source, `${field}.${key}`),
-    ]),
+  errorMessage: string,
+): T {
+  const parsed = parseOptionalWithSchema(
+    value,
+    schema,
+    source,
+    field,
+    errorMessage,
   );
-}
-
-function parseOptionalStringArray(
-  value: unknown,
-  source: string,
-  field: string,
-): string[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value)) {
-    throw new Error(`'${field}' in ${source} must be an array of strings.`);
+  if (parsed === undefined) {
+    throw new Error(`'${field}' in ${source} ${errorMessage}`);
   }
-  return value.map((entry, index) =>
-    parseString(entry, source, `${field}[${index}]`),
-  );
-}
-
-function parseOptionalBoolean(
-  value: unknown,
-  source: string,
-  field: string,
-): boolean | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "boolean") {
-    throw new Error(`'${field}' in ${source} must be a boolean.`);
-  }
-  return value;
-}
-
-function parseBoolean(value: unknown, source: string, field: string): boolean {
-  if (typeof value !== "boolean") {
-    throw new Error(`'${field}' in ${source} must be a boolean.`);
-  }
-  return value;
-}
-
-function parseOptionalString(
-  value: unknown,
-  source: string,
-  field: string,
-): string | undefined {
-  if (value === undefined) return undefined;
-  return parseString(value, source, field);
-}
-
-function parseString(value: unknown, source: string, field: string): string {
-  if (typeof value !== "string") {
-    throw new Error(`'${field}' in ${source} must be a string.`);
-  }
-  return value;
-}
-
-function parseOptionalInteger(
-  value: unknown,
-  source: string,
-  field: string,
-): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    throw new Error(`'${field}' in ${source} must be a positive integer.`);
-  }
-  return value;
-}
-
-function parseOptionalNonNegativeInteger(
-  value: unknown,
-  source: string,
-  field: string,
-): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-    throw new Error(`'${field}' in ${source} must be a non-negative integer.`);
-  }
-  return value;
+  return parsed;
 }
 
 function parseOptionalLiteral<T extends readonly string[]>(

@@ -42,7 +42,8 @@ const PROBE_INPUTS = {
     query: "What is the OpenAI API?",
   },
   research: {
-    input: "Write a short web-grounded report explaining what the OpenAI API is, with cited sources.",
+    input:
+      "Write a short web-grounded report explaining what the OpenAI API is, with cited sources.",
     options: {
       timeoutMs: 180_000,
       pollIntervalMs: 3_000,
@@ -238,9 +239,7 @@ function createProbeTimeout(probe) {
   return new Promise((_, reject) => {
     const timer = setTimeout(() => {
       reject(
-        new Error(
-          `probe timed out after ${formatDuration(probe.timeoutMs)}`,
-        ),
+        new Error(`probe timed out after ${formatDuration(probe.timeoutMs)}`),
       );
     }, probe.timeoutMs);
     timer.unref?.();
@@ -272,7 +271,8 @@ function summarizeProbeResult(probe, result) {
     );
     if (successes.length === 0) {
       throw new Error(
-        result.answers[0]?.error || "contents probe returned no readable content",
+        result.answers[0]?.error ||
+          "contents probe returned no readable content",
       );
     }
     return `${successes.length}/${result.answers.length} URL(s) returned content`;

@@ -75,14 +75,10 @@ describe("claudeAdapter", () => {
       pathToClaudeCodeExecutable: process.execPath,
     };
 
-    expect(
-      claudeAdapter.getCapabilityStatus(config, process.cwd()),
-    ).toEqual({
+    expect(claudeAdapter.getCapabilityStatus(config, process.cwd())).toEqual({
       state: "ready",
     });
-    expect(
-      claudeAdapter.getCapabilityStatus(config, process.cwd()),
-    ).toEqual({
+    expect(claudeAdapter.getCapabilityStatus(config, process.cwd())).toEqual({
       state: "ready",
     });
     expect(execFileSyncMock).toHaveBeenCalledTimes(1);

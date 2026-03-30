@@ -192,69 +192,39 @@ function normalizeConfig(raw: unknown, source: string): WebProviders {
       throw new Error(`'providers' in ${source} must be a JSON object.`);
     }
 
-    config.providers = {};
-    if (raw.providers.claude !== undefined) {
-      config.providers.claude = normalizeClaudeProvider(
-        raw.providers.claude,
-        source,
-      );
-    }
-    if (raw.providers.codex !== undefined) {
-      config.providers.codex = normalizeCodexProvider(
-        raw.providers.codex,
-        source,
-      );
-    }
-    if (raw.providers.custom !== undefined) {
-      config.providers.custom = normalizeCustomProvider(
-        raw.providers.custom,
-        source,
-      );
-    }
-    if (raw.providers.exa !== undefined) {
-      config.providers.exa = normalizeExaProvider(raw.providers.exa, source);
-    }
-    if (raw.providers.gemini !== undefined) {
-      config.providers.gemini = normalizeGeminiProvider(
-        raw.providers.gemini,
-        source,
-      );
-    }
-    if (raw.providers.perplexity !== undefined) {
-      config.providers.perplexity = normalizePerplexityProvider(
-        raw.providers.perplexity,
-        source,
-      );
-    }
-    if (raw.providers.parallel !== undefined) {
-      config.providers.parallel = normalizeParallelProvider(
-        raw.providers.parallel,
-        source,
-      );
-    }
-    if (raw.providers.valyu !== undefined) {
-      config.providers.valyu = normalizeValyuProvider(
-        raw.providers.valyu,
-        source,
-      );
-    }
-
-    const unknownProviders = Object.keys(raw.providers).filter(
-      (key) =>
-        key !== "claude" &&
-        key !== "codex" &&
-        key !== "custom" &&
-        key !== "exa" &&
-        key !== "gemini" &&
-        key !== "perplexity" &&
-        key !== "parallel" &&
-        key !== "valyu",
+    const providers = raw.providers;
+    const unknownProviders = Object.keys(providers).filter(
+      (key) => !PROVIDER_IDS.includes(key as ProviderId),
     );
     if (unknownProviders.length > 0) {
       throw new Error(
         `Unknown providers in ${source}: ${unknownProviders.join(", ")}.`,
       );
     }
+
+    const normalizers = {
+      claude: normalizeClaudeProvider,
+      codex: normalizeCodexProvider,
+      custom: normalizeCustomProvider,
+      exa: normalizeExaProvider,
+      gemini: normalizeGeminiProvider,
+      perplexity: normalizePerplexityProvider,
+      parallel: normalizeParallelProvider,
+      valyu: normalizeValyuProvider,
+    } satisfies Record<ProviderId, (raw: unknown, source: string) => unknown>;
+
+    config.providers = Object.fromEntries(
+      PROVIDER_IDS.flatMap((providerId) =>
+        providers[providerId] === undefined
+          ? []
+          : [
+              [
+                providerId,
+                normalizers[providerId](providers[providerId], source),
+              ],
+            ],
+      ),
+    );
   }
 
   cleanupConfig(config);
@@ -263,15 +233,7 @@ function normalizeConfig(raw: unknown, source: string): WebProviders {
 }
 
 function normalizeClaudeProvider(raw: unknown, source: string): Claude {
-  const provider = parseProviderObject(raw, source, "claude");
-  rejectLegacyProviderToolFields(provider, source, "claude");
-  const options = parseOptionalJsonObject(
-    provider.options,
-    source,
-    "providers.claude.options",
-  );
-
-  rejectRemovedProviderEnabledField(provider, source, "claude");
+  const { provider, options } = parseProviderRoot(raw, source, "claude");
 
   return {
     pathToClaudeCodeExecutable: parseOptionalString(
@@ -309,14 +271,7 @@ function normalizeClaudeProvider(raw: unknown, source: string): Claude {
 }
 
 function normalizeCodexProvider(raw: unknown, source: string): Codex {
-  const provider = parseProviderObject(raw, source, "codex");
-  rejectLegacyProviderToolFields(provider, source, "codex");
-  const options = parseOptionalJsonObject(
-    provider.options,
-    source,
-    "providers.codex.options",
-  );
-  rejectRemovedProviderEnabledField(provider, source, "codex");
+  const { provider, options } = parseProviderRoot(raw, source, "codex");
   return {
     codexPath: parseOptionalString(
       provider.codexPath,
@@ -385,9 +340,7 @@ function normalizeCodexProvider(raw: unknown, source: string): Codex {
 }
 
 function normalizeExaProvider(raw: unknown, source: string): Exa {
-  const provider = parseProviderObject(raw, source, "exa");
-  rejectLegacyProviderToolFields(provider, source, "exa");
-  rejectRemovedProviderEnabledField(provider, source, "exa");
+  const { provider } = parseProviderRoot(raw, source, "exa");
   return {
     apiKey: parseOptionalString(
       provider.apiKey,
@@ -413,9 +366,7 @@ function normalizeExaProvider(raw: unknown, source: string): Exa {
 }
 
 function normalizeValyuProvider(raw: unknown, source: string): Valyu {
-  const provider = parseProviderObject(raw, source, "valyu");
-  rejectLegacyProviderToolFields(provider, source, "valyu");
-  rejectRemovedProviderEnabledField(provider, source, "valyu");
+  const { provider } = parseProviderRoot(raw, source, "valyu");
   return {
     apiKey: parseOptionalString(
       provider.apiKey,
@@ -441,15 +392,7 @@ function normalizeValyuProvider(raw: unknown, source: string): Valyu {
 }
 
 function normalizeGeminiProvider(raw: unknown, source: string): Gemini {
-  const provider = parseProviderObject(raw, source, "gemini");
-  rejectLegacyProviderToolFields(provider, source, "gemini");
-  const options = parseOptionalJsonObject(
-    provider.options,
-    source,
-    "providers.gemini.options",
-  );
-
-  rejectRemovedProviderEnabledField(provider, source, "gemini");
+  const { provider, options } = parseProviderRoot(raw, source, "gemini");
 
   return {
     apiKey: parseOptionalString(
@@ -491,15 +434,7 @@ function normalizeGeminiProvider(raw: unknown, source: string): Gemini {
 }
 
 function normalizePerplexityProvider(raw: unknown, source: string): Perplexity {
-  const provider = parseProviderObject(raw, source, "perplexity");
-  rejectLegacyProviderToolFields(provider, source, "perplexity");
-  const options = parseOptionalJsonObject(
-    provider.options,
-    source,
-    "providers.perplexity.options",
-  );
-
-  rejectRemovedProviderEnabledField(provider, source, "perplexity");
+  const { provider, options } = parseProviderRoot(raw, source, "perplexity");
 
   return {
     apiKey: parseOptionalString(
@@ -541,15 +476,7 @@ function normalizePerplexityProvider(raw: unknown, source: string): Perplexity {
 }
 
 function normalizeParallelProvider(raw: unknown, source: string): Parallel {
-  const provider = parseProviderObject(raw, source, "parallel");
-  rejectLegacyProviderToolFields(provider, source, "parallel");
-  const options = parseOptionalJsonObject(
-    provider.options,
-    source,
-    "providers.parallel.options",
-  );
-
-  rejectRemovedProviderEnabledField(provider, source, "parallel");
+  const { provider, options } = parseProviderRoot(raw, source, "parallel");
 
   return {
     apiKey: parseOptionalString(
@@ -586,15 +513,7 @@ function normalizeParallelProvider(raw: unknown, source: string): Parallel {
 }
 
 function normalizeCustomProvider(raw: unknown, source: string): Custom {
-  const provider = parseProviderObject(raw, source, "custom");
-  rejectLegacyProviderToolFields(provider, source, "custom");
-  const options = parseOptionalJsonObject(
-    provider.options,
-    source,
-    "providers.custom.options",
-  );
-
-  rejectRemovedProviderEnabledField(provider, source, "custom");
+  const { provider, options } = parseProviderRoot(raw, source, "custom");
 
   return {
     options:
@@ -644,6 +563,27 @@ function toPublicConfig(config: WebProviders): Record<string, unknown> {
     ...(config.settings ? { settings: config.settings } : {}),
     ...(providers && Object.keys(providers).length > 0 ? { providers } : {}),
   } as unknown as Record<string, unknown>;
+}
+
+function parseProviderRoot(
+  raw: unknown,
+  source: string,
+  providerId: ProviderId,
+): {
+  provider: Record<string, unknown>;
+  options: Record<string, unknown> | undefined;
+} {
+  const provider = parseProviderObject(raw, source, providerId);
+  rejectLegacyProviderToolFields(provider, source, providerId);
+  rejectRemovedProviderEnabledField(provider, source, providerId);
+  return {
+    provider,
+    options: parseOptionalJsonObject(
+      provider.options,
+      source,
+      `providers.${providerId}.options`,
+    ),
+  };
 }
 
 function toPublicProviderConfig(

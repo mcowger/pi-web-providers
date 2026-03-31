@@ -287,8 +287,7 @@ describe("web_research renderer", () => {
     const rendered = renderComponentText(
       __test__.renderWebResearchResultMessage(
         {
-          content:
-            "Web research complete via Gemini. Saved to .pi/artifacts/research/report.md",
+          content: `# Web research report\n\n## Query\nInvestigate the topic`,
           details: {
             tool: "web_research",
             id: "job-1",
@@ -307,18 +306,21 @@ describe("web_research renderer", () => {
       120,
     );
 
+    expect(rendered).toContain("Web research completed via Gemini");
+    expect(rendered).toContain("○ start: 2026-03-31T12:00:00.000Z");
+    expect(rendered).toContain("◴ duration: 5m");
     expect(rendered).toContain(
-      "Web research complete via Gemini. Saved to .pi/artifacts/research/report.md",
+      "▸ file: /tmp/project/.pi/artifacts/research/report.md",
     );
     expect(rendered).toContain("to expand");
+    expect(rendered).not.toContain("# Web research report");
   });
 
   it("renders expanded completion messages with metadata", () => {
     const rendered = renderComponentText(
       __test__.renderWebResearchResultMessage(
         {
-          content:
-            "Web research failed via Gemini. Saved to .pi/artifacts/research/report.md",
+          content: `Gemini: rate limited.`,
           details: {
             tool: "web_research",
             id: "job-1",
@@ -338,14 +340,8 @@ describe("web_research renderer", () => {
       120,
     );
 
-    expect(rendered).toContain("Query");
-    expect(rendered).toContain("Investigate the topic");
-    expect(rendered).toContain("Saved to");
-    expect(rendered).toContain("/tmp/project/.pi/artifacts/research/report.md");
-    expect(rendered).toContain("Elapsed");
-    expect(rendered).toContain("5m");
-    expect(rendered).toContain("Error");
     expect(rendered).toContain("Gemini: rate limited.");
+    expect(rendered).not.toContain("○ start:");
   });
 });
 

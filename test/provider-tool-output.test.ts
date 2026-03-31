@@ -749,9 +749,7 @@ describe("provider tool output", () => {
     expect(setWidget).toHaveBeenLastCalledWith("web-research-jobs", undefined);
     const message = sendMessage.mock.calls[0]?.[0];
     expect(message?.customType).toBe("web-research-result");
-    expect(message?.content).toContain(
-      "Web research complete via Gemini. Saved to",
-    );
+    expect(message?.content).toBe("Detailed report text\n");
 
     const details = message?.details as {
       outputPath: string;
@@ -826,9 +824,7 @@ describe("provider tool output", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(setWidget).toHaveBeenLastCalledWith("web-research-jobs", undefined);
     const message = sendMessage.mock.calls[0]?.[0];
-    expect(message?.content).toContain(
-      "Web research failed via Gemini. Saved to",
-    );
+    expect(message?.content).toBe("Gemini: rate limited.\n");
 
     const details = message?.details as {
       outputPath: string;

@@ -1501,7 +1501,7 @@ async function runDispatchedWebResearch({
     await writeWebResearchArtifact(result, reportText);
     pi.sendMessage({
       customType: WEB_RESEARCH_RESULT_MESSAGE_TYPE,
-      content: formatWebResearchResultMessage(result, ctx.cwd),
+      content: formatWebResearchResultMessage(result, reportText),
       display: true,
       details: result,
     });
@@ -1643,17 +1643,18 @@ function formatCompactElapsed(ms: number): string {
 
 function formatWebResearchResultMessage(
   result: WebResearchResult,
-  cwd: string,
+  reportText: string,
 ): string {
-  const providerLabel =
-    ADAPTERS_BY_ID[result.provider]?.label ?? result.provider;
-  const outputPath = formatWebResearchDisplayPath(result.outputPath, cwd);
-
-  if (result.status === "completed") {
-    return `Web research complete via ${providerLabel}. Saved to ${outputPath}`;
+  const text = reportText.trim();
+  if (text.length > 0) {
+    return `${text}\n`;
   }
 
-  return `Web research failed via ${providerLabel}. Saved to ${outputPath}`;
+  if (result.error) {
+    return `${result.error}\n`;
+  }
+
+  return "";
 }
 
 function formatWebResearchDisplayPath(outputPath: string, cwd: string): string {
@@ -2153,37 +2154,47 @@ function renderWebResearchResultMessage(
   const box = new Box(1, 1, (value) => theme.bg("customMessageBg", value));
 
   if (!expanded) {
-    let summary = theme.fg(accent, text ?? "Web research update");
-    summary += theme.fg("muted", ` (${getExpandHint()})`);
-    box.addChild(new Text(summary, 0, 0));
+    const lines = details
+      ? buildWebResearchResultSummaryLines(details, theme)
+      : [theme.fg(accent, "Web research update")];
+    lines.push(theme.fg("muted", `(${getExpandHint()})`));
+    box.addChild(new Text(lines.join("\n"), 0, 0));
     return box;
   }
 
-  const lines = [theme.fg(accent, text ?? "Web research update")];
-  if (details) {
-    lines.push(
-      "",
-      theme.fg("muted", "Query"),
-      details.input,
-      "",
-      theme.fg("muted", "Saved to"),
-      details.outputPath,
-      "",
-      theme.fg("muted", "Started"),
-      details.startedAt,
-      "",
-      theme.fg("muted", "Completed"),
-      details.completedAt,
-      "",
-      theme.fg("muted", "Elapsed"),
-      formatElapsed(details.elapsedMs),
-    );
-    if (details.error) {
-      lines.push("", theme.fg("muted", "Error"), details.error);
-    }
-  }
-  box.addChild(new Text(lines.join("\n"), 0, 0));
+  box.addChild(
+    renderBlockText(
+      text ?? "",
+      theme,
+      accent === "error" ? "error" : "toolOutput",
+    ),
+  );
   return box;
+}
+
+function buildWebResearchResultSummaryLines(
+  result: WebResearchResult,
+  theme: Pick<Theme, "fg">,
+): string[] {
+  const providerLabel =
+    ADAPTERS_BY_ID[result.provider]?.label ?? result.provider;
+  const statusLine =
+    result.status === "completed"
+      ? `Web research completed via ${providerLabel}`
+      : `Web research failed via ${providerLabel}`;
+
+  const lines = [
+    theme.fg(result.status === "completed" ? "success" : "error", statusLine),
+  ];
+  lines.push(
+    theme.fg("muted", `○ start: ${result.startedAt}`),
+    theme.fg("muted", `◴ duration: ${formatElapsed(result.elapsedMs)}`),
+    theme.fg("muted", `▸ file: ${result.outputPath}`),
+  );
+  if (result.error) {
+    lines.push(theme.fg("muted", `✕ error: ${result.error}`));
+  }
+  return lines;
 }
 
 function isWebResearchRequest(details: unknown): details is WebResearchRequest {

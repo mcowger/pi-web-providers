@@ -1,6 +1,18 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  initTheme,
+  stopThemeWatcher,
+} from "../node_modules/@mariozechner/pi-coding-agent/dist/modes/interactive/theme/theme.js";
 import { __test__ } from "../src/index.js";
+
+beforeAll(() => {
+  initTheme("dark", false);
+});
+
+afterAll(() => {
+  stopThemeWatcher();
+});
 
 describe("web_search renderer", () => {
   it("shows a compact single-query header and hides default details", () => {
@@ -316,7 +328,36 @@ describe("web_research renderer", () => {
     expect(rendered).not.toContain("# Web research report");
   });
 
-  it("renders expanded completion messages with metadata", () => {
+  it("renders expanded successful completion messages as markdown", () => {
+    const rendered = renderComponentText(
+      __test__.renderWebResearchResultMessage(
+        {
+          content: `# Web research report\n\n## Query\nInvestigate the topic\n\n- Item one\n- Item two`,
+          details: {
+            tool: "web_research",
+            id: "job-1",
+            provider: "gemini",
+            input: "Investigate the topic",
+            outputPath: "/tmp/project/.pi/artifacts/research/report.md",
+            startedAt: "2026-03-31T12:00:00.000Z",
+            completedAt: "2026-03-31T12:05:00.000Z",
+            elapsedMs: 300000,
+            status: "completed",
+          },
+        },
+        { expanded: true },
+        createTheme(),
+      ),
+      120,
+    );
+
+    expect(rendered).toContain("Web research report");
+    expect(rendered).toContain("Investigate the topic");
+    expect(rendered).toContain("Item one");
+    expect(rendered).not.toContain("○ start:");
+  });
+
+  it("renders expanded failed completion messages as plain error text", () => {
     const rendered = renderComponentText(
       __test__.renderWebResearchResultMessage(
         {

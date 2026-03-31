@@ -2163,11 +2163,9 @@ function renderWebResearchResultMessage(
   }
 
   box.addChild(
-    renderBlockText(
-      text ?? "",
-      theme,
-      accent === "error" ? "error" : "toolOutput",
-    ),
+    isSuccess
+      ? renderMarkdownBlock(text ?? "")
+      : renderBlockText(text ?? "", theme, "error"),
   );
   return box;
 }

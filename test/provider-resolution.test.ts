@@ -201,15 +201,11 @@ describe("provider resolution", () => {
         requestTimeoutMs: 30000,
         retryCount: 3,
         retryDelayMs: 2000,
-        researchPollIntervalMs: 3000,
-        researchTimeoutMs: 21600000,
-        researchMaxConsecutivePollErrors: 3,
       },
       providers: {
         exa: {
           settings: {
             retryCount: 5,
-            researchPollIntervalMs: 4000,
           },
         },
       },
@@ -219,9 +215,6 @@ describe("provider resolution", () => {
       requestTimeoutMs: 30000,
       retryCount: 5,
       retryDelayMs: 2000,
-      researchPollIntervalMs: 4000,
-      researchTimeoutMs: 21600000,
-      researchMaxConsecutivePollErrors: 3,
     });
   });
 });

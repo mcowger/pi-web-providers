@@ -118,9 +118,6 @@ describe("config parsing", () => {
           requestTimeoutMs: 45000,
           retryCount: 5,
           retryDelayMs: 4000,
-          researchPollIntervalMs: 6000,
-          researchTimeoutMs: 28800000,
-          researchMaxConsecutivePollErrors: 12,
         },
       }),
       "test-config.json",
@@ -130,9 +127,6 @@ describe("config parsing", () => {
       requestTimeoutMs: 45000,
       retryCount: 5,
       retryDelayMs: 4000,
-      researchPollIntervalMs: 6000,
-      researchTimeoutMs: 28800000,
-      researchMaxConsecutivePollErrors: 12,
     });
   });
 
@@ -253,9 +247,6 @@ describe("config parsing", () => {
         requestTimeoutMs: 45000,
         retryCount: 5,
         retryDelayMs: 4000,
-        researchPollIntervalMs: 6000,
-        researchTimeoutMs: 28800000,
-        researchMaxConsecutivePollErrors: 12,
       },
     };
     config.providers.perplexity = {
@@ -301,15 +292,6 @@ describe("config parsing", () => {
     expect(loaded.providers?.gemini?.settings?.requestTimeoutMs).toBe(45000);
     expect(loaded.providers?.gemini?.settings?.retryCount).toBe(5);
     expect(loaded.providers?.gemini?.settings?.retryDelayMs).toBe(4000);
-    expect(loaded.providers?.gemini?.settings?.researchPollIntervalMs).toBe(
-      6000,
-    );
-    expect(loaded.providers?.gemini?.settings?.researchTimeoutMs).toBe(
-      28800000,
-    );
-    expect(
-      loaded.providers?.gemini?.settings?.researchMaxConsecutivePollErrors,
-    ).toBe(12);
     expect(loaded.providers?.perplexity?.options?.search?.country).toBe("US");
     expect(loaded.providers?.perplexity?.options?.research?.model).toBe(
       "sonar-deep-research",
@@ -342,9 +324,7 @@ describe("config parsing", () => {
       webSearchEnabled: true,
       webSearchMode: "live",
     });
-    expect(ADAPTERS_BY_ID.gemini.createTemplate().settings).toEqual({
-      researchMaxConsecutivePollErrors: 10,
-    });
+    expect(ADAPTERS_BY_ID.gemini.createTemplate().settings).toBeUndefined();
   });
 
   it("keeps example-config.json in sync with createDefaultConfig()", async () => {

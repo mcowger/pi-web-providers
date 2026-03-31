@@ -1,70 +1,25 @@
 import type {
-  BackgroundResearchPlan,
   ExecutionSettings,
+  ProviderPlan,
   ProviderPlanTraits,
-  SingleProviderPlan,
 } from "./types.js";
 
-interface ConfigWithPolicy {
+interface ConfigWithSettings {
   settings?: ExecutionSettings;
 }
 
-// Silent foreground plans wait for a final result without surfacing partial
-// provider output while the request is still running.
-export function createSilentForegroundPlan<TResult>({
+export function createProviderPlan<TResult>({
   config,
   traits,
   ...plan
-}: Omit<SingleProviderPlan<TResult>, "deliveryMode" | "traits"> & {
-  config: ConfigWithPolicy;
+}: Omit<ProviderPlan<TResult>, "traits"> & {
+  config: ConfigWithSettings;
   traits?: Omit<ProviderPlanTraits, "settings">;
-}): SingleProviderPlan<TResult> {
-  return buildSinglePlan("silent-foreground", config.settings, traits, plan);
-}
-
-// Streaming foreground plans can surface intermediate provider output, but the
-// tool result is still only consumed once the call finishes.
-export function createStreamingForegroundPlan<TResult>({
-  config,
-  traits,
-  ...plan
-}: Omit<SingleProviderPlan<TResult>, "deliveryMode" | "traits"> & {
-  config: ConfigWithPolicy;
-  traits?: Omit<ProviderPlanTraits, "settings">;
-}): SingleProviderPlan<TResult> {
-  return buildSinglePlan("streaming-foreground", config.settings, traits, plan);
-}
-
-// Background research plans model providers that return a durable research job
-// which pi can poll and later resume via `resumeId`.
-export function createBackgroundResearchPlan({
-  config,
-  traits,
-  ...plan
-}: Omit<BackgroundResearchPlan, "deliveryMode" | "traits"> & {
-  config: ConfigWithPolicy;
-  traits?: Omit<ProviderPlanTraits, "settings">;
-}): BackgroundResearchPlan {
+}): ProviderPlan<TResult> {
   const builtTraits = buildTraits(config.settings, traits);
 
   return {
     ...plan,
-    deliveryMode: "background-research",
-    ...(builtTraits ? { traits: builtTraits } : {}),
-  };
-}
-
-function buildSinglePlan<TResult>(
-  deliveryMode: SingleProviderPlan<TResult>["deliveryMode"],
-  settings: ExecutionSettings | undefined,
-  traits: Omit<ProviderPlanTraits, "settings"> | undefined,
-  plan: Omit<SingleProviderPlan<TResult>, "deliveryMode" | "traits">,
-): SingleProviderPlan<TResult> {
-  const builtTraits = buildTraits(settings, traits);
-
-  return {
-    ...plan,
-    deliveryMode,
     ...(builtTraits ? { traits: builtTraits } : {}),
   };
 }

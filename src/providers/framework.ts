@@ -1,20 +1,12 @@
 import type { ContentsResponse } from "../contents.js";
-import {
-  createBackgroundResearchPlan,
-  createSilentForegroundPlan,
-  createStreamingForegroundPlan,
-} from "../provider-plans.js";
+import { createProviderPlan } from "../provider-plans.js";
 import type {
   AnswerRequest,
-  BackgroundResearchPlan,
   ContentsRequest,
   ExecutionSettings,
   ProviderContext,
   ProviderPlan,
-  ProviderPlanTraits,
   ProviderRequest,
-  ResearchJob,
-  ResearchPollResult,
   ResearchRequest,
   SearchRequest,
   SearchResponse,
@@ -25,13 +17,11 @@ interface ConfigWithSettings {
   settings?: ExecutionSettings;
 }
 
-type ForegroundHandler<
+type Handler<
   TConfig,
   TRequest extends ProviderRequest,
   TResult extends SearchResponse | ContentsResponse | ToolOutput,
 > = {
-  deliveryMode: "silent-foreground" | "streaming-foreground";
-  traits?: Omit<ProviderPlanTraits, "settings">;
   execute: (
     request: TRequest,
     config: TConfig,
@@ -39,29 +29,11 @@ type ForegroundHandler<
   ) => Promise<TResult>;
 };
 
-type BackgroundResearchHandler<TConfig> = {
-  deliveryMode: "background-research";
-  traits?: Omit<ProviderPlanTraits, "settings">;
-  start: (
-    request: ResearchRequest,
-    config: TConfig,
-    context: ProviderContext,
-  ) => Promise<ResearchJob>;
-  poll: (
-    request: ResearchRequest,
-    config: TConfig,
-    id: string,
-    context: ProviderContext,
-  ) => Promise<ResearchPollResult>;
-};
-
 export interface ProviderCapabilityHandlers<TConfig> {
-  search?: ForegroundHandler<TConfig, SearchRequest, SearchResponse>;
-  contents?: ForegroundHandler<TConfig, ContentsRequest, ContentsResponse>;
-  answer?: ForegroundHandler<TConfig, AnswerRequest, ToolOutput>;
-  research?:
-    | ForegroundHandler<TConfig, ResearchRequest, ToolOutput>
-    | BackgroundResearchHandler<TConfig>;
+  search?: Handler<TConfig, SearchRequest, SearchResponse>;
+  contents?: Handler<TConfig, ContentsRequest, ContentsResponse>;
+  answer?: Handler<TConfig, AnswerRequest, ToolOutput>;
+  research?: Handler<TConfig, ResearchRequest, ToolOutput>;
 }
 
 export function buildProviderPlan<TConfig>({
@@ -74,15 +46,16 @@ export function buildProviderPlan<TConfig>({
 }: {
   request: ProviderRequest;
   config: TConfig;
-  providerId: ProviderPlan["providerId"];
+  providerId: ProviderPlan<unknown>["providerId"];
   providerLabel: string;
   handlers: ProviderCapabilityHandlers<TConfig>;
   resolvePlanConfig?: (config: TConfig) => ConfigWithSettings;
-}): ProviderPlan | null {
+}): ProviderPlan<SearchResponse | ContentsResponse | ToolOutput> | null {
   const planConfig = resolvePlanConfig?.(config) ?? asPlanConfig(config);
+
   switch (request.capability) {
     case "search":
-      return buildForegroundPlan({
+      return buildPlan({
         request,
         config,
         providerId,
@@ -91,7 +64,7 @@ export function buildProviderPlan<TConfig>({
         handler: handlers.search,
       });
     case "contents":
-      return buildForegroundPlan({
+      return buildPlan({
         request,
         config,
         providerId,
@@ -100,7 +73,7 @@ export function buildProviderPlan<TConfig>({
         handler: handlers.contents,
       });
     case "answer":
-      return buildForegroundPlan({
+      return buildPlan({
         request,
         config,
         providerId,
@@ -108,39 +81,19 @@ export function buildProviderPlan<TConfig>({
         planConfig,
         handler: handlers.answer,
       });
-    case "research": {
-      const handler = handlers.research;
-      if (!handler) {
-        return null;
-      }
-
-      if (isBackgroundResearchHandler(handler)) {
-        return createBackgroundResearchPlan({
-          config: planConfig,
-          capability: "research",
-          providerId,
-          providerLabel,
-          ...(handler.traits ? { traits: handler.traits } : {}),
-          start: (context: ProviderContext) =>
-            handler.start(request, config, context),
-          poll: (id: string, context: ProviderContext) =>
-            handler.poll(request, config, id, context),
-        });
-      }
-
-      return buildForegroundPlan({
+    case "research":
+      return buildPlan({
         request,
         config,
         providerId,
         providerLabel,
         planConfig,
-        handler,
+        handler: handlers.research,
       });
-    }
   }
 }
 
-function buildForegroundPlan<
+function buildPlan<
   TConfig,
   TRequest extends ProviderRequest,
   TResult extends SearchResponse | ContentsResponse | ToolOutput,
@@ -154,37 +107,23 @@ function buildForegroundPlan<
 }: {
   request: TRequest;
   config: TConfig;
-  providerId: ProviderPlan["providerId"];
+  providerId: ProviderPlan<unknown>["providerId"];
   providerLabel: string;
   planConfig: ConfigWithSettings;
-  handler: ForegroundHandler<TConfig, TRequest, TResult> | undefined;
+  handler: Handler<TConfig, TRequest, TResult> | undefined;
 }): ProviderPlan<TResult> | null {
   if (!handler) {
     return null;
   }
 
-  const factory =
-    handler.deliveryMode === "streaming-foreground"
-      ? createStreamingForegroundPlan
-      : createSilentForegroundPlan;
-
-  return factory({
+  return createProviderPlan({
     config: planConfig,
     capability: request.capability,
     providerId,
     providerLabel,
-    ...(handler.traits ? { traits: handler.traits } : {}),
     execute: (context: ProviderContext) =>
       handler.execute(request, config, context),
   });
-}
-
-function isBackgroundResearchHandler<TConfig>(
-  handler:
-    | ForegroundHandler<TConfig, ResearchRequest, ToolOutput>
-    | BackgroundResearchHandler<TConfig>,
-): handler is BackgroundResearchHandler<TConfig> {
-  return handler.deliveryMode === "background-research";
 }
 
 function asPlanConfig<TConfig>(config: TConfig): ConfigWithSettings {

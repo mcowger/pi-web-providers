@@ -40,9 +40,6 @@ const executionSettingsSchema = z
     requestTimeoutMs: positiveIntegerSchema.optional(),
     retryCount: nonNegativeIntegerSchema.optional(),
     retryDelayMs: positiveIntegerSchema.optional(),
-    researchPollIntervalMs: positiveIntegerSchema.optional(),
-    researchTimeoutMs: positiveIntegerSchema.optional(),
-    researchMaxConsecutivePollErrors: positiveIntegerSchema.optional(),
   })
   .strict();
 const searchSettingsSchema = z
@@ -511,9 +508,6 @@ function parseSettingsConfig(value: unknown, source: string): Settings {
     requestTimeoutMs: parsed.requestTimeoutMs,
     retryCount: parsed.retryCount,
     retryDelayMs: parsed.retryDelayMs,
-    researchPollIntervalMs: parsed.researchPollIntervalMs,
-    researchTimeoutMs: parsed.researchTimeoutMs,
-    researchMaxConsecutivePollErrors: parsed.researchMaxConsecutivePollErrors,
     search:
       parsed.search !== undefined
         ? parseSearchSettings(parsed.search, source, "settings.search")

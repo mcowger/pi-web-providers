@@ -130,9 +130,10 @@ provided.
 
 #### `web_research`
 
-Investigate a topic across web sources and produce a longer report. The
-provider-specific `options` stay specific to each SDK, and runtime options
-override provider configuration when both are set.
+Investigate a topic across web sources and produce a longer report.
+`web_research` is always asynchronous: it starts a background run, returns a
+short dispatch notice immediately, and later posts a completion message with a
+saved report path.
 
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
@@ -147,29 +148,10 @@ different field names across SDKs—for example Perplexity uses `country`, Exa
 uses `userLocation`, and Valyu uses `countryCode`. Runtime `options` override
 provider config, but managed tool inputs and tool wiring stay fixed.
 
-</details>
-
-<details>
-<summary><strong>Timeout, retry, and delivery modes</strong></summary>
-
-The extension accepts local control fields for robustness: `requestTimeoutMs`,
-`retryCount`, and `retryDelayMs` on request/response tools, plus
-`pollIntervalMs`, `timeoutMs`, `maxConsecutivePollErrors`, and `resumeId` on
-`web_research` for lifecycle-based research providers. These fields are handled
-by the extension and are not forwarded into the provider SDK call.
-
-- Exa and Valyu research support polling, overall deadlines, and resume IDs
-  but reject `requestTimeoutMs` and do not retry non-idempotent job creation.
-- Perplexity research runs in streaming foreground mode and only supports
-  `requestTimeoutMs`, `retryCount`, and `retryDelayMs`.
-
-Providers deliver results in one of three modes:
-
-- **Silent foreground** — no intermediate output; result returned when done.
-- **Streaming foreground** — progress updates while running, but the result is
-  still only usable after the tool finishes.
-- **Background research** — the provider runs in the background; if
-  interrupted, the run can be resumed later via `resumeId`.
+Unlike the other managed tools, `web_research` does not accept local timeout,
+retry, polling, or resume controls. Research has one opinionated execution
+style: pi starts it asynchronously, tracks it locally, and saves the final
+report under `.pi/artifacts/research/`.
 
 </details>
 
@@ -183,7 +165,6 @@ The built-in providers below are thin adapters around official SDKs.
 - SDK: `@anthropic-ai/claude-agent-sdk`
 - Uses Claude Code's built-in `WebSearch` and `WebFetch` tools behind a
   structured JSON adapter
-- Runs in **silent foreground** mode
 - Supports request-shaping `options` such as `model`, `thinking`, `effort`, and
   `maxTurns`
 - Great for search plus grounded answers if you already use Claude Code locally
@@ -195,7 +176,6 @@ The built-in providers below are thin adapters around official SDKs.
 
 - SDK: `@openai/codex-sdk`
 - Runs in read-only mode with web search enabled
-- Runs in **silent foreground** mode
 - Supports request-shaping `web_search.options` such as `model`,
   `modelReasoningEffort`, and `webSearchMode`
 - Best if you already use the local Codex CLI and auth flow
@@ -206,8 +186,8 @@ The built-in providers below are thin adapters around official SDKs.
 <summary><strong>Exa</strong></summary>
 
 - SDK: `exa-js`
-- Search, contents, and answer run in **silent foreground** mode
-- Research runs in **background research** mode and supports `resumeId`
+- Supports `web_search`, `web_contents`, `web_answer`, and `web_research`
+- `web_research` is exposed through pi's async research workflow
 - Neural, keyword, hybrid, and deep-research search modes
 - Inline text-content extraction on search results
 
@@ -217,8 +197,8 @@ The built-in providers below are thin adapters around official SDKs.
 <summary><strong>Gemini</strong></summary>
 
 - SDK: `@google/genai`
-- Search and answer run in **silent foreground** mode
-- Research runs in **background research** mode and supports `resumeId`
+- Supports `web_search`, `web_answer`, and `web_research`
+- `web_research` is exposed through pi's async research workflow
 - Google Search grounding for answers
 - Deep-research agents via Google's Gemini API
 - Supports provider-specific request options such as `model`, `config`,
@@ -230,8 +210,8 @@ The built-in providers below are thin adapters around official SDKs.
 <summary><strong>Perplexity</strong></summary>
 
 - SDK: `@perplexity-ai/perplexity_ai`
-- `web_search` and `web_answer` run in **silent foreground** mode
-- `web_research` runs in **streaming foreground** mode (no `resumeId` support)
+- Supports `web_search`, `web_answer`, and `web_research`
+- `web_research` is exposed through pi's async research workflow
 - Uses Perplexity Search for `web_search`
 - Uses Sonar for `web_answer` and `sonar-deep-research` for `web_research`
 - Supports provider-specific `web_search.options` such as `country`,
@@ -243,7 +223,6 @@ The built-in providers below are thin adapters around official SDKs.
 <summary><strong>Parallel</strong></summary>
 
 - SDK: `parallel-web`
-- Runs in **silent foreground** mode
 - Agentic and one-shot search modes
 - Page content extraction with excerpt and full-content toggles
 - Supports provider-specific search and extraction options from the Parallel SDK
@@ -254,8 +233,8 @@ The built-in providers below are thin adapters around official SDKs.
 <summary><strong>Valyu</strong></summary>
 
 - SDK: `valyu-js`
-- Search, contents, and answer run in **silent foreground** mode
-- Research runs in **background research** mode and supports `resumeId`
+- Supports `web_search`, `web_contents`, `web_answer`, and `web_research`
+- `web_research` is exposed through pi's async research workflow
 - Web, proprietary, and news search types
 - Supports provider-specific options such as `countryCode`, `responseLength`, and
   search/source filters
@@ -321,9 +300,9 @@ one wrapper must run from a specific directory. Use `env` for per-command
 variables; each value can be a literal string, an environment variable name, or
 `!command`.
 
-`web_research` runs as a foreground wrapper command, so local polling controls
-(`pollIntervalMs`, `timeoutMs`, `maxConsecutivePollErrors`) and `resumeId` do
-not apply to `custom`.
+`web_research` uses the same async workflow as every other research provider:
+pi starts the wrapper in the background, tracks the job locally, and writes the
+final report to a file when it finishes.
 
 Wrapper contract:
 
@@ -349,14 +328,11 @@ wrapper files.
 The `settings` block holds shared execution defaults that apply to all
 providers unless overridden in a provider's own `settings` block:
 
-| Field                              | Default    | Description                                    |
-| ---------------------------------- | ---------- | ---------------------------------------------- |
-| `requestTimeoutMs`                 | `30000`    | Maximum time for a single provider request     |
-| `retryCount`                       | `3`        | Retries for transient failures                 |
-| `retryDelayMs`                     | `2000`     | Initial delay before retrying                  |
-| `researchPollIntervalMs`           | `3000`     | How often to poll long-running research jobs   |
-| `researchTimeoutMs`                | `21600000` | Overall deadline for research before returning |
-| `researchMaxConsecutivePollErrors` | `3`        | Consecutive poll failures before stopping      |
+| Field              | Default | Description                                |
+| ------------------ | ------- | ------------------------------------------ |
+| `requestTimeoutMs` | `30000` | Maximum time for a single provider request |
+| `retryCount`       | `3`     | Retries for transient failures             |
+| `retryDelayMs`     | `2000`  | Initial delay before retrying              |
 
 ## 🔎 Live smoke tests
 

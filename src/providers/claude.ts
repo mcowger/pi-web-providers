@@ -132,7 +132,6 @@ export const claudeAdapter: ClaudeAdapter = {
       providerLabel: this.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Claude,
@@ -147,7 +146,6 @@ export const claudeAdapter: ClaudeAdapter = {
             ),
         },
         answer: {
-          deliveryMode: "silent-foreground",
           execute: (
             answerRequest,
             providerConfig: Claude,

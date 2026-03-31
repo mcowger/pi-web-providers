@@ -104,7 +104,6 @@ export const codexAdapter: CodexAdapter = {
       providerLabel: codexAdapter.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Codex,

@@ -1,4 +1,9 @@
 import {
+  DEFAULT_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
+  DEFAULT_RESEARCH_POLL_INTERVAL_MS,
+  DEFAULT_RESEARCH_TIMEOUT_MS,
+} from "./execution-policy-defaults.js";
+import {
   formatProviderDiagnostic,
   formatResearchTerminalDiagnostic,
 } from "./provider-diagnostics.js";
@@ -11,7 +16,6 @@ import type {
   ToolOutput,
 } from "./types.js";
 
-const DEFAULT_RESEARCH_POLL_INTERVAL_MS = 3000;
 const MAX_RETRY_DELAY_MS = 30000;
 
 export interface RequestExecutionPolicy {
@@ -21,29 +25,14 @@ export interface RequestExecutionPolicy {
   retryOnTimeout?: boolean;
 }
 
-export interface ResearchExecutionPolicy extends RequestExecutionPolicy {
-  pollIntervalMs: number;
-  timeoutMs?: number;
-  maxConsecutivePollErrors: number;
-  resumeId?: string;
-}
-
 class RequestTimeoutError extends Error {
   override name = "RequestTimeoutError";
-}
-
-class NonResumableResearchError extends Error {
-  override name = "NonResumableResearchError";
 }
 
 export interface LocalExecutionOptions {
   requestTimeoutMs?: number;
   retryCount?: number;
   retryDelayMs?: number;
-  pollIntervalMs?: number;
-  timeoutMs?: number;
-  maxConsecutivePollErrors?: number;
-  resumeId?: string;
 }
 
 export function stripLocalExecutionOptions(
@@ -80,35 +69,7 @@ export function parseLocalExecutionOptions(
     ),
     retryCount: parseOptionalNonNegativeIntegerOption(options, "retryCount"),
     retryDelayMs: parseOptionalPositiveIntegerOption(options, "retryDelayMs"),
-    pollIntervalMs: parseOptionalPositiveIntegerOption(
-      options,
-      "pollIntervalMs",
-    ),
-    timeoutMs: parseOptionalPositiveIntegerOption(options, "timeoutMs"),
-    maxConsecutivePollErrors: parseOptionalPositiveIntegerOption(
-      options,
-      "maxConsecutivePollErrors",
-    ),
-    resumeId: parseOptionalNonEmptyStringOption(options, "resumeId"),
   };
-}
-
-export function extractExecutionPolicyDefaults(
-  options: Record<string, unknown> | undefined,
-): ExecutionSettings | undefined {
-  const localOptions = parseLocalExecutionOptions(options);
-  const defaults: ExecutionSettings = {
-    requestTimeoutMs: localOptions.requestTimeoutMs,
-    retryCount: localOptions.retryCount,
-    retryDelayMs: localOptions.retryDelayMs,
-    researchPollIntervalMs: localOptions.pollIntervalMs,
-    researchTimeoutMs: localOptions.timeoutMs,
-    researchMaxConsecutivePollErrors: localOptions.maxConsecutivePollErrors,
-  };
-
-  return Object.values(defaults).some((value) => value !== undefined)
-    ? defaults
-    : undefined;
 }
 
 export function resolveRequestExecutionPolicy(
@@ -122,28 +83,6 @@ export function resolveRequestExecutionPolicy(
       localOptions.requestTimeoutMs ?? defaults?.requestTimeoutMs,
     retryCount: localOptions.retryCount ?? defaults?.retryCount ?? 0,
     retryDelayMs: localOptions.retryDelayMs ?? defaults?.retryDelayMs ?? 2000,
-  };
-}
-
-export function resolveResearchExecutionPolicy(
-  options: Record<string, unknown> | undefined,
-  defaults: ExecutionSettings | undefined,
-): ResearchExecutionPolicy {
-  const localOptions = parseLocalExecutionOptions(options);
-  const request = resolveRequestExecutionPolicy(options, defaults);
-
-  return {
-    ...request,
-    pollIntervalMs:
-      localOptions.pollIntervalMs ??
-      defaults?.researchPollIntervalMs ??
-      DEFAULT_RESEARCH_POLL_INTERVAL_MS,
-    timeoutMs: localOptions.timeoutMs ?? defaults?.researchTimeoutMs,
-    maxConsecutivePollErrors:
-      localOptions.maxConsecutivePollErrors ??
-      defaults?.researchMaxConsecutivePollErrors ??
-      3,
-    resumeId: localOptions.resumeId,
   };
 }
 
@@ -200,131 +139,74 @@ export async function runWithExecutionPolicy<T>(
   throw new Error(`${label} failed.`);
 }
 
-export async function executeResearchWithLifecycle({
+export async function executeAsyncResearch({
   providerLabel,
   providerId,
   context,
-  settings,
-  startRetryCount = 0,
-  startRetryNotice,
-  startIdempotencyKey,
-  startRetryOnTimeout = false,
-  startRequestTimeoutMs,
-  pollRequestTimeoutMs,
+  pollIntervalMs = DEFAULT_RESEARCH_POLL_INTERVAL_MS,
+  timeoutMs = DEFAULT_RESEARCH_TIMEOUT_MS,
+  maxConsecutivePollErrors = DEFAULT_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
   start,
   poll,
 }: {
   providerLabel: string;
   providerId: ProviderId;
   context: ProviderContext;
-  settings: ResearchExecutionPolicy;
-  startRetryCount?: number;
-  startRetryNotice?: string;
-  startIdempotencyKey?: string;
-  startRetryOnTimeout?: boolean;
-  startRequestTimeoutMs?: number | null;
-  pollRequestTimeoutMs?: number | null;
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+  maxConsecutivePollErrors?: number;
   start: (context: ProviderContext) => Promise<ResearchJob>;
   poll: (id: string, context: ProviderContext) => Promise<ResearchPollResult>;
 }): Promise<ToolOutput> {
-  const effectiveStartRequestTimeoutMs =
-    startRequestTimeoutMs === undefined
-      ? settings.requestTimeoutMs
-      : (startRequestTimeoutMs ?? undefined);
-  const effectivePollRequestTimeoutMs =
-    pollRequestTimeoutMs === undefined
-      ? settings.requestTimeoutMs
-      : (pollRequestTimeoutMs ?? undefined);
-  const timeoutMessage =
-    settings.timeoutMs === undefined
-      ? undefined
-      : `${providerLabel} research exceeded ${formatDuration(settings.timeoutMs)}.`;
-
-  let lastStatus: ResearchPollResult["status"] | undefined;
-  let lifecycleStartedAt = Date.now();
-  let lifecycleSignal = context.signal;
-  let cleanupLifecycle = () => {};
-  let lifecycleContext: ProviderContext = {
+  const timeoutMessage = `${providerLabel} research exceeded ${formatDuration(timeoutMs)}.`;
+  const deadline = createDeadlineSignal(
+    context.signal,
+    timeoutMs,
+    timeoutMessage,
+  );
+  const researchContext: ProviderContext = {
     ...context,
-    signal: lifecycleSignal,
+    signal: deadline.signal,
   };
-
-  const activateLifecycleDeadline = () => {
-    const deadline = createDeadlineSignal(
-      context.signal,
-      settings.timeoutMs,
-      timeoutMessage,
-    );
-    lifecycleSignal = deadline.signal;
-    cleanupLifecycle = deadline.cleanup;
-    lifecycleStartedAt = Date.now();
-    lifecycleContext = {
-      ...context,
-      signal: lifecycleSignal,
-    };
-  };
-
-  let jobId = settings.resumeId;
-  activateLifecycleDeadline();
+  let lastStatus: ResearchPollResult["status"] | undefined;
+  const startedAt = Date.now();
 
   try {
-    if (jobId) {
-      lifecycleContext.onProgress?.(
-        `Resuming research via ${providerLabel}: ${jobId}`,
-      );
-    } else {
-      lifecycleContext.onProgress?.(`Starting research via ${providerLabel}`);
-      if (startRetryNotice) {
-        lifecycleContext.onProgress?.(startRetryNotice);
-      }
-      const job = await runWithExecutionPolicy(
-        `${providerLabel} research start`,
-        (attemptContext) =>
-          start({
-            ...attemptContext,
-            idempotencyKey: startIdempotencyKey,
-          }),
-        {
-          ...settings,
-          requestTimeoutMs: effectiveStartRequestTimeoutMs,
-          retryCount: startRetryCount,
-          retryOnTimeout: startRetryOnTimeout,
-        },
-        lifecycleContext,
-      );
-      jobId = job.id;
-      lifecycleContext.onProgress?.(
-        `${providerLabel} research started: ${jobId}`,
-      );
-    }
+    researchContext.onProgress?.(`Starting research via ${providerLabel}`);
+    const job = await withAbortAndOptionalTimeout(
+      start(researchContext),
+      undefined,
+      researchContext.signal,
+      undefined,
+    );
+    const jobId = job.id;
 
     if (!jobId) {
       throw new Error(`${providerLabel} research did not return a job id.`);
     }
 
+    researchContext.onProgress?.(`${providerLabel} research started: ${jobId}`);
+
     let consecutivePollErrors = 0;
 
     while (true) {
       throwIfAborted(
-        lifecycleContext.signal,
+        researchContext.signal,
         `${providerLabel} research aborted.`,
       );
 
       try {
-        const result = await runWithExecutionPolicy(
-          `${providerLabel} research poll`,
-          (attemptContext) => poll(jobId!, attemptContext),
-          {
-            ...settings,
-            requestTimeoutMs: effectivePollRequestTimeoutMs,
-          },
-          lifecycleContext,
+        const result = await withAbortAndOptionalTimeout(
+          poll(jobId, researchContext),
+          undefined,
+          researchContext.signal,
+          undefined,
         );
         consecutivePollErrors = 0;
 
         if (result.status !== lastStatus) {
-          lifecycleContext.onProgress?.(
-            `Research via ${providerLabel}: ${result.status} (${formatElapsed(Date.now() - lifecycleStartedAt)} elapsed)`,
+          researchContext.onProgress?.(
+            `Research via ${providerLabel}: ${result.status} (${formatElapsed(Date.now() - startedAt)} elapsed)`,
           );
           lastStatus = result.status;
         }
@@ -339,7 +221,7 @@ export async function executeResearchWithLifecycle({
         }
 
         if (result.status === "failed" || result.status === "cancelled") {
-          throw new NonResumableResearchError(
+          throw new Error(
             formatResearchTerminalDiagnostic(
               providerLabel,
               result.status,
@@ -348,48 +230,39 @@ export async function executeResearchWithLifecycle({
           );
         }
       } catch (error) {
-        if (error instanceof NonResumableResearchError) {
+        if (isAbortErrorFromSignal(researchContext.signal, error)) {
           throw error;
         }
-        if (isAbortErrorFromSignal(lifecycleContext.signal, error)) {
-          throw error;
-        }
-        if (
-          !(error instanceof RequestTimeoutError) &&
-          !isRetryableError(error)
-        ) {
+        if (!isRetryableError(error)) {
           throw normalizeError(error);
         }
 
         consecutivePollErrors += 1;
-        if (consecutivePollErrors >= settings.maxConsecutivePollErrors) {
-          throw buildResumeError(
+        if (consecutivePollErrors >= maxConsecutivePollErrors) {
+          throw new Error(
             `${providerLabel} research polling failed too many times in a row: ${formatErrorMessage(error)}`,
-            jobId,
           );
         }
 
-        lifecycleContext.onProgress?.(
-          `${providerLabel} research poll is still retrying after transient errors (${consecutivePollErrors}/${settings.maxConsecutivePollErrors} consecutive poll failures). Background job id: ${jobId}`,
+        researchContext.onProgress?.(
+          `${providerLabel} research poll is still retrying after transient errors (${consecutivePollErrors}/${maxConsecutivePollErrors} consecutive poll failures). Background job id: ${jobId}`,
         );
       }
 
-      await sleep(settings.pollIntervalMs, lifecycleContext.signal);
+      await sleep(pollIntervalMs, researchContext.signal);
     }
   } catch (error) {
-    if (isAbortErrorFromSignal(lifecycleContext.signal, error)) {
-      if (jobId) {
-        throw buildResumeError(error, jobId);
-      }
-      if (error instanceof RequestTimeoutError) {
-        throw buildUnknownResearchStartError(error);
-      }
+    if (isAbortErrorFromSignal(researchContext.signal, error)) {
+      throw new Error(
+        formatProviderDiagnostic(providerLabel, formatErrorMessage(error)),
+      );
     }
+
     throw new Error(
       formatProviderDiagnostic(providerLabel, formatErrorMessage(error)),
     );
   } finally {
-    cleanupLifecycle();
+    deadline.cleanup();
   }
 }
 
@@ -593,19 +466,12 @@ function isAbortErrorFromSignal(
 
 function createDeadlineSignal(
   signal: AbortSignal | undefined,
-  timeoutMs: number | undefined,
-  timeoutMessage: string | undefined,
+  timeoutMs: number,
+  timeoutMessage: string,
 ): {
   signal: AbortSignal | undefined;
   cleanup: () => void;
 } {
-  if (timeoutMs === undefined) {
-    return {
-      signal,
-      cleanup: () => {},
-    };
-  }
-
   const controller = new AbortController();
 
   if (signal?.aborted) {
@@ -619,12 +485,7 @@ function createDeadlineSignal(
   signal?.addEventListener("abort", onAbort, { once: true });
 
   const timer = setTimeout(() => {
-    controller.abort(
-      new RequestTimeoutError(
-        timeoutMessage ??
-          `Operation timed out after ${formatDuration(timeoutMs)}.`,
-      ),
-    );
+    controller.abort(new RequestTimeoutError(timeoutMessage));
   }, timeoutMs);
 
   return {
@@ -636,34 +497,13 @@ function createDeadlineSignal(
   };
 }
 
-function buildResumeError(error: string | unknown, jobId: string): Error {
-  const message = typeof error === "string" ? error : formatErrorMessage(error);
-  return new Error(
-    `${message} Resume the background job with options.resumeId=${JSON.stringify(jobId)}.`,
-  );
-}
-
-function buildUnknownResearchStartError(error: string | unknown): Error {
-  const message = typeof error === "string" ? error : formatErrorMessage(error);
-  return new Error(
-    `${message} The provider may still create a background job, but no job id was returned so this run cannot be resumed automatically.`,
-  );
-}
-
 function normalizeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(formatErrorMessage(error));
 }
 
 function parseOptionalPositiveIntegerOption(
   options: Record<string, unknown> | undefined,
-  key: keyof Pick<
-    LocalExecutionOptions,
-    | "requestTimeoutMs"
-    | "retryDelayMs"
-    | "pollIntervalMs"
-    | "timeoutMs"
-    | "maxConsecutivePollErrors"
-  >,
+  key: keyof Pick<LocalExecutionOptions, "requestTimeoutMs" | "retryDelayMs">,
 ): number | undefined {
   const value = options?.[key];
   if (value === undefined) {
@@ -688,22 +528,6 @@ function parseOptionalNonNegativeIntegerOption(
 
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw new Error(`options.${key} must be a non-negative integer.`);
-  }
-
-  return value;
-}
-
-function parseOptionalNonEmptyStringOption(
-  options: Record<string, unknown> | undefined,
-  key: "resumeId",
-): string | undefined {
-  const value = options?.[key];
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`options.${key} must be a non-empty string.`);
   }
 
   return value;

@@ -91,7 +91,6 @@ export const customAdapter: CustomAdapter = {
       providerLabel: customAdapter.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Custom,
@@ -106,7 +105,6 @@ export const customAdapter: CustomAdapter = {
             ),
         },
         contents: {
-          deliveryMode: "silent-foreground",
           execute: (
             contentsRequest,
             providerConfig: Custom,
@@ -120,7 +118,6 @@ export const customAdapter: CustomAdapter = {
             ),
         },
         answer: {
-          deliveryMode: "silent-foreground",
           execute: (
             answerRequest,
             providerConfig: Custom,
@@ -134,7 +131,6 @@ export const customAdapter: CustomAdapter = {
             ),
         },
         research: {
-          deliveryMode: "silent-foreground",
           execute: (
             researchRequest,
             providerConfig: Custom,

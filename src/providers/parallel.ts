@@ -67,7 +67,6 @@ export const parallelAdapter: ParallelAdapter = {
       providerLabel: parallelAdapter.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Parallel,
@@ -82,7 +81,6 @@ export const parallelAdapter: ParallelAdapter = {
             ),
         },
         contents: {
-          deliveryMode: "silent-foreground",
           execute: (
             contentsRequest,
             providerConfig: Parallel,

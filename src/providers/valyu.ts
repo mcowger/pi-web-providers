@@ -1,7 +1,10 @@
 import { Valyu as ValyuClient } from "valyu-js";
 import { resolveConfigValue } from "../config.js";
 import type { ContentsResponse } from "../contents.js";
-import { stripLocalExecutionOptions } from "../execution-policy.js";
+import {
+  executeAsyncResearch,
+  stripLocalExecutionOptions,
+} from "../execution-policy.js";
 import type {
   ProviderAdapter,
   ProviderCapabilityStatus,
@@ -37,6 +40,12 @@ type ValyuAdapter = ProviderAdapter<Valyu> & {
   ): Promise<ContentsResponse>;
   answer(
     query: string,
+    config: Valyu,
+    context: ProviderContext,
+    options?: Record<string, unknown>,
+  ): Promise<ToolOutput>;
+  research(
+    input: string,
     config: Valyu,
     context: ProviderContext,
     options?: Record<string, unknown>,
@@ -83,7 +92,6 @@ export const valyuAdapter: ValyuAdapter = {
       providerLabel: valyuAdapter.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Valyu,
@@ -98,7 +106,6 @@ export const valyuAdapter: ValyuAdapter = {
             ),
         },
         contents: {
-          deliveryMode: "silent-foreground",
           execute: (
             contentsRequest,
             providerConfig: Valyu,
@@ -112,7 +119,6 @@ export const valyuAdapter: ValyuAdapter = {
             ),
         },
         answer: {
-          deliveryMode: "silent-foreground",
           execute: (
             answerRequest,
             providerConfig: Valyu,
@@ -126,41 +132,13 @@ export const valyuAdapter: ValyuAdapter = {
             ),
         },
         research: {
-          deliveryMode: "background-research",
-          traits: {
-            executionSupport: {
-              requestTimeoutMs: false,
-              retryCount: true,
-              retryDelayMs: true,
-              pollIntervalMs: true,
-              timeoutMs: true,
-              maxConsecutivePollErrors: true,
-              resumeId: true,
-            },
-            researchLifecycle: {
-              supportsStartRetries: false,
-              supportsRequestTimeouts: false,
-            },
-          },
-          start: (
+          execute: (
             researchRequest,
             providerConfig: Valyu,
             context: ProviderContext,
           ) =>
-            valyuAdapter.startResearch(
+            valyuAdapter.research(
               researchRequest.input,
-              providerConfig,
-              context,
-              researchRequest.options,
-            ),
-          poll: (
-            researchRequest,
-            providerConfig: Valyu,
-            id: string,
-            context: ProviderContext,
-          ) =>
-            valyuAdapter.pollResearch(
-              id,
               providerConfig,
               context,
               researchRequest.options,
@@ -299,6 +277,23 @@ export const valyuAdapter: ValyuAdapter = {
       text: lines.join("\n").trimEnd(),
       itemCount: sources.length,
     };
+  },
+
+  async research(
+    input: string,
+    config: Valyu,
+    context: ProviderContext,
+    options?: Record<string, unknown>,
+  ): Promise<ToolOutput> {
+    return await executeAsyncResearch({
+      providerLabel: valyuAdapter.label,
+      providerId: valyuAdapter.id,
+      context,
+      start: (researchContext) =>
+        valyuAdapter.startResearch(input, config, researchContext, options),
+      poll: (id, researchContext) =>
+        valyuAdapter.pollResearch(id, config, researchContext, options),
+    });
   },
 
   async startResearch(

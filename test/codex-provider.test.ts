@@ -41,7 +41,6 @@ describe("CodexAdapter", () => {
     );
 
     expect(plan).toMatchObject({
-      deliveryMode: "silent-foreground",
       traits: {
         settings: {
           requestTimeoutMs: 1500,

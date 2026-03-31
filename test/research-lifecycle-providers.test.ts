@@ -51,8 +51,8 @@ afterEach(() => {
   valyuDeepResearchStatusMock.mockReset();
 });
 
-describe("research lifecycle providers", () => {
-  it("uses Exa lifecycle polling so transient poll errors do not create duplicate jobs", async () => {
+describe("async research providers", () => {
+  it("uses Exa polling so transient errors do not create duplicate jobs", async () => {
     vi.useFakeTimers();
 
     exaResearchCreateMock.mockResolvedValue({ researchId: "exa-job-1" });
@@ -78,11 +78,11 @@ describe("research lifecycle providers", () => {
       ctx: { cwd: process.cwd() },
       signal: undefined,
       onUpdate: undefined,
-      options: { pollIntervalMs: 1 },
-      input: "Investigate Exa lifecycle polling",
+      options: undefined,
+      input: "Investigate Exa research polling",
     });
 
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(3000);
     const result = await promise;
 
     expect(exaCtorMock).toHaveBeenCalledWith("literal-key", undefined);
@@ -94,146 +94,7 @@ describe("research lifecycle providers", () => {
     expect(result.content[0]?.text).toBe("Exa research result");
   });
 
-  it("filters unsupported request timeout defaults from non-idempotent Exa research starts", async () => {
-    vi.useFakeTimers();
-
-    exaResearchCreateMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({ researchId: "exa-job-1" });
-          }, 5);
-        }),
-    );
-    exaResearchGetMock.mockResolvedValueOnce({
-      status: "completed",
-      output: {
-        content: "Exa research result",
-      },
-    });
-
-    const promise = __test__.executeProviderTool({
-      capability: "research",
-      config: {
-        providers: {
-          exa: {
-            apiKey: "literal-key",
-            settings: {
-              requestTimeoutMs: 1,
-            },
-          },
-        },
-      } satisfies WebProviders,
-      explicitProvider: "exa",
-      ctx: { cwd: process.cwd() },
-      signal: undefined,
-      onUpdate: undefined,
-      options: { pollIntervalMs: 1 },
-      input: "Investigate Exa lifecycle polling",
-    });
-
-    await vi.advanceTimersByTimeAsync(4);
-    expect(exaResearchCreateMock).toHaveBeenCalledTimes(1);
-    expect(exaResearchGetMock).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(2);
-    const result = await promise;
-
-    expect(exaResearchCreateMock).toHaveBeenCalledTimes(1);
-    expect(exaResearchGetMock).toHaveBeenCalledTimes(1);
-    expect(result.content[0]?.text).toBe("Exa research result");
-  });
-
-  it("applies the overall research timeout while Exa job creation is still pending", async () => {
-    vi.useFakeTimers();
-
-    exaResearchCreateMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({ researchId: "exa-job-1" });
-          }, 5);
-        }),
-    );
-
-    const promise = __test__.executeProviderTool({
-      capability: "research",
-      config: {
-        providers: {
-          exa: {
-            apiKey: "literal-key",
-          },
-        },
-      } satisfies WebProviders,
-      explicitProvider: "exa",
-      ctx: { cwd: process.cwd() },
-      signal: undefined,
-      onUpdate: undefined,
-      options: { timeoutMs: 1 },
-      input: "Investigate Exa lifecycle polling",
-    });
-    const rejection = expect(promise).rejects.toThrow(
-      "Exa research exceeded 1ms. The provider may still create a background job, but no job id was returned so this run cannot be resumed automatically.",
-    );
-
-    await vi.advanceTimersByTimeAsync(1);
-    await rejection;
-    expect(exaResearchCreateMock).toHaveBeenCalledTimes(1);
-    expect(exaResearchGetMock).not.toHaveBeenCalled();
-  });
-
-  it("filters unsupported request timeout defaults from uncancellable Exa polls", async () => {
-    vi.useFakeTimers();
-
-    exaResearchCreateMock.mockResolvedValue({ researchId: "exa-job-1" });
-    exaResearchGetMock
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => {
-              resolve({ status: "running" });
-            }, 5);
-          }),
-      )
-      .mockResolvedValueOnce({
-        status: "completed",
-        output: {
-          content: "Exa research result",
-        },
-      });
-
-    const promise = __test__.executeProviderTool({
-      capability: "research",
-      config: {
-        providers: {
-          exa: {
-            apiKey: "literal-key",
-            settings: {
-              requestTimeoutMs: 1,
-            },
-          },
-        },
-      } satisfies WebProviders,
-      explicitProvider: "exa",
-      ctx: { cwd: process.cwd() },
-      signal: undefined,
-      onUpdate: undefined,
-      options: { pollIntervalMs: 1 },
-      input: "Investigate Exa lifecycle polling",
-    });
-
-    await vi.advanceTimersByTimeAsync(4);
-    expect(exaResearchGetMock).toHaveBeenCalledTimes(1);
-
-    await vi.advanceTimersByTimeAsync(2);
-    const result = await promise;
-
-    expect(exaResearchCreateMock).toHaveBeenCalledTimes(1);
-    expect(exaResearchGetMock).toHaveBeenCalledTimes(2);
-    expect(result.content[0]?.text).toBe("Exa research result");
-  });
-
-  it("uses Valyu lifecycle polling so transient poll errors do not create duplicate jobs", async () => {
+  it("uses Valyu polling so transient errors do not create duplicate jobs", async () => {
     vi.useFakeTimers();
 
     valyuDeepResearchCreateMock.mockResolvedValue({
@@ -270,11 +131,11 @@ describe("research lifecycle providers", () => {
       ctx: { cwd: process.cwd() },
       signal: undefined,
       onUpdate: undefined,
-      options: { pollIntervalMs: 1 },
-      input: "Investigate Valyu lifecycle polling",
+      options: undefined,
+      input: "Investigate Valyu research polling",
     });
 
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(3000);
     const result = await promise;
 
     expect(valyuCtorMock).toHaveBeenCalledWith("literal-key", undefined);

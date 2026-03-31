@@ -64,10 +64,7 @@ import {
   resolveSearchProvider,
   supportsTool,
 } from "./provider-resolution.js";
-import {
-  executeOperationPlan,
-  resolvePlanExecutionSupport,
-} from "./provider-runtime.js";
+import { executeOperationPlan } from "./provider-runtime.js";
 import { getCompatibleProviders, TOOL_INFO } from "./provider-tools.js";
 import { ADAPTERS, ADAPTERS_BY_ID } from "./providers/index.js";
 import type {
@@ -93,7 +90,7 @@ import type {
   WebResearchResult,
   WebSearchDetails,
 } from "./types.js";
-import { EXECUTION_CONTROL_KEYS, PROVIDER_IDS } from "./types.js";
+import { PROVIDER_IDS } from "./types.js";
 
 const DEFAULT_MAX_RESULTS = 5;
 const MAX_ALLOWED_RESULTS = 20;
@@ -650,11 +647,7 @@ function describeOptionsField(
   let description = labels[capability];
 
   if (supportedControls.length > 0) {
-    const qualifier =
-      capability === "research"
-        ? " Depending on provider, local execution controls may include: "
-        : " Local execution controls: ";
-    description += `${qualifier}${supportedControls.join(", ")}.`;
+    description += ` Local execution controls: ${supportedControls.join(", ")}.`;
   }
 
   if (capability === "search") {
@@ -667,57 +660,13 @@ function describeOptionsField(
 
 function getSupportedExecutionControlsForCapability(
   capability: Tool,
-  providerIds: readonly ProviderId[],
+  _providerIds: readonly ProviderId[],
 ): string[] {
-  const supportedControls = new Set<string>();
-
-  for (const providerId of providerIds) {
-    const provider = ADAPTERS_BY_ID[providerId];
-    const plan = provider.buildPlan(
-      createExecutionSupportProbeRequest(capability),
-      provider.createTemplate() as never,
-    );
-    if (!plan) {
-      continue;
-    }
-
-    const executionSupport = resolvePlanExecutionSupport(plan);
-    for (const key of EXECUTION_CONTROL_KEYS) {
-      if (executionSupport[key] === true) {
-        supportedControls.add(key);
-      }
-    }
+  if (capability === "research") {
+    return [];
   }
 
-  return EXECUTION_CONTROL_KEYS.filter((key) => supportedControls.has(key));
-}
-
-function createExecutionSupportProbeRequest(capability: Tool): ProviderRequest {
-  switch (capability) {
-    case "search":
-      return {
-        capability,
-        query: "Describe execution controls",
-        maxResults: 1,
-      };
-    case "contents":
-      return {
-        capability,
-        urls: ["https://example.com"],
-      };
-    case "answer":
-      return {
-        capability,
-        query: "Describe execution controls",
-      };
-    case "research":
-      return {
-        capability,
-        input: "Describe execution controls",
-      };
-  }
-
-  throw new Error(`Unknown tool '${capability}'.`);
+  return ["requestTimeoutMs", "retryCount", "retryDelayMs"];
 }
 
 async function executeSearchTool({
@@ -1277,10 +1226,7 @@ async function executeProviderOperation({
     );
   } else if (capability === "answer") {
     onProgress?.(`Answering via ${provider.label}: ${query ?? ""}`);
-  } else if (
-    capability === "research" &&
-    plan.deliveryMode !== "background-research"
-  ) {
+  } else if (capability === "research") {
     onProgress?.(`Researching via ${provider.label}`);
   }
 
@@ -2434,9 +2380,6 @@ const SETTING_IDS = [
   "requestTimeoutMs",
   "retryCount",
   "retryDelayMs",
-  "researchPollIntervalMs",
-  "researchTimeoutMs",
-  "researchMaxConsecutivePollErrors",
 ] as const satisfies readonly (keyof ExecutionSettings)[];
 
 type SettingId = (typeof SETTING_IDS)[number];
@@ -2474,33 +2417,6 @@ const SETTING_META: Record<
       parseOptionalPositiveIntegerInput(
         value,
         "Retry delay must be a positive integer.",
-      ),
-  },
-  researchPollIntervalMs: {
-    label: "Research poll interval (ms)",
-    help: "Default poll interval for long-running research jobs. Applies to research-capable providers unless overridden.",
-    parse: (value) =>
-      parseOptionalPositiveIntegerInput(
-        value,
-        "Research poll interval must be a positive integer.",
-      ),
-  },
-  researchTimeoutMs: {
-    label: "Research timeout (ms)",
-    help: "Default maximum total time to wait for research before returning a resumable timeout error. Applies to research-capable providers unless overridden.",
-    parse: (value) =>
-      parseOptionalPositiveIntegerInput(
-        value,
-        "Research timeout must be a positive integer.",
-      ),
-  },
-  researchMaxConsecutivePollErrors: {
-    label: "Max poll errors",
-    help: "Default number of consecutive poll failures to tolerate before stopping a local research run. Applies to research-capable providers unless overridden.",
-    parse: (value) =>
-      parseOptionalPositiveIntegerInput(
-        value,
-        "Max poll errors must be a positive integer.",
       ),
   },
 };

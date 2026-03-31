@@ -227,9 +227,6 @@ export interface ExecutionSettings {
   requestTimeoutMs?: number;
   retryCount?: number;
   retryDelayMs?: number;
-  researchPollIntervalMs?: number;
-  researchTimeoutMs?: number;
-  researchMaxConsecutivePollErrors?: number;
 }
 
 export interface SearchRequest {
@@ -263,69 +260,27 @@ export type ProviderRequest =
   | AnswerRequest
   | ResearchRequest;
 
-export interface ProviderResearchLifecycleTraits {
-  supportsStartRetries?: boolean;
-  supportsRequestTimeouts?: boolean;
-}
-
 export const EXECUTION_CONTROL_KEYS = [
   "requestTimeoutMs",
   "retryCount",
   "retryDelayMs",
-  "pollIntervalMs",
-  "timeoutMs",
-  "maxConsecutivePollErrors",
-  "resumeId",
 ] as const;
 
 export type ExecutionControlKey = (typeof EXECUTION_CONTROL_KEYS)[number];
 
-export interface ExecutionSupport {
-  requestTimeoutMs?: boolean;
-  retryCount?: boolean;
-  retryDelayMs?: boolean;
-  pollIntervalMs?: boolean;
-  timeoutMs?: boolean;
-  maxConsecutivePollErrors?: boolean;
-  resumeId?: boolean;
-}
-
 export interface ProviderPlanTraits {
   settings?: ExecutionSettings;
-  executionSupport?: ExecutionSupport;
-  researchLifecycle?: ProviderResearchLifecycleTraits;
 }
 
-// How a provider delivers a tool result back to pi.
-export type ProviderDeliveryMode =
-  | "silent-foreground"
-  | "streaming-foreground"
-  | "background-research";
-
-export interface SingleProviderPlan<TResult> {
+export interface ProviderPlan<TResult> {
   capability: Tool;
   providerId: ProviderId;
   providerLabel: string;
-  deliveryMode: "silent-foreground" | "streaming-foreground";
   traits?: ProviderPlanTraits;
   execute: (context: ProviderContext) => Promise<TResult>;
 }
 
-export interface BackgroundResearchPlan {
-  capability: "research";
-  providerId: ProviderId;
-  providerLabel: string;
-  deliveryMode: "background-research";
-  traits?: ProviderPlanTraits;
-  start: (context: ProviderContext) => Promise<ResearchJob>;
-  poll: (id: string, context: ProviderContext) => Promise<ResearchPollResult>;
-}
-
 export type ProviderResult = SearchResponse | ContentsResponse | ToolOutput;
-
-export type ProviderPlan<TResult = ProviderResult> =
-  | SingleProviderPlan<TResult>
-  | BackgroundResearchPlan;
 
 export interface ProviderAdapter<TConfig> {
   readonly id: ProviderId;
@@ -339,5 +294,8 @@ export interface ProviderAdapter<TConfig> {
     cwd: string,
     tool?: Tool,
   ): ProviderCapabilityStatus;
-  buildPlan(request: ProviderRequest, config: TConfig): ProviderPlan | null;
+  buildPlan(
+    request: ProviderRequest,
+    config: TConfig,
+  ): ProviderPlan<ProviderResult> | null;
 }

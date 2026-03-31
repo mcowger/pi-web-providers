@@ -69,8 +69,9 @@ Then configure `custom` like this:
 }
 ```
 
-`web_research` runs as a foreground wrapper command, so polling controls and
-`resumeId` do not apply to `custom`.
+`web_research` uses the same async workflow as every other research provider:
+pi starts the wrapper in the background, tracks the job locally, and writes the
+final report to a file when it finishes.
 
 ## Core command shapes
 

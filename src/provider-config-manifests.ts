@@ -402,7 +402,6 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           cleanupEmpty(config, "options");
         },
       }),
-      ...researchSettings<Exa>(),
     ],
   },
   gemini: {
@@ -466,7 +465,6 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           cleanupEmpty(config, "options");
         },
       }),
-      ...researchSettings<Gemini>(),
     ],
   },
   perplexity: {
@@ -582,7 +580,6 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           cleanupEmpty(config, "options");
         },
       }),
-      ...researchSettings<Valyu>(),
     ],
   },
 } as const;
@@ -693,59 +690,6 @@ function requestSettings<TConfig extends { settings?: ExecutionSettings }>() {
           "retryDelayMs",
           value,
           "Retry delay must be a positive integer.",
-        );
-        cleanupEmpty(config, "settings");
-      },
-    }),
-  ] as const;
-}
-
-function researchSettings<TConfig extends { settings?: ExecutionSettings }>() {
-  return [
-    stringSetting<TConfig>({
-      id: "researchPollIntervalMs",
-      label: "Research poll interval (ms)",
-      help: "How often to poll long-running research jobs for updates for this provider. Leave empty to inherit the shared setting.",
-      getValue: (config) =>
-        getIntegerString(config?.settings?.researchPollIntervalMs),
-      setValue: (config, value) => {
-        assignOptionalInteger(
-          ensureSettings(config),
-          "researchPollIntervalMs",
-          value,
-          "Research poll interval must be a positive integer.",
-        );
-        cleanupEmpty(config, "settings");
-      },
-    }),
-    stringSetting<TConfig>({
-      id: "researchTimeoutMs",
-      label: "Research timeout (ms)",
-      help: "Maximum total time to wait for research before returning a resumable timeout error for this provider. Leave empty to inherit the shared setting.",
-      getValue: (config) =>
-        getIntegerString(config?.settings?.researchTimeoutMs),
-      setValue: (config, value) => {
-        assignOptionalInteger(
-          ensureSettings(config),
-          "researchTimeoutMs",
-          value,
-          "Research timeout must be a positive integer.",
-        );
-        cleanupEmpty(config, "settings");
-      },
-    }),
-    stringSetting<TConfig>({
-      id: "researchMaxConsecutivePollErrors",
-      label: "Max poll errors",
-      help: "How many consecutive poll failures to tolerate before stopping the local research run for this provider. Leave empty to inherit the shared setting.",
-      getValue: (config) =>
-        getIntegerString(config?.settings?.researchMaxConsecutivePollErrors),
-      setValue: (config, value) => {
-        assignOptionalInteger(
-          ensureSettings(config),
-          "researchMaxConsecutivePollErrors",
-          value,
-          "Max poll errors must be a positive integer.",
         );
         cleanupEmpty(config, "settings");
       },

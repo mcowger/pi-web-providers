@@ -15,10 +15,6 @@ export function createDefaultExecutionSettings(
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     retryCount: DEFAULT_RETRY_COUNT,
     retryDelayMs: DEFAULT_RETRY_DELAY_MS,
-    researchPollIntervalMs: DEFAULT_RESEARCH_POLL_INTERVAL_MS,
-    researchTimeoutMs: DEFAULT_RESEARCH_TIMEOUT_MS,
-    researchMaxConsecutivePollErrors:
-      DEFAULT_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
     ...overrides,
   };
 }

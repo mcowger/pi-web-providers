@@ -84,7 +84,6 @@ export const perplexityAdapter: PerplexityAdapter = {
       providerLabel: perplexityAdapter.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Perplexity,
@@ -99,7 +98,6 @@ export const perplexityAdapter: PerplexityAdapter = {
             ),
         },
         answer: {
-          deliveryMode: "silent-foreground",
           execute: (
             answerRequest,
             providerConfig: Perplexity,
@@ -113,18 +111,6 @@ export const perplexityAdapter: PerplexityAdapter = {
             ),
         },
         research: {
-          deliveryMode: "streaming-foreground",
-          traits: {
-            executionSupport: {
-              requestTimeoutMs: true,
-              retryCount: true,
-              retryDelayMs: true,
-              pollIntervalMs: false,
-              timeoutMs: false,
-              maxConsecutivePollErrors: false,
-              resumeId: false,
-            },
-          },
           execute: (
             researchRequest,
             providerConfig: Perplexity,
@@ -266,9 +252,6 @@ async function runSilentForegroundChatTool(
   };
 }
 
-// Perplexity deep research currently fits streaming foreground mode: pi can
-// surface incremental text while the request is active, but there is no
-// durable job id to resume later.
 async function runStreamingForegroundChatTool(
   input: string,
   config: Perplexity,

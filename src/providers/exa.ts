@@ -1,7 +1,10 @@
 import { Exa as ExaClient } from "exa-js";
 import { resolveConfigValue } from "../config.js";
 import type { ContentsResponse } from "../contents.js";
-import { stripLocalExecutionOptions } from "../execution-policy.js";
+import {
+  executeAsyncResearch,
+  stripLocalExecutionOptions,
+} from "../execution-policy.js";
 import type {
   Exa,
   ProviderAdapter,
@@ -37,6 +40,12 @@ type ExaAdapter = ProviderAdapter<Exa> & {
   ): Promise<ContentsResponse>;
   answer(
     query: string,
+    config: Exa,
+    context: ProviderContext,
+    options?: Record<string, unknown>,
+  ): Promise<ToolOutput>;
+  research(
+    input: string,
     config: Exa,
     context: ProviderContext,
     options?: Record<string, unknown>,
@@ -85,7 +94,6 @@ export const exaAdapter: ExaAdapter = {
       providerLabel: exaAdapter.label,
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Exa,
@@ -100,7 +108,6 @@ export const exaAdapter: ExaAdapter = {
             ),
         },
         contents: {
-          deliveryMode: "silent-foreground",
           execute: (
             contentsRequest,
             providerConfig: Exa,
@@ -114,7 +121,6 @@ export const exaAdapter: ExaAdapter = {
             ),
         },
         answer: {
-          deliveryMode: "silent-foreground",
           execute: (
             answerRequest,
             providerConfig: Exa,
@@ -128,41 +134,13 @@ export const exaAdapter: ExaAdapter = {
             ),
         },
         research: {
-          deliveryMode: "background-research",
-          traits: {
-            executionSupport: {
-              requestTimeoutMs: false,
-              retryCount: true,
-              retryDelayMs: true,
-              pollIntervalMs: true,
-              timeoutMs: true,
-              maxConsecutivePollErrors: true,
-              resumeId: true,
-            },
-            researchLifecycle: {
-              supportsStartRetries: false,
-              supportsRequestTimeouts: false,
-            },
-          },
-          start: (
+          execute: (
             researchRequest,
             providerConfig: Exa,
             context: ProviderContext,
           ) =>
-            exaAdapter.startResearch(
+            exaAdapter.research(
               researchRequest.input,
-              providerConfig,
-              context,
-              researchRequest.options,
-            ),
-          poll: (
-            researchRequest,
-            providerConfig: Exa,
-            id: string,
-            context: ProviderContext,
-          ) =>
-            exaAdapter.pollResearch(
-              id,
               providerConfig,
               context,
               researchRequest.options,
@@ -275,6 +253,23 @@ export const exaAdapter: ExaAdapter = {
       text: lines.join("\n").trimEnd(),
       itemCount: citations.length,
     };
+  },
+
+  async research(
+    input: string,
+    config: Exa,
+    context: ProviderContext,
+    options?: Record<string, unknown>,
+  ): Promise<ToolOutput> {
+    return await executeAsyncResearch({
+      providerLabel: exaAdapter.label,
+      providerId: exaAdapter.id,
+      context,
+      start: (researchContext) =>
+        exaAdapter.startResearch(input, config, researchContext, options),
+      poll: (id, researchContext) =>
+        exaAdapter.pollResearch(id, config, researchContext, options),
+    });
   },
 
   async startResearch(

@@ -41,7 +41,6 @@ describe("provider tool output", () => {
           capability: "search",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             results: [
@@ -57,7 +56,6 @@ describe("provider tool output", () => {
           capability: "search",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             results: [
@@ -117,7 +115,6 @@ describe("provider tool output", () => {
           capability: "search",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             results: [
@@ -133,7 +130,6 @@ describe("provider tool output", () => {
           capability: "search",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => {
             throw new Error("rate limited");
           },
@@ -187,7 +183,6 @@ describe("provider tool output", () => {
           capability: "search",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             results: [],
@@ -197,7 +192,6 @@ describe("provider tool output", () => {
           capability: "search",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             results: [],
@@ -237,7 +231,6 @@ describe("provider tool output", () => {
             capability: "search",
             providerId: "exa",
             providerLabel: "Exa",
-            deliveryMode: "silent-foreground",
             execute: async () => {
               throw new Error("timeout");
             },
@@ -246,7 +239,6 @@ describe("provider tool output", () => {
             capability: "search",
             providerId: "exa",
             providerLabel: "Exa",
-            deliveryMode: "silent-foreground",
             execute: async () => {
               throw new Error("rate limited");
             },
@@ -329,7 +321,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
             text: "ACME platforms are used for workflow automation and data operations.",
@@ -339,7 +330,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
             text: "ACME platforms can reduce migration costs by reshaping and routing data.",
@@ -394,7 +384,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
             text: "ACME platforms are used for workflow automation and data operations.",
@@ -404,7 +393,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => {
             throw new Error("rate limited");
           },
@@ -456,7 +444,6 @@ describe("provider tool output", () => {
             capability: "answer",
             providerId: "gemini",
             providerLabel: "Gemini",
-            deliveryMode: "silent-foreground",
             execute: async () => {
               throw new Error("timeout");
             },
@@ -465,7 +452,6 @@ describe("provider tool output", () => {
             capability: "answer",
             providerId: "gemini",
             providerLabel: "Gemini",
-            deliveryMode: "silent-foreground",
             execute: async () => {
               throw new Error("rate limited");
             },
@@ -499,7 +485,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
             text: "ACME platforms are used for workflow automation and legacy migrations.",
@@ -552,7 +537,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
             text: "Answer one",
@@ -562,7 +546,6 @@ describe("provider tool output", () => {
           capability: "answer",
           providerId: "gemini",
           providerLabel: "Gemini",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
             text: "Answer two",
@@ -607,7 +590,6 @@ describe("provider tool output", () => {
           capability: "contents",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => {
             await new Promise((resolve) => setTimeout(resolve, 25));
             return {
@@ -625,7 +607,6 @@ describe("provider tool output", () => {
           capability: "contents",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => {
             await new Promise((resolve) => setTimeout(resolve, 5));
             return {
@@ -676,7 +657,6 @@ describe("provider tool output", () => {
         capability: "contents",
         providerId: "exa",
         providerLabel: "Exa",
-        deliveryMode: "silent-foreground",
         execute: async () => ({
           provider: "exa",
           text: Array.from(
@@ -749,7 +729,6 @@ describe("provider tool output", () => {
         capability: "research",
         providerId: "gemini",
         providerLabel: "Gemini",
-        deliveryMode: "streaming-foreground",
         execute: async () => ({
           provider: "gemini",
           text: "Detailed report text",
@@ -836,7 +815,6 @@ describe("provider tool output", () => {
         capability: "research",
         providerId: "gemini",
         providerLabel: "Gemini",
-        deliveryMode: "streaming-foreground",
         execute: async () => {
           throw new Error("Gemini: rate limited.");
         },
@@ -897,7 +875,6 @@ describe("provider tool output", () => {
           capability: "research",
           providerId: "perplexity",
           providerLabel: "Perplexity",
-          deliveryMode: "streaming-foreground",
           execute: async () => {
             await new Promise((resolve) => setTimeout(resolve, 20000));
             return {
@@ -919,7 +896,7 @@ describe("provider tool output", () => {
     }
   });
 
-  it("rejects lifecycle-only options for streaming foreground Perplexity research", async () => {
+  it("rejects local execution controls for research", async () => {
     const config: WebProviders = {
       providers: {
         perplexity: {
@@ -937,118 +914,14 @@ describe("provider tool output", () => {
         signal: undefined,
         onUpdate: undefined,
         options: {
+          requestTimeoutMs: 1000,
           resumeId: "job-1",
           timeoutMs: 60000,
         },
         input: "Investigate the topic",
       }),
     ).rejects.toThrow(
-      "Perplexity research runs in streaming foreground mode and does not support timeoutMs, resumeId. Use requestTimeoutMs/retryCount/retryDelayMs instead.",
-    );
-  });
-
-  it("inherits request timeouts for streaming foreground plans that declare support", async () => {
-    vi.useFakeTimers();
-
-    try {
-      const config: WebProviders = {
-        providers: {
-          perplexity: {
-            apiKey: "literal-key",
-          },
-        },
-      };
-
-      const resultPromise = __test__.executeProviderTool({
-        capability: "research",
-        config,
-        explicitProvider: "perplexity",
-        ctx: { cwd: process.cwd() },
-        signal: undefined,
-        onUpdate: undefined,
-        options: undefined,
-        input: "Investigate the topic",
-        planOverride: {
-          capability: "research",
-          providerId: "perplexity",
-          providerLabel: "Perplexity",
-          deliveryMode: "streaming-foreground",
-          traits: {
-            executionSupport: {
-              requestTimeoutMs: true,
-              retryCount: true,
-              retryDelayMs: true,
-              pollIntervalMs: false,
-              timeoutMs: false,
-              maxConsecutivePollErrors: false,
-              resumeId: false,
-            },
-            settings: {
-              requestTimeoutMs: 1,
-              retryCount: 0,
-              retryDelayMs: 1,
-            },
-          },
-          execute: async () =>
-            await new Promise((resolve) => {
-              setTimeout(() => {
-                resolve({
-                  provider: "perplexity" as const,
-                  text: "Research complete",
-                });
-              }, 5);
-            }),
-        },
-      });
-      const rejection = expect(resultPromise).rejects.toThrow(
-        "Perplexity research request timed out after 1ms.",
-      );
-
-      await vi.advanceTimersByTimeAsync(1);
-      await rejection;
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("rejects requestTimeoutMs for research providers that cannot safely enforce it", async () => {
-    const config: WebProviders = {
-      providers: {
-        exa: {
-          apiKey: "literal-key",
-        },
-      },
-    };
-
-    await expect(
-      __test__.executeProviderTool({
-        capability: "research",
-        config,
-        explicitProvider: "exa",
-        ctx: { cwd: process.cwd() },
-        signal: undefined,
-        onUpdate: undefined,
-        options: {
-          requestTimeoutMs: 1000,
-        },
-        input: "Investigate the topic",
-        planOverride: {
-          capability: "research",
-          providerId: "exa",
-          providerLabel: "Exa",
-          deliveryMode: "background-research",
-          start: async () => ({ id: "job-1" }),
-          poll: async () => ({
-            status: "completed",
-            output: {
-              provider: "exa",
-              text: "done",
-            },
-          }),
-        },
-      }),
-    ).rejects.toThrow(
-      "Exa research does not support requestTimeoutMs. Use retryCount/retryDelayMs/pollIntervalMs/timeoutMs/maxConsecutivePollErrors/resumeId instead.",
+      "Perplexity research is always async and does not accept local execution controls. Remove requestTimeoutMs, timeoutMs, resumeId from options.",
     );
   });
 
@@ -1077,7 +950,6 @@ describe("provider tool output", () => {
           capability: "contents",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             text: "contents",
@@ -1113,7 +985,6 @@ describe("provider tool output", () => {
           capability: "contents",
           providerId: "exa",
           providerLabel: "Exa",
-          deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "exa",
             text: "contents",
@@ -1121,7 +992,7 @@ describe("provider tool output", () => {
         },
       }),
     ).rejects.toThrow(
-      "Exa contents does not support timeoutMs, resumeId. These controls only apply to web_research. Use requestTimeoutMs/retryCount/retryDelayMs instead.",
+      "These controls only apply to internal research execution and are not supported here: timeoutMs, resumeId.",
     );
   });
 
@@ -1138,9 +1009,7 @@ describe("provider tool output", () => {
         "exa",
         "gemini",
       ]),
-    ).toBe(
-      "Provider-specific research options. Depending on provider, local execution controls may include: requestTimeoutMs, retryCount, retryDelayMs, pollIntervalMs, timeoutMs, maxConsecutivePollErrors, resumeId.",
-    );
+    ).toBe("Provider-specific research options.");
   });
 
   it("rejects removed resumeInteractionId compatibility for research", async () => {
@@ -1166,7 +1035,7 @@ describe("provider tool output", () => {
         input: "Investigate the topic",
       }),
     ).rejects.toThrow(
-      "resumeInteractionId is not supported. Use resumeId instead.",
+      "Gemini research is always async and does not accept local execution controls. Remove resumeInteractionId from options.",
     );
   });
 });

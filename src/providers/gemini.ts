@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { resolveConfigValue } from "../config.js";
+import { executeAsyncResearch } from "../execution-policy.js";
 import { DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS } from "../execution-policy-defaults.js";
 import type {
   Gemini,
@@ -33,6 +34,12 @@ type GeminiAdapter = ProviderAdapter<Gemini> & {
     context: ProviderContext,
     options?: Record<string, unknown>,
   ): Promise<ToolOutput>;
+  research(
+    input: string,
+    config: Gemini,
+    context: ProviderContext,
+    options?: Record<string, unknown>,
+  ): Promise<ToolOutput>;
   startResearch(
     input: string,
     config: Gemini,
@@ -62,10 +69,6 @@ export const geminiAdapter: GeminiAdapter = {
         answerModel: DEFAULT_ANSWER_MODEL,
         researchAgent: DEFAULT_RESEARCH_AGENT,
       },
-      settings: {
-        researchMaxConsecutivePollErrors:
-          DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
-      },
     };
   },
 
@@ -84,7 +87,6 @@ export const geminiAdapter: GeminiAdapter = {
       }),
       handlers: {
         search: {
-          deliveryMode: "silent-foreground",
           execute: (
             searchRequest,
             providerConfig: Gemini,
@@ -99,7 +101,6 @@ export const geminiAdapter: GeminiAdapter = {
             ),
         },
         answer: {
-          deliveryMode: "silent-foreground",
           execute: (
             answerRequest,
             providerConfig: Gemini,
@@ -113,41 +114,13 @@ export const geminiAdapter: GeminiAdapter = {
             ),
         },
         research: {
-          deliveryMode: "background-research",
-          traits: {
-            executionSupport: {
-              requestTimeoutMs: true,
-              retryCount: true,
-              retryDelayMs: true,
-              pollIntervalMs: true,
-              timeoutMs: true,
-              maxConsecutivePollErrors: true,
-              resumeId: true,
-            },
-            researchLifecycle: {
-              supportsStartRetries: true,
-              supportsRequestTimeouts: true,
-            },
-          },
-          start: (
+          execute: (
             researchRequest,
             providerConfig: Gemini,
             context: ProviderContext,
           ) =>
-            this.startResearch(
+            this.research(
               researchRequest.input,
-              providerConfig,
-              context,
-              researchRequest.options,
-            ),
-          poll: (
-            researchRequest,
-            providerConfig: Gemini,
-            id: string,
-            context: ProviderContext,
-          ) =>
-            this.pollResearch(
-              id,
               providerConfig,
               context,
               researchRequest.options,
@@ -243,6 +216,25 @@ export const geminiAdapter: GeminiAdapter = {
       text: lines.join("\n").trimEnd(),
       itemCount: sources.length,
     };
+  },
+
+  async research(
+    input: string,
+    config: Gemini,
+    context: ProviderContext,
+    options?: Record<string, unknown>,
+  ): Promise<ToolOutput> {
+    return await executeAsyncResearch({
+      providerLabel: this.label,
+      providerId: this.id,
+      context,
+      maxConsecutivePollErrors:
+        DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS,
+      start: (researchContext) =>
+        this.startResearch(input, config, researchContext, options),
+      poll: (id, researchContext) =>
+        this.pollResearch(id, config, researchContext, options),
+    });
   },
 
   async startResearch(

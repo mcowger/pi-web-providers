@@ -74,12 +74,6 @@ function mergeExecutionSettings(
     requestTimeoutMs: overrides?.requestTimeoutMs ?? base?.requestTimeoutMs,
     retryCount: overrides?.retryCount ?? base?.retryCount,
     retryDelayMs: overrides?.retryDelayMs ?? base?.retryDelayMs,
-    researchPollIntervalMs:
-      overrides?.researchPollIntervalMs ?? base?.researchPollIntervalMs,
-    researchTimeoutMs: overrides?.researchTimeoutMs ?? base?.researchTimeoutMs,
-    researchMaxConsecutivePollErrors:
-      overrides?.researchMaxConsecutivePollErrors ??
-      base?.researchMaxConsecutivePollErrors,
   };
 
   return Object.values(merged).some((value) => value !== undefined)

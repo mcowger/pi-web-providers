@@ -30,12 +30,20 @@ beforeEach(() => {
   const home = mkdtempSync(join(tmpdir(), "pi-web-providers-home-"));
   cleanupDirs.push(home);
   process.env.HOME = home;
+  delete process.env.CODEX_API_KEY;
+  delete process.env.EXA_API_KEY;
+  delete process.env.PERPLEXITY_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.PARALLEL_API_KEY;
+  delete process.env.VALYU_API_KEY;
 });
 
 afterEach(() => {
   delete process.env.EXA_API_KEY;
   delete process.env.CODEX_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
+  delete process.env.OPENAI_API_KEY;
   execFileSyncMock.mockReset();
   resetClaudeProviderCachesForTests();
   if (originalHome === undefined) {
@@ -65,6 +73,7 @@ describe("managed tool availability", () => {
         tools.push(tool);
       },
       registerCommand() {},
+      registerMessageRenderer() {},
       on() {},
       getActiveTools() {
         return [];
@@ -95,8 +104,11 @@ describe("managed tool availability", () => {
     expect(webAnswer?.parameters?.properties).not.toHaveProperty("query");
     expect(webAnswer?.parameters?.properties).toHaveProperty("queries");
     expect(webAnswer?.parameters?.properties).not.toHaveProperty("provider");
-    expect(webResearch?.description).toBe(
-      "Investigate a topic across web sources and produce a longer report.",
+    expect(webResearch?.description).toContain(
+      "Start a long-running web research job.",
+    );
+    expect(webResearch?.description).toContain(
+      "Returns immediately with a dispatch notice",
     );
     expect(webResearch?.parameters?.properties).not.toHaveProperty("provider");
   });
@@ -266,6 +278,7 @@ describe("managed tool availability", () => {
         tools.push(tool);
       },
       registerCommand() {},
+      registerMessageRenderer() {},
       on() {},
       getActiveTools() {
         return [];

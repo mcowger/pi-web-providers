@@ -45,7 +45,7 @@ describe("web_search renderer", () => {
       __test__.renderCallHeader(
         {
           queries: [
-            "What are the main use cases of Tenzir, the security data pipeline platform? Include modern SOC and AI workflows.",
+            "What are the main use cases of modern ACME platforms? Include automation and analytics workflows.",
           ],
           maxResults: 10,
         },
@@ -55,8 +55,9 @@ describe("web_search renderer", () => {
     );
 
     expect(rendered).toContain(
-      '"What are the main use cases of Tenzir, the security data pipeline platform? Inc…"',
+      '"What are the main use cases of modern ACME platforms? Include automation',
     );
+    expect(rendered).toContain("…");
   });
 
   it("shows each query on its own line for multi-query search calls", () => {
@@ -158,7 +159,7 @@ describe("web_search renderer", () => {
     const summary = renderComponentText(
       __test__.renderCollapsedSearchSummary(
         {} as never,
-        "1. [Tenzir](<https://tenzir.com/>)\n   Security data pipelines for detection and response.",
+        "1. [ACME platforms](<https://example.com/>)\n   Tools for routing and transforming operational data.",
         createTheme(),
       ),
       120,
@@ -174,7 +175,7 @@ describe("web_answer renderer", () => {
     const rendered = renderComponentText(
       __test__.renderQuestionCallHeader(
         {
-          queries: ["What are common Tenzir use cases?"],
+          queries: ["What are common ACME platform use cases?"],
         },
         createTheme(),
       ),
@@ -182,7 +183,7 @@ describe("web_answer renderer", () => {
     );
 
     expect(rendered).toContain(
-      'web_answer "What are common Tenzir use cases?"',
+      'web_answer "What are common ACME platform use cases?"',
     );
     expect(rendered).not.toContain("provider=");
   });
@@ -192,8 +193,8 @@ describe("web_answer renderer", () => {
       __test__.renderQuestionCallHeader(
         {
           queries: [
-            "What are common Tenzir use cases?",
-            "How does Tenzir help with SIEM migration?",
+            "What are common ACME platform use cases?",
+            "How can an ACME platform help with legacy tool migration?",
           ],
         },
         createTheme(),
@@ -202,8 +203,10 @@ describe("web_answer renderer", () => {
     );
 
     expect(rendered).toContain("web_answer");
-    expect(rendered).toContain("  What are common Tenzir use cases?");
-    expect(rendered).toContain("  How does Tenzir help with SIEM migration?");
+    expect(rendered).toContain("  What are common ACME platform use cases?");
+    expect(rendered).toContain(
+      "  How can an ACME platform help with legacy tool migration?",
+    );
     expect(rendered).not.toContain("provider=");
   });
 });
@@ -214,7 +217,7 @@ describe("web_research renderer", () => {
       __test__.renderResearchCallHeader(
         {
           input:
-            "Tenzir use cases: what problems does Tenzir solve, who uses it, and in what scenarios?",
+            "ACME platform use cases: what problems do these products solve, who uses them, and in what scenarios?",
         },
         createTheme(),
       ),
@@ -223,10 +226,126 @@ describe("web_research renderer", () => {
 
     expect(rendered.startsWith("web_research")).toBe(true);
     expect(rendered).toContain(
-      "  Tenzir use cases: what problems does Tenzir solve, who uses it, and in what scenarios?",
+      "  ACME platform use cases: what problems do these products solve, who uses them, and in what scenarios?",
     );
     expect(rendered).not.toContain('web_research "');
     expect(rendered).not.toContain("provider=");
+  });
+
+  it("summarizes dispatched research jobs in the collapsed tool result", () => {
+    const rendered = renderComponentText(
+      __test__.renderWebResearchDispatchResult(
+        {
+          content: [{ type: "text", text: "Started web research via Gemini." }],
+          details: {
+            tool: "web_research",
+            id: "job-1",
+            provider: "gemini",
+            input: "Investigate the topic",
+            outputPath: "/tmp/report.md",
+            startedAt: "2026-03-31T12:00:00.000Z",
+          },
+        },
+        false,
+        createTheme(),
+      ),
+      120,
+    );
+
+    expect(rendered).toContain("Started web research via Gemini");
+    expect(rendered).toContain("to expand");
+  });
+
+  it("shows the full research prompt in the expanded tool result", () => {
+    const rendered = renderComponentText(
+      __test__.renderWebResearchDispatchResult(
+        {
+          content: [{ type: "text", text: "Started web research via Gemini." }],
+          details: {
+            tool: "web_research",
+            id: "job-1",
+            provider: "gemini",
+            input:
+              "ACME platform landscape: What are the main categories of products in this space, and how do they compare on positioning, capabilities, and deployment model?",
+            outputPath: "/tmp/report.md",
+            startedAt: "2026-03-31T12:00:00.000Z",
+          },
+        },
+        true,
+        createTheme(),
+      ),
+      200,
+    );
+
+    expect(rendered).toContain(
+      "ACME platform landscape: What are the main categories of products in this space, and how do they compare on positioning, capabilities, and deployment model?",
+    );
+    expect(rendered).not.toContain("Started web research via Gemini.");
+  });
+
+  it("renders collapsed completion messages with the saved path", () => {
+    const rendered = renderComponentText(
+      __test__.renderWebResearchResultMessage(
+        {
+          content:
+            "Web research complete via Gemini. Saved to .pi/artifacts/research/report.md",
+          details: {
+            tool: "web_research",
+            id: "job-1",
+            provider: "gemini",
+            input: "Investigate the topic",
+            outputPath: "/tmp/project/.pi/artifacts/research/report.md",
+            startedAt: "2026-03-31T12:00:00.000Z",
+            completedAt: "2026-03-31T12:05:00.000Z",
+            elapsedMs: 300000,
+            status: "completed",
+          },
+        },
+        { expanded: false },
+        createTheme(),
+      ),
+      120,
+    );
+
+    expect(rendered).toContain(
+      "Web research complete via Gemini. Saved to .pi/artifacts/research/report.md",
+    );
+    expect(rendered).toContain("to expand");
+  });
+
+  it("renders expanded completion messages with metadata", () => {
+    const rendered = renderComponentText(
+      __test__.renderWebResearchResultMessage(
+        {
+          content:
+            "Web research failed via Gemini. Saved to .pi/artifacts/research/report.md",
+          details: {
+            tool: "web_research",
+            id: "job-1",
+            provider: "gemini",
+            input: "Investigate the topic",
+            outputPath: "/tmp/project/.pi/artifacts/research/report.md",
+            startedAt: "2026-03-31T12:00:00.000Z",
+            completedAt: "2026-03-31T12:05:00.000Z",
+            elapsedMs: 300000,
+            status: "failed",
+            error: "Gemini: rate limited.",
+          },
+        },
+        { expanded: true },
+        createTheme(),
+      ),
+      120,
+    );
+
+    expect(rendered).toContain("Query");
+    expect(rendered).toContain("Investigate the topic");
+    expect(rendered).toContain("Saved to");
+    expect(rendered).toContain("/tmp/project/.pi/artifacts/research/report.md");
+    expect(rendered).toContain("Elapsed");
+    expect(rendered).toContain("5m");
+    expect(rendered).toContain("Error");
+    expect(rendered).toContain("Gemini: rate limited.");
   });
 });
 
@@ -314,32 +433,32 @@ describe("web_search markdown formatting", () => {
   it("formats each query as an H2 with proper spacing", () => {
     const rendered = __test__.formatSearchResponses([
       {
-        query: "site:tenzir.com/blog Tenzir use cases",
+        query: "site:example.com/blog acme platform",
         response: {
           provider: "gemini",
           results: [
             {
-              title: "tenzir.com",
-              url: "https://tenzir.com/",
-              snippet: "Security data pipelines for detection and response.",
+              title: "example.com",
+              url: "https://example.com/",
+              snippet: "Tools for routing and transforming operational data.",
             },
           ],
         },
       },
       {
-        query: "site:tenzir.com/product integrations",
+        query: "site:example.com/product integrations",
         error: "Gemini search request timed out after 12s.",
       },
     ]);
 
     expect(rendered).toContain(
-      '## Query 1: "site:tenzir.com/blog Tenzir use cases"\n\n1. [tenzir.com](<https://tenzir.com/>)',
+      '## Query 1: "site:example.com/blog acme platform"\n\n1. [example.com](<https://example.com/>)',
     );
     expect(rendered).toContain(
-      "Security data pipelines for detection and response.",
+      "Tools for routing and transforming operational data.",
     );
     expect(rendered).toContain(
-      '## Query 2: "site:tenzir.com/product integrations"\n\nSearch failed: Gemini search request timed out after 12s.',
+      '## Query 2: "site:example.com/product integrations"\n\nSearch failed: Gemini search request timed out after 12s.',
     );
   });
 });
@@ -348,24 +467,25 @@ describe("web_answer markdown formatting", () => {
   it("formats each question as an H2 with proper spacing", () => {
     const rendered = __test__.formatAnswerResponses([
       {
-        query: "What are the main use cases for Tenzir?",
+        query: "What are the main use cases for ACME platforms?",
         response: {
           provider: "gemini",
-          text: "Tenzir helps route, normalize, and enrich security data.\n\n- Reduce SIEM cost\n- Improve detections",
+          text: "ACME platforms help route, normalize, and enrich business data.\n\n- Reduce manual work\n- Improve reporting",
         },
       },
       {
-        query: "What problems does Tenzir solve?",
+        query: "What problems do ACME platforms solve?",
         error: "Gemini answer request timed out after 12s.",
       },
     ]);
 
     expect(rendered).toContain(
-      '## Question 1: "What are the main use cases for Tenzir?"\n\nTenzir helps route, normalize, and enrich security data.',
+      '## Question 1: "What are the main use cases for ACME platforms?"\n\nACME platforms help route, normalize, and enrich business data.',
     );
-    expect(rendered).toContain("- Reduce SIEM cost");
+    expect(rendered).toContain("- Reduce manual work");
+    expect(rendered).toContain("- Improve reporting");
     expect(rendered).toContain(
-      '## Question 2: "What problems does Tenzir solve?"\n\nAnswer failed: Gemini answer request timed out after 12s.',
+      '## Question 2: "What problems do ACME platforms solve?"\n\nAnswer failed: Gemini answer request timed out after 12s.',
     );
   });
 });
@@ -380,6 +500,7 @@ function renderComponentText(
 function createTheme(): Theme {
   return {
     fg: (_color: string, text: string) => text,
+    bg: (_color: string, text: string) => text,
     bold: (text: string) => text,
   } as unknown as Theme;
 }

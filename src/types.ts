@@ -69,6 +69,23 @@ export interface ToolDetails {
   failedQueryCount?: number;
 }
 
+export interface WebResearchRequest {
+  tool: "web_research";
+  id: string;
+  provider: ProviderId;
+  input: string;
+  outputPath: string;
+  startedAt: string;
+}
+
+export interface WebResearchResult extends WebResearchRequest {
+  status: "completed" | "failed" | "cancelled";
+  completedAt: string;
+  elapsedMs: number;
+  itemCount?: number;
+  error?: string;
+}
+
 export interface ClaudeOptions {
   model?: string;
   effort?: "low" | "medium" | "high" | "max";

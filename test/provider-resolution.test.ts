@@ -20,8 +20,8 @@ vi.mock("node:child_process", async () => {
 
 import {
   getEffectiveProviderConfig,
-  resolveSearchProvider,
   resolveProviderForTool,
+  resolveSearchProvider,
 } from "../src/provider-resolution.js";
 import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
 import type { WebProviders } from "../src/types.js";
@@ -33,12 +33,20 @@ beforeEach(() => {
   const home = mkdtempSync(join(tmpdir(), "pi-web-providers-home-"));
   cleanupDirs.push(home);
   process.env.HOME = home;
+  delete process.env.CODEX_API_KEY;
+  delete process.env.EXA_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.PERPLEXITY_API_KEY;
+  delete process.env.PARALLEL_API_KEY;
+  delete process.env.VALYU_API_KEY;
 });
 
 afterEach(() => {
   delete process.env.CODEX_API_KEY;
   delete process.env.EXA_API_KEY;
   delete process.env.GOOGLE_API_KEY;
+  delete process.env.OPENAI_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.PARALLEL_API_KEY;
   delete process.env.VALYU_API_KEY;

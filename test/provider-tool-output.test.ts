@@ -1,5 +1,6 @@
-import { rm } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { __test__ } from "../src/index.js";
 import type { WebProviders } from "../src/types.js";
@@ -7,6 +8,7 @@ import type { WebProviders } from "../src/types.js";
 const cleanupDirs: string[] = [];
 
 afterEach(async () => {
+  await __test__.waitForPendingResearchTasks();
   while (cleanupDirs.length > 0) {
     const dir = cleanupDirs.pop();
     if (dir) {
@@ -319,8 +321,8 @@ describe("provider tool output", () => {
       onUpdate: undefined,
       options: undefined,
       queries: [
-        "What are common Tenzir use cases?",
-        "How does Tenzir help with SIEM migration?",
+        "What are common ACME platform use cases?",
+        "How can an ACME platform help with legacy tool migration?",
       ],
       planOverrides: [
         {
@@ -330,7 +332,7 @@ describe("provider tool output", () => {
           deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
-            text: "Tenzir is used for detection engineering and security data pipelines.",
+            text: "ACME platforms are used for workflow automation and data operations.",
           }),
         },
         {
@@ -340,23 +342,23 @@ describe("provider tool output", () => {
           deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
-            text: "Tenzir can reduce SIEM costs during migration by reshaping and routing data.",
+            text: "ACME platforms can reduce migration costs by reshaping and routing data.",
           }),
         },
       ],
     });
 
     expect(result.content[0]?.text).toContain(
-      'Question 1: "What are common Tenzir use cases?"',
+      'Question 1: "What are common ACME platform use cases?"',
     );
     expect(result.content[0]?.text).toContain(
-      "Tenzir is used for detection engineering and security data pipelines.",
+      "ACME platforms are used for workflow automation and data operations.",
     );
     expect(result.content[0]?.text).toContain(
-      'Question 2: "How does Tenzir help with SIEM migration?"',
+      'Question 2: "How can an ACME platform help with legacy tool migration?"',
     );
     expect(result.content[0]?.text).toContain(
-      "Tenzir can reduce SIEM costs during migration by reshaping and routing data.",
+      "ACME platforms can reduce migration costs by reshaping and routing data.",
     );
     expect(result.details).toEqual({
       tool: "web_answer",
@@ -384,8 +386,8 @@ describe("provider tool output", () => {
       onUpdate: undefined,
       options: undefined,
       queries: [
-        "What are common Tenzir use cases?",
-        "How does Tenzir help with SIEM migration?",
+        "What are common ACME platform use cases?",
+        "How can an ACME platform help with legacy tool migration?",
       ],
       planOverrides: [
         {
@@ -395,7 +397,7 @@ describe("provider tool output", () => {
           deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
-            text: "Tenzir is used for detection engineering and security data pipelines.",
+            text: "ACME platforms are used for workflow automation and data operations.",
           }),
         },
         {
@@ -411,10 +413,10 @@ describe("provider tool output", () => {
     });
 
     expect(result.content[0]?.text).toContain(
-      'Question 1: "What are common Tenzir use cases?"',
+      'Question 1: "What are common ACME platform use cases?"',
     );
     expect(result.content[0]?.text).toContain(
-      'Question 2: "How does Tenzir help with SIEM migration?"',
+      'Question 2: "How can an ACME platform help with legacy tool migration?"',
     );
     expect(result.content[0]?.text).toContain(
       "Answer failed: Gemini: rate limited.",
@@ -446,8 +448,8 @@ describe("provider tool output", () => {
         onUpdate: undefined,
         options: undefined,
         queries: [
-          "What are common Tenzir use cases?",
-          "How does Tenzir help with SIEM migration?",
+          "What are common ACME platform use cases?",
+          "How can an ACME platform help with legacy tool migration?",
         ],
         planOverrides: [
           {
@@ -471,7 +473,7 @@ describe("provider tool output", () => {
         ],
       }),
     ).rejects.toThrow(
-      'All 2 web_answer queries failed: 1. "What are common Tenzir use cases?" — Gemini: timeout.; 2. "How does Tenzir help with SIEM migratio…" — Gemini: rate limited.',
+      'All 2 web_answer queries failed: 1. "What are common ACME platform use cases?" — Gemini: timeout.; 2. "How can an ACME platform help with lega…" — Gemini: rate limited.',
     );
   });
 
@@ -491,7 +493,7 @@ describe("provider tool output", () => {
       signal: undefined,
       onUpdate: undefined,
       options: undefined,
-      queries: ["What are common Tenzir use cases?"],
+      queries: ["What are common ACME platform use cases?"],
       planOverrides: [
         {
           capability: "answer",
@@ -500,7 +502,7 @@ describe("provider tool output", () => {
           deliveryMode: "silent-foreground",
           execute: async () => ({
             provider: "gemini",
-            text: "Tenzir is used for detection engineering and SIEM migration.",
+            text: "ACME platforms are used for workflow automation and legacy migrations.",
             itemCount: 2,
           }),
         },
@@ -508,7 +510,7 @@ describe("provider tool output", () => {
     });
 
     expect(result.content[0]?.text).toBe(
-      '## "What are common Tenzir use cases?"\n\nTenzir is used for detection engineering and SIEM migration.',
+      '## "What are common ACME platform use cases?"\n\nACME platforms are used for workflow automation and legacy migrations.',
     );
     expect(result.details).toEqual({
       tool: "web_answer",
@@ -542,8 +544,8 @@ describe("provider tool output", () => {
       },
       options: undefined,
       queries: [
-        "What are common Tenzir use cases?",
-        "How does Tenzir help with SIEM migration?",
+        "What are common ACME platform use cases?",
+        "How can an ACME platform help with legacy tool migration?",
       ],
       planOverrides: [
         {
@@ -694,6 +696,174 @@ describe("provider tool output", () => {
     if (fullPath) {
       cleanupDirs.push(dirname(fullPath));
     }
+  });
+
+  it("dispatches web research immediately and posts the saved result later", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-web-research-"));
+    cleanupDirs.push(cwd);
+
+    const config: WebProviders = {
+      providers: {
+        gemini: {
+          apiKey: "literal-key",
+        },
+      },
+    };
+    const sendMessage = vi.fn();
+    const setWidget = vi.fn();
+    const activeWebResearchRequests = new Map();
+    let lastWidgetContext: any;
+    const updateWebResearchWidget = (ctx?: any) => {
+      const widgetContext = ctx ?? lastWidgetContext;
+      if (!widgetContext?.hasUI) {
+        return;
+      }
+      lastWidgetContext = widgetContext;
+      const requests = [...activeWebResearchRequests.values()];
+      if (requests.length === 0) {
+        widgetContext.ui.setWidget("web-research-jobs", undefined);
+        return;
+      }
+      widgetContext.ui.setWidget("web-research-jobs", [
+        `Research jobs running: ${requests.length}`,
+      ]);
+    };
+
+    const result = await __test__.dispatchWebResearch({
+      pi: { sendMessage },
+      activeWebResearchRequests,
+      updateWebResearchWidget,
+      config,
+      explicitProvider: "gemini",
+      ctx: {
+        cwd,
+        hasUI: true,
+        ui: {
+          setWidget,
+          theme: { fg: (_color: string, text: string) => text } as any,
+        },
+      } as any,
+      options: undefined,
+      input: "Investigate the topic",
+      planOverride: {
+        capability: "research",
+        providerId: "gemini",
+        providerLabel: "Gemini",
+        deliveryMode: "streaming-foreground",
+        execute: async () => ({
+          provider: "gemini",
+          text: "Detailed report text",
+          itemCount: 3,
+        }),
+      },
+    });
+
+    expect(result.content[0]?.text).toBe("Started web research via Gemini.");
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(setWidget).toHaveBeenCalledWith("web-research-jobs", [
+      "Research jobs running: 1",
+    ]);
+
+    await __test__.waitForPendingResearchTasks();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(setWidget).toHaveBeenLastCalledWith("web-research-jobs", undefined);
+    const message = sendMessage.mock.calls[0]?.[0];
+    expect(message?.customType).toBe("web-research-result");
+    expect(message?.content).toContain(
+      "Web research complete via Gemini. Saved to",
+    );
+
+    const details = message?.details as {
+      outputPath: string;
+      status: string;
+    };
+    expect(details.status).toBe("completed");
+    const report = await readFile(details.outputPath, "utf-8");
+    expect(report).toContain("# Web research report");
+    expect(report).toContain("## Report");
+    expect(report).toContain("Detailed report text");
+  });
+
+  it("writes diagnostics and posts a failure message when dispatched research fails", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-web-research-"));
+    cleanupDirs.push(cwd);
+
+    const config: WebProviders = {
+      providers: {
+        gemini: {
+          apiKey: "literal-key",
+        },
+      },
+    };
+    const sendMessage = vi.fn();
+    const setWidget = vi.fn();
+    const activeWebResearchRequests = new Map();
+    let lastWidgetContext: any;
+    const updateWebResearchWidget = (ctx?: any) => {
+      const widgetContext = ctx ?? lastWidgetContext;
+      if (!widgetContext?.hasUI) {
+        return;
+      }
+      lastWidgetContext = widgetContext;
+      const requests = [...activeWebResearchRequests.values()];
+      if (requests.length === 0) {
+        widgetContext.ui.setWidget("web-research-jobs", undefined);
+        return;
+      }
+      widgetContext.ui.setWidget("web-research-jobs", [
+        `Research jobs running: ${requests.length}`,
+      ]);
+    };
+
+    await __test__.dispatchWebResearch({
+      pi: { sendMessage },
+      activeWebResearchRequests,
+      updateWebResearchWidget,
+      config,
+      explicitProvider: "gemini",
+      ctx: {
+        cwd,
+        hasUI: true,
+        ui: {
+          setWidget,
+          theme: { fg: (_color: string, text: string) => text } as any,
+        },
+      } as any,
+      options: undefined,
+      input: "Investigate the topic",
+      planOverride: {
+        capability: "research",
+        providerId: "gemini",
+        providerLabel: "Gemini",
+        deliveryMode: "streaming-foreground",
+        execute: async () => {
+          throw new Error("Gemini: rate limited.");
+        },
+      },
+    });
+
+    await __test__.waitForPendingResearchTasks();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(setWidget).toHaveBeenLastCalledWith("web-research-jobs", undefined);
+    const message = sendMessage.mock.calls[0]?.[0];
+    expect(message?.content).toContain(
+      "Web research failed via Gemini. Saved to",
+    );
+
+    const details = message?.details as {
+      outputPath: string;
+      status: string;
+      error: string;
+    };
+    expect(details.status).toBe("failed");
+    expect(details.error).toBe("Gemini: rate limited.");
+
+    const report = await readFile(details.outputPath, "utf-8");
+    expect(report).toContain("# Web research report");
+    expect(report).toContain("## Error");
+    expect(report).toContain("Gemini: rate limited.");
   });
 
   it("emits heartbeat updates for long-running foreground research tools", async () => {

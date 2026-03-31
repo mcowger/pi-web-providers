@@ -1,11 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   type ExtensionAPI,
   type ExtensionCommandContext,
+  type ExtensionContext,
   formatSize,
   getMarkdownTheme,
   keyHint,
@@ -13,6 +15,7 @@ import {
   truncateHead,
 } from "@mariozechner/pi-coding-agent";
 import {
+  Box,
   type Component,
   Editor,
   type EditorTheme,
@@ -86,6 +89,8 @@ import type {
   ToolOutput,
   Valyu,
   WebProviders,
+  WebResearchRequest,
+  WebResearchResult,
   WebSearchDetails,
 } from "./types.js";
 import { EXECUTION_CONTROL_KEYS, PROVIDER_IDS } from "./types.js";
@@ -94,6 +99,10 @@ const DEFAULT_MAX_RESULTS = 5;
 const MAX_ALLOWED_RESULTS = 20;
 const MAX_SEARCH_QUERIES = 10;
 const RESEARCH_HEARTBEAT_MS = 15000;
+const WEB_RESEARCH_RESULT_MESSAGE_TYPE = "web-research-result";
+const WEB_RESEARCH_WIDGET_KEY = "web-research-jobs";
+const RESEARCH_ARTIFACTS_DIR = join(".pi", "artifacts", "research");
+const pendingResearchTasks = new Set<Promise<void>>();
 const CAPABILITY_TOOL_NAMES: Record<Tool, string> = {
   search: "web_search",
   contents: "web_contents",
@@ -103,7 +112,66 @@ const CAPABILITY_TOOL_NAMES: Record<Tool, string> = {
 const MANAGED_TOOL_NAMES = Object.values(CAPABILITY_TOOL_NAMES);
 
 export default function webProvidersExtension(pi: ExtensionAPI) {
-  registerManagedTools(pi);
+  const activeWebResearchRequests = new Map<string, WebResearchRequest>();
+  let latestWidgetContext: Pick<ExtensionContext, "hasUI" | "ui"> | undefined;
+  let webResearchWidgetTimer: ReturnType<typeof setInterval> | undefined;
+
+  const stopWebResearchWidgetTimer = (): void => {
+    if (webResearchWidgetTimer) {
+      clearInterval(webResearchWidgetTimer);
+      webResearchWidgetTimer = undefined;
+    }
+  };
+
+  const ensureWebResearchWidgetTimer = (): void => {
+    if (webResearchWidgetTimer || activeWebResearchRequests.size === 0) {
+      return;
+    }
+    webResearchWidgetTimer = setInterval(() => {
+      updateWebResearchWidget();
+    }, 1000);
+  };
+
+  const updateWebResearchWidget = (
+    ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+  ): void => {
+    const widgetContext = ctx ?? latestWidgetContext;
+    if (!widgetContext) {
+      return;
+    }
+
+    latestWidgetContext = widgetContext;
+    if (!widgetContext.hasUI) {
+      stopWebResearchWidgetTimer();
+      return;
+    }
+
+    if (activeWebResearchRequests.size === 0) {
+      stopWebResearchWidgetTimer();
+      widgetContext.ui.setWidget(WEB_RESEARCH_WIDGET_KEY, undefined);
+      return;
+    }
+
+    ensureWebResearchWidgetTimer();
+    widgetContext.ui.setWidget(
+      WEB_RESEARCH_WIDGET_KEY,
+      buildWebResearchWidgetLines(
+        [...activeWebResearchRequests.values()],
+        widgetContext.ui.theme,
+      ),
+    );
+  };
+
+  registerManagedTools(pi, {
+    activeWebResearchRequests,
+    updateWebResearchWidget,
+  });
+  if ("registerMessageRenderer" in pi) {
+    pi.registerMessageRenderer(
+      WEB_RESEARCH_RESULT_MESSAGE_TYPE,
+      renderWebResearchResultMessage,
+    );
+  }
 
   pi.registerCommand("web-providers", {
     description: "Configure web search providers",
@@ -113,23 +181,62 @@ export default function webProvidersExtension(pi: ExtensionAPI) {
         return;
       }
 
-      await runWebProvidersConfig(pi, ctx);
+      await runWebProvidersConfig(
+        pi,
+        { activeWebResearchRequests, updateWebResearchWidget },
+        ctx,
+      );
     },
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    latestWidgetContext = ctx;
     resetContentStore();
-    await refreshManagedTools(pi, ctx.cwd, { addAvailable: true });
+    updateWebResearchWidget(ctx);
+    await refreshManagedTools(
+      pi,
+      { activeWebResearchRequests, updateWebResearchWidget },
+      ctx.cwd,
+      { addAvailable: true },
+    );
+  });
+
+  pi.on("session_switch", async (_event, ctx) => {
+    latestWidgetContext = ctx;
+    updateWebResearchWidget(ctx);
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {
+    latestWidgetContext = ctx;
     await cleanupContentStore();
-    await refreshManagedTools(pi, ctx.cwd, { addAvailable: false });
+    updateWebResearchWidget(ctx);
+    await refreshManagedTools(
+      pi,
+      { activeWebResearchRequests, updateWebResearchWidget },
+      ctx.cwd,
+      { addAvailable: false },
+    );
+  });
+
+  pi.on("session_shutdown", async () => {
+    stopWebResearchWidgetTimer();
+    latestWidgetContext?.ui.setWidget(WEB_RESEARCH_WIDGET_KEY, undefined);
+  });
+
+  registerManagedTools(pi, {
+    activeWebResearchRequests,
+    updateWebResearchWidget,
   });
 }
 
 function registerManagedTools(
   pi: ExtensionAPI,
+  webResearchLifecycle: {
+    activeWebResearchRequests: Map<string, WebResearchRequest>;
+    updateWebResearchWidget: (
+      ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+    ) => void;
+  },
   providerIdsByCapability: Partial<Record<Tool, ProviderId[]>> = {},
 ): void {
   registerWebSearchTool(pi, providerIdsByCapability.search ?? PROVIDER_IDS);
@@ -143,6 +250,7 @@ function registerManagedTools(
   );
   registerWebResearchTool(
     pi,
+    webResearchLifecycle,
     providerIdsByCapability.research ?? getProviderIdsForCapability("research"),
   );
 }
@@ -321,6 +429,12 @@ function registerWebAnswerTool(
 
 function registerWebResearchTool(
   pi: ExtensionAPI,
+  webResearchLifecycle: {
+    activeWebResearchRequests: Map<string, WebResearchRequest>;
+    updateWebResearchWidget: (
+      ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+    ) => void;
+  },
   providerIds: readonly ProviderId[],
 ): void {
   if (providerIds.length === 0) return;
@@ -329,18 +443,23 @@ function registerWebResearchTool(
     name: "web_research",
     label: "Web Research",
     description:
-      "Investigate a topic across web sources and produce a longer report.",
+      "Start a long-running web research job. Returns immediately with a dispatch notice; the final report is saved to a file and posted later as a custom message.",
     parameters: Type.Object({
       input: Type.String({ description: "Research brief or question" }),
       options: jsonOptionsSchema(describeOptionsField("research", providerIds)),
     }),
-    async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      return executeProviderTool({
-        capability: "research",
+    promptGuidelines: [
+      "Use this tool for deep investigations that can finish asynchronously.",
+      "Do not expect the final report in the same turn; tell the user that web research has started and wait for the completion message with the saved report path.",
+    ],
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      return dispatchWebResearch({
+        pi,
+        activeWebResearchRequests:
+          webResearchLifecycle.activeWebResearchRequests,
+        updateWebResearchWidget: webResearchLifecycle.updateWebResearchWidget,
         config: await loadConfig(),
         ctx,
-        signal,
-        onUpdate,
         options: normalizeOptions(params.options),
         input: params.input,
       });
@@ -354,19 +473,19 @@ function registerWebResearchTool(
       );
     },
     renderResult(result, state, theme) {
-      return renderProviderToolResult(
-        result,
-        state.expanded,
-        state.isPartial,
-        "web_research failed",
-        theme,
-      );
+      return renderWebResearchDispatchResult(result, state.expanded, theme);
     },
   });
 }
 
 async function runWebProvidersConfig(
   pi: ExtensionAPI,
+  webResearchLifecycle: {
+    activeWebResearchRequests: Map<string, WebResearchRequest>;
+    updateWebResearchWidget: (
+      ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+    ) => void;
+  },
   ctx: ExtensionCommandContext,
 ): Promise<void> {
   const config = await loadConfig();
@@ -384,7 +503,9 @@ async function runWebProvidersConfig(
       ),
   );
 
-  await refreshManagedTools(pi, ctx.cwd, { addAvailable: true });
+  await refreshManagedTools(pi, webResearchLifecycle, ctx.cwd, {
+    addAvailable: true,
+  });
 }
 
 function getAvailableProviderIdsForCapability(
@@ -452,6 +573,12 @@ function getSyncedActiveTools(
 
 async function refreshManagedTools(
   pi: ExtensionAPI,
+  webResearchLifecycle: {
+    activeWebResearchRequests: Map<string, WebResearchRequest>;
+    updateWebResearchWidget: (
+      ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+    ) => void;
+  },
   cwd: string,
   options: { addAvailable: boolean },
 ): Promise<void> {
@@ -463,7 +590,7 @@ async function refreshManagedTools(
     options,
   );
 
-  registerManagedTools(pi, {
+  registerManagedTools(pi, webResearchLifecycle, {
     search: getAvailableProviderIdsForCapability(config, cwd, "search"),
     contents: getAvailableProviderIdsForCapability(config, cwd, "contents"),
     answer: getAvailableProviderIdsForCapability(config, cwd, "answer"),
@@ -1288,6 +1415,309 @@ async function executeProviderTool({
   };
 }
 
+async function dispatchWebResearch({
+  pi,
+  activeWebResearchRequests,
+  updateWebResearchWidget,
+  config,
+  explicitProvider,
+  ctx,
+  options,
+  input,
+  planOverride,
+}: {
+  pi: Pick<ExtensionAPI, "sendMessage">;
+  activeWebResearchRequests: Map<string, WebResearchRequest>;
+  updateWebResearchWidget: (
+    ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+  ) => void;
+  config: WebProviders;
+  explicitProvider?: ProviderId;
+  ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
+  options: Record<string, unknown> | undefined;
+  input: string;
+  planOverride?: ProviderPlan<ToolOutput>;
+}) {
+  await cleanupContentStore();
+
+  const provider = resolveProviderForTool(
+    config,
+    ctx.cwd,
+    "research",
+    explicitProvider,
+  );
+  const request = createWebResearchRequest(ctx.cwd, provider.id, input);
+  const providerConfig = getEffectiveProviderConfig(config, provider.id);
+
+  activeWebResearchRequests.set(request.id, request);
+  updateWebResearchWidget(ctx);
+
+  trackPendingResearchTask(
+    runDispatchedWebResearch({
+      pi,
+      activeWebResearchRequests,
+      updateWebResearchWidget,
+      request,
+      config,
+      provider,
+      providerConfig: providerConfig as AnyProvider,
+      ctx,
+      options,
+      planOverride,
+    }),
+  );
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Started web research via ${provider.label}.`,
+      },
+    ],
+    details: request,
+  };
+}
+
+async function runDispatchedWebResearch({
+  pi,
+  activeWebResearchRequests,
+  updateWebResearchWidget,
+  request,
+  config,
+  provider,
+  providerConfig,
+  ctx,
+  options,
+  planOverride,
+}: {
+  pi: Pick<ExtensionAPI, "sendMessage">;
+  activeWebResearchRequests: Map<string, WebResearchRequest>;
+  updateWebResearchWidget: (
+    ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+  ) => void;
+  request: WebResearchRequest;
+  config: WebProviders;
+  provider: (typeof ADAPTERS)[number];
+  providerConfig: AnyProvider;
+  ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
+  options: Record<string, unknown> | undefined;
+  planOverride?: ProviderPlan<ToolOutput>;
+}): Promise<void> {
+  let result: WebResearchResult;
+  let reportText = "";
+
+  try {
+    const response = await executeProviderOperation({
+      capability: "research",
+      config,
+      provider,
+      providerConfig,
+      ctx,
+      signal: undefined,
+      options,
+      input: request.input,
+      onProgress: undefined,
+      planOverride,
+    });
+    const completedAt = new Date().toISOString();
+    result = {
+      ...request,
+      status: "completed",
+      completedAt,
+      elapsedMs: Math.max(
+        0,
+        Date.parse(completedAt) - Date.parse(request.startedAt),
+      ),
+      itemCount: response.itemCount,
+    };
+    reportText = response.text;
+  } catch (error) {
+    const completedAt = new Date().toISOString();
+    result = {
+      ...request,
+      status: "failed",
+      completedAt,
+      elapsedMs: Math.max(
+        0,
+        Date.parse(completedAt) - Date.parse(request.startedAt),
+      ),
+      error: formatErrorMessage(error),
+    };
+  }
+
+  await writeWebResearchArtifact(result, reportText);
+  activeWebResearchRequests.delete(request.id);
+  updateWebResearchWidget();
+  pi.sendMessage({
+    customType: WEB_RESEARCH_RESULT_MESSAGE_TYPE,
+    content: formatWebResearchResultMessage(result, ctx.cwd),
+    display: true,
+    details: result,
+  });
+}
+
+function createWebResearchRequest(
+  cwd: string,
+  provider: ProviderId,
+  input: string,
+): WebResearchRequest {
+  const startedAt = new Date().toISOString();
+
+  return {
+    tool: "web_research",
+    id: randomUUID(),
+    provider,
+    input,
+    outputPath: buildWebResearchArtifactPath(cwd, input, startedAt),
+    startedAt,
+  };
+}
+
+function buildWebResearchArtifactPath(
+  cwd: string,
+  input: string,
+  startedAt: string,
+): string {
+  const timestamp = startedAt.replaceAll(":", "-").replace(".", "-");
+  const slug = slugifyWebResearchInput(input);
+  return join(cwd, RESEARCH_ARTIFACTS_DIR, `${timestamp}-${slug}.md`);
+}
+
+function slugifyWebResearchInput(input: string): string {
+  const slug = input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+  return slug.length > 0 ? slug : "research";
+}
+
+function buildWebResearchWidgetLines(
+  requests: WebResearchRequest[],
+  theme: Pick<Theme, "fg">,
+  now = Date.now(),
+): string[] {
+  const lines = [theme.fg("accent", "Research jobs:")];
+
+  for (const request of requests
+    .slice()
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
+    .slice(0, 3)) {
+    const providerLabel =
+      ADAPTERS_BY_ID[request.provider]?.label ?? request.provider;
+    const elapsed = formatCompactElapsed(now - Date.parse(request.startedAt));
+    lines.push(
+      `${theme.fg("muted", "• ")}${providerLabel} ${theme.fg("muted", `(${elapsed}): `)}${truncateInline(cleanSingleLine(request.input), 70)}`,
+    );
+  }
+
+  if (requests.length > 3) {
+    lines.push(theme.fg("muted", `+${requests.length - 3} more`));
+  }
+
+  return lines;
+}
+
+function formatCompactElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes > 0) {
+    return `${minutes}m${seconds}s`;
+  }
+
+  return `${totalSeconds}s`;
+}
+
+function formatWebResearchResultMessage(
+  result: WebResearchResult,
+  cwd: string,
+): string {
+  const providerLabel =
+    ADAPTERS_BY_ID[result.provider]?.label ?? result.provider;
+  const outputPath = formatWebResearchDisplayPath(result.outputPath, cwd);
+
+  if (result.status === "completed") {
+    return `Web research complete via ${providerLabel}. Saved to ${outputPath}`;
+  }
+
+  return `Web research failed via ${providerLabel}. Saved to ${outputPath}`;
+}
+
+function formatWebResearchDisplayPath(outputPath: string, cwd: string): string {
+  const relativePath = relative(cwd, outputPath);
+  return relativePath && !relativePath.startsWith("..") && relativePath !== ""
+    ? relativePath
+    : outputPath;
+}
+
+async function writeWebResearchArtifact(
+  result: WebResearchResult,
+  reportText: string,
+): Promise<void> {
+  await mkdir(dirname(result.outputPath), { recursive: true });
+  await writeFile(
+    result.outputPath,
+    formatWebResearchArtifact(result, reportText),
+    "utf-8",
+  );
+}
+
+function formatWebResearchArtifact(
+  result: WebResearchResult,
+  reportText: string,
+): string {
+  const providerLabel =
+    ADAPTERS_BY_ID[result.provider]?.label ?? result.provider;
+  const lines = [
+    "# Web research report",
+    "",
+    "## Query",
+    result.input,
+    "",
+    "## Provider",
+    providerLabel,
+    "",
+    "## Status",
+    result.status,
+    "",
+    "## Started",
+    result.startedAt,
+    "",
+    "## Completed",
+    result.completedAt,
+    "",
+    "## Elapsed",
+    formatElapsed(result.elapsedMs),
+  ];
+
+  if (typeof result.itemCount === "number") {
+    lines.push("", "## Items", String(result.itemCount));
+  }
+
+  if (result.error) {
+    lines.push("", "## Error", result.error);
+  }
+
+  if (reportText) {
+    lines.push("", "## Report", reportText);
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function trackPendingResearchTask(task: Promise<void>): void {
+  const tracked = task
+    .catch(() => {})
+    .finally(() => {
+      pendingResearchTasks.delete(tracked);
+    });
+  pendingResearchTasks.add(tracked);
+}
+
 async function executeBatchedContentsTool({
   config,
   provider,
@@ -1667,6 +2097,107 @@ function renderSearchToolResult(
   }
 
   return renderCollapsedSearchSummary(details, text, theme);
+}
+
+function renderWebResearchDispatchResult(
+  result: {
+    content?: Array<{ type: string; text?: string }>;
+    details?: unknown;
+  },
+  expanded: boolean,
+  theme: Theme,
+): Component {
+  const text = extractTextContent(result.content) ?? "Started web research.";
+  const details = isWebResearchRequest(result.details)
+    ? result.details
+    : undefined;
+
+  if (expanded) {
+    return renderBlockText(details?.input ?? text, theme, "toolOutput");
+  }
+
+  const summary = details
+    ? `Started web research via ${ADAPTERS_BY_ID[details.provider]?.label ?? details.provider}`
+    : text;
+  let summaryText = theme.fg("success", summary);
+  summaryText += theme.fg("muted", ` (${getExpandHint()})`);
+  return new Text(summaryText, 0, 0);
+}
+
+function renderWebResearchResultMessage(
+  message: {
+    content: string | Array<{ type: string; text?: string }>;
+    details?: unknown;
+  },
+  { expanded }: { expanded: boolean },
+  theme: Theme,
+): Component {
+  const text =
+    typeof message.content === "string"
+      ? message.content
+      : extractTextContent(message.content);
+  const details = isWebResearchResult(message.details)
+    ? message.details
+    : undefined;
+  const isSuccess = details?.status === "completed";
+  const accent: "success" | "error" = isSuccess ? "success" : "error";
+  const box = new Box(1, 1, (value) => theme.bg("customMessageBg", value));
+
+  if (!expanded) {
+    let summary = theme.fg(accent, text ?? "Web research update");
+    summary += theme.fg("muted", ` (${getExpandHint()})`);
+    box.addChild(new Text(summary, 0, 0));
+    return box;
+  }
+
+  const lines = [theme.fg(accent, text ?? "Web research update")];
+  if (details) {
+    lines.push(
+      "",
+      theme.fg("muted", "Query"),
+      details.input,
+      "",
+      theme.fg("muted", "Saved to"),
+      details.outputPath,
+      "",
+      theme.fg("muted", "Started"),
+      details.startedAt,
+      "",
+      theme.fg("muted", "Completed"),
+      details.completedAt,
+      "",
+      theme.fg("muted", "Elapsed"),
+      formatElapsed(details.elapsedMs),
+    );
+    if (details.error) {
+      lines.push("", theme.fg("muted", "Error"), details.error);
+    }
+  }
+  box.addChild(new Text(lines.join("\n"), 0, 0));
+  return box;
+}
+
+function isWebResearchRequest(details: unknown): details is WebResearchRequest {
+  return (
+    typeof details === "object" &&
+    details !== null &&
+    "tool" in details &&
+    (details as { tool?: unknown }).tool === "web_research" &&
+    "startedAt" in details &&
+    "outputPath" in details &&
+    !("status" in details)
+  );
+}
+
+function isWebResearchResult(details: unknown): details is WebResearchResult {
+  return (
+    typeof details === "object" &&
+    details !== null &&
+    "tool" in details &&
+    (details as { tool?: unknown }).tool === "web_research" &&
+    "status" in details &&
+    "completedAt" in details
+  );
 }
 
 function renderProviderToolResult(
@@ -3480,11 +4011,13 @@ function truncateInline(text: string, maxLength: number): string {
 export const __test__ = {
   loadConfig,
   didContentsCacheInputsChange,
+  dispatchWebResearch,
   executeAnswerTool,
   executeRawProviderRequest,
   executeProviderTool,
   executeSearchTool,
   extractTextContent,
+  formatWebResearchResultMessage,
   getAvailableManagedToolNames,
   getReadyCompatibleProvidersForTool,
   getEnabledCompatibleProvidersForTool: getReadyCompatibleProvidersForTool,
@@ -3500,6 +4033,11 @@ export const __test__ = {
   renderCollapsedProviderToolSummary,
   renderSearchToolResult,
   renderProviderToolResult,
+  renderWebResearchDispatchResult,
+  renderWebResearchResultMessage,
+  waitForPendingResearchTasks: async () => {
+    await Promise.all([...pendingResearchTasks]);
+  },
   formatSearchResponses,
   formatAnswerResponses,
 };

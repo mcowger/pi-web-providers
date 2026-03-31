@@ -68,7 +68,7 @@ describe("GeminiAdapter search", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         headers: new Headers({
-          location: "https://tenzir.com/use-cases",
+          location: "https://example.com/use-cases",
         }),
       }),
     );
@@ -81,10 +81,10 @@ describe("GeminiAdapter search", () => {
               type: "google_search_result",
               result: [
                 {
-                  title: "Tenzir",
+                  title: "Example Security",
                   url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque",
                   rendered_content:
-                    "<style>.x{display:none}</style><div>Tenzir &amp; Security</div><svg><text>noise</text></svg><p>Flexible operations</p>",
+                    "<style>.x{display:none}</style><div>Example &amp; Security</div><svg><text>noise</text></svg><p>Flexible operations</p>",
                 },
               ],
             },
@@ -94,7 +94,7 @@ describe("GeminiAdapter search", () => {
     });
 
     const response = await provider.search(
-      "tenzir",
+      "ACME products",
       5,
       createConfig(),
       createContext(),
@@ -103,8 +103,8 @@ describe("GeminiAdapter search", () => {
 
     expect(response.results).toEqual([
       {
-        title: "Tenzir",
-        url: "https://tenzir.com/use-cases",
+        title: "Example Security",
+        url: "https://example.com/use-cases",
         snippet: "",
       },
     ]);
@@ -183,7 +183,7 @@ describe("GeminiAdapter search", () => {
               result: [
                 {
                   renderedContent:
-                    '<div class="result"><a href="https://tenzir.com/use-cases" aria-label="Tenzir use cases">Tenzir &amp; use cases</a></div>',
+                    '<div class="result"><a href="https://example.com/use-cases" aria-label="ACME platform use cases">ACME platform &amp; use cases</a></div>',
                 },
               ],
             },
@@ -193,7 +193,7 @@ describe("GeminiAdapter search", () => {
     });
 
     const response = await provider.search(
-      "tenzir use cases",
+      "ACME platform use cases",
       5,
       createConfig(),
       createContext(),
@@ -202,8 +202,8 @@ describe("GeminiAdapter search", () => {
 
     expect(response.results).toEqual([
       {
-        title: "Tenzir & use cases",
-        url: "https://tenzir.com/use-cases",
+        title: "ACME platform & use cases",
+        url: "https://example.com/use-cases",
         snippet: "",
       },
     ]);
@@ -428,26 +428,26 @@ describe("GeminiAdapter answer", () => {
     const provider = createProvider({
       models: {
         generateContent: vi.fn().mockResolvedValue({
-          text: "Tenzir helps route and transform security telemetry.",
+          text: "ACME platforms help teams route and transform operational data.",
           candidates: [
             {
               groundingMetadata: {
                 groundingChunks: [
                   {
                     web: {
-                      title: "Tenzir overview",
+                      title: "ACME overview",
                       uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-1",
                     },
                   },
                   {
                     web: {
-                      title: "Tenzir docs",
-                      uri: "https://tenzir.com/docs",
+                      title: "ACME docs",
+                      uri: "https://example.com/docs",
                     },
                   },
                   {
                     web: {
-                      title: "Tenzir overview",
+                      title: "ACME overview",
                       uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-2",
                     },
                   },
@@ -460,19 +460,17 @@ describe("GeminiAdapter answer", () => {
     });
 
     const response = await provider.answer(
-      "Tenzir use cases",
+      "ACME platform use cases",
       createConfig(),
       createContext(),
       undefined,
     );
 
     expect(response.text).toContain(
-      "Tenzir helps route and transform security telemetry.",
+      "ACME platforms help teams route and transform operational data.",
     );
-    expect(response.text).toContain(
-      "Sources:\n1. Tenzir overview\n2. Tenzir docs",
-    );
-    expect(response.text).toContain("   https://tenzir.com/docs");
+    expect(response.text).toContain("Sources:\n1. ACME overview\n2. ACME docs");
+    expect(response.text).toContain("   https://example.com/docs");
     expect(response.text).not.toContain("vertexaisearch.cloud.google.com");
     expect(response.itemCount).toBe(2);
   });
@@ -503,7 +501,7 @@ describe("GeminiAdapter research", () => {
     });
 
     const job = await provider.startResearch!(
-      "Investigate Tenzir use cases",
+      "Investigate ACME platform use cases",
       createConfig(),
       { ...createContext(), idempotencyKey: "stable-key" },
       {
@@ -536,7 +534,7 @@ describe("GeminiAdapter research", () => {
         response_modalities: ["TEXT"],
         system_instruction: "Focus on official sources.",
         tools: [{ urlContext: {} }],
-        input: "Investigate Tenzir use cases",
+        input: "Investigate ACME platform use cases",
         agent: "deep-research-pro-preview-12-2025",
         background: true,
       },

@@ -64,6 +64,7 @@ describe("session cache reset", () => {
     webProvidersExtension({
       registerTool() {},
       registerCommand() {},
+      registerMessageRenderer() {},
       on(event: string, handler: Function) {
         handlers.set(event, handler);
       },
@@ -129,6 +130,7 @@ describe("session cache reset", () => {
     webProvidersExtension({
       registerTool() {},
       registerCommand() {},
+      registerMessageRenderer() {},
       on(event: string, handler: Function) {
         handlers.set(event, handler);
       },
@@ -228,6 +230,7 @@ describe("session cache reset", () => {
     webProvidersExtension({
       registerTool() {},
       registerCommand() {},
+      registerMessageRenderer() {},
       on(event: string, handler: Function) {
         handlers.set(event, handler);
       },

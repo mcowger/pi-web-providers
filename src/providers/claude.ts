@@ -1,7 +1,4 @@
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, extname, join } from "node:path";
 import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
   Claude,
@@ -14,8 +11,6 @@ import type {
 } from "../types.js";
 import { buildProviderPlan } from "./framework.js";
 import { trimSnippet } from "./shared.js";
-
-const require = createRequire(import.meta.url);
 
 const SEARCH_OUTPUT_SCHEMA = {
   type: "object",
@@ -113,13 +108,9 @@ export const claudeAdapter: ClaudeAdapter = {
     config: Claude | undefined,
     _cwd: string,
   ): ProviderCapabilityStatus {
-    const executablePath = resolveClaudeExecutablePath(config ?? {});
+    const executablePath = config?.pathToClaudeCodeExecutable;
     if (executablePath && !existsSync(executablePath)) {
       return { state: "missing_executable" };
-    }
-    const authStatus = getClaudeAuthStatus(executablePath);
-    if (!authStatus.loggedIn) {
-      return { state: "missing_auth" };
     }
     return { state: "ready" };
   },
@@ -319,115 +310,6 @@ export const claudeAdapter: ClaudeAdapter = {
     return parseStructuredOutput<T>(finalResult);
   },
 };
-
-interface ClaudeAuthStatus {
-  loggedIn: boolean;
-}
-
-interface CachedClaudeAuthStatus extends ClaudeAuthStatus {
-  checkedAt: number;
-}
-
-const CLAUDE_AUTH_CACHE_TTL_MS = 5_000;
-
-let defaultClaudeExecutablePath: string | undefined;
-const claudeAuthStatusCache = new Map<string, CachedClaudeAuthStatus>();
-
-function resolveClaudeExecutablePath(config: Claude): string | undefined {
-  if (config.pathToClaudeCodeExecutable) {
-    return config.pathToClaudeCodeExecutable;
-  }
-  if (defaultClaudeExecutablePath !== undefined) {
-    return defaultClaudeExecutablePath;
-  }
-  try {
-    const sdkEntryPath = require.resolve("@anthropic-ai/claude-agent-sdk");
-    defaultClaudeExecutablePath = join(dirname(sdkEntryPath), "cli.js");
-  } catch {
-    defaultClaudeExecutablePath = undefined;
-  }
-  return defaultClaudeExecutablePath;
-}
-
-function getClaudeAuthStatus(
-  executablePath: string | undefined,
-): ClaudeAuthStatus {
-  if (!executablePath) {
-    return { loggedIn: false };
-  }
-
-  const cachedStatus = claudeAuthStatusCache.get(executablePath);
-  if (
-    cachedStatus &&
-    Date.now() - cachedStatus.checkedAt < CLAUDE_AUTH_CACHE_TTL_MS
-  ) {
-    return { loggedIn: cachedStatus.loggedIn };
-  }
-
-  const [command, ...args] = getClaudeAuthCommand(executablePath);
-
-  try {
-    const stdout = execFileSync(command, args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return cacheClaudeAuthStatus(executablePath, parseClaudeAuthStatus(stdout));
-  } catch (error) {
-    const stdout = getExecOutput(
-      (error as { stdout?: string | Buffer }).stdout,
-    );
-    if (stdout) {
-      return cacheClaudeAuthStatus(
-        executablePath,
-        parseClaudeAuthStatus(stdout),
-      );
-    }
-    return cacheClaudeAuthStatus(executablePath, { loggedIn: false });
-  }
-}
-
-function cacheClaudeAuthStatus(
-  executablePath: string,
-  status: ClaudeAuthStatus,
-): ClaudeAuthStatus {
-  claudeAuthStatusCache.set(executablePath, {
-    ...status,
-    checkedAt: Date.now(),
-  });
-  return status;
-}
-
-export function resetClaudeProviderCachesForTests(): void {
-  defaultClaudeExecutablePath = undefined;
-  claudeAuthStatusCache.clear();
-}
-
-function getClaudeAuthCommand(executablePath: string): string[] {
-  const extension = extname(executablePath);
-  if (extension === ".js" || extension === ".cjs" || extension === ".mjs") {
-    return [process.execPath, executablePath, "auth", "status", "--json"];
-  }
-  return [executablePath, "auth", "status", "--json"];
-}
-
-function getExecOutput(output: string | Buffer | undefined): string {
-  if (typeof output === "string") {
-    return output;
-  }
-  if (Buffer.isBuffer(output)) {
-    return output.toString("utf8");
-  }
-  return "";
-}
-
-function parseClaudeAuthStatus(raw: string): ClaudeAuthStatus {
-  try {
-    const parsed = JSON.parse(raw) as { loggedIn?: unknown };
-    return { loggedIn: parsed.loggedIn === true };
-  } catch {
-    return { loggedIn: false };
-  }
-}
 
 function parseStructuredOutput<T>(result: SDKResultMessage): T {
   if (result.subtype !== "success") {

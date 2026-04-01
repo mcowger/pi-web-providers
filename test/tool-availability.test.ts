@@ -20,7 +20,6 @@ vi.mock("node:child_process", async () => {
 });
 
 import webProvidersExtension, { __test__ } from "../src/index.js";
-import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
 import type { WebProviders } from "../src/types.js";
 
 const originalHome = process.env.HOME;
@@ -47,7 +46,6 @@ afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.TAVILY_API_KEY;
   execFileSyncMock.mockReset();
-  resetClaudeProviderCachesForTests();
   if (originalHome === undefined) {
     delete process.env.HOME;
   } else {
@@ -115,9 +113,7 @@ describe("managed tool availability", () => {
     expect(webResearch?.parameters?.properties).not.toHaveProperty("provider");
   });
 
-  it("only exposes the mapped available provider to internal capability resolution", () => {
-    process.env.CODEX_API_KEY = "test-key";
-
+  it("treats mapped Codex search as available without preflighting auth", () => {
     const config = createConfig({
       tools: {
         search: "codex",
@@ -160,14 +156,12 @@ describe("managed tool availability", () => {
   });
 
   it("does not expose any managed tools when nothing is mapped", () => {
-    process.env.CODEX_API_KEY = "test-key";
-
     expect(
       __test__.getAvailableManagedToolNames(createConfig(), process.cwd()),
     ).toEqual([]);
   });
 
-  it("hides tools when the mapped provider is unavailable", () => {
+  it("treats mapped Claude search as available without preflighting auth", () => {
     const config = createConfig({
       tools: {
         search: "claude",
@@ -179,7 +173,7 @@ describe("managed tool availability", () => {
 
     expect(
       __test__.getAvailableManagedToolNames(config, process.cwd()),
-    ).toEqual([]);
+    ).toEqual(["web_search"]);
   });
 
   it("hides Custom tools when the mapped capability has no command configured", () => {
@@ -203,7 +197,7 @@ describe("managed tool availability", () => {
     ).toEqual([]);
   });
 
-  it("only lists Custom as selectable for capabilities with a configured command", () => {
+  it("lists providers whose capabilities are ready, including auth-less Claude and Codex search", () => {
     const config = createConfig({
       providers: {
         custom: {
@@ -222,18 +216,17 @@ describe("managed tool availability", () => {
         process.cwd(),
         "search",
       ),
-    ).toEqual([]);
+    ).toEqual(["claude", "codex"]);
     expect(
       __test__.getEnabledCompatibleProvidersForTool(
         config,
         process.cwd(),
         "answer",
       ),
-    ).toEqual(["custom"]);
+    ).toEqual(["claude", "custom"]);
   });
 
   it("does not activate unavailable tools before agent start", () => {
-    process.env.CODEX_API_KEY = "test-key";
     process.env.EXA_API_KEY = "test-key";
 
     const config = createConfig({

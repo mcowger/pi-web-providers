@@ -1,40 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { execFileSyncMock, queryMock } = vi.hoisted(() => ({
-  execFileSyncMock: vi.fn(),
+const { queryMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
 }));
-
-vi.mock("node:child_process", async () => {
-  const actual =
-    await vi.importActual<typeof import("node:child_process")>(
-      "node:child_process",
-    );
-  return {
-    ...actual,
-    execFileSync: execFileSyncMock,
-  };
-});
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: queryMock,
 }));
 
-import {
-  claudeAdapter,
-  resetClaudeProviderCachesForTests,
-} from "../src/providers/claude.js";
+import { claudeAdapter } from "../src/providers/claude.js";
 
 afterEach(() => {
-  execFileSyncMock.mockReset();
   queryMock.mockReset();
-  resetClaudeProviderCachesForTests();
 });
 
 describe("claudeAdapter", () => {
-  it("reports Claude as unavailable when auth status is logged out", () => {
-    execFileSyncMock.mockImplementation(mockLoggedOutClaudeStatus);
+  it("reports Claude as unavailable when an explicit executable path is missing", () => {
+    const provider = claudeAdapter;
 
+    expect(
+      provider.getCapabilityStatus(
+        {
+          pathToClaudeCodeExecutable: "/definitely/missing/claude",
+        },
+        process.cwd(),
+      ),
+    ).toEqual({
+      state: "missing_executable",
+    });
+  });
+
+  it("reports Claude as available without preflighting auth", () => {
     const provider = claudeAdapter;
 
     expect(
@@ -45,43 +41,8 @@ describe("claudeAdapter", () => {
         process.cwd(),
       ),
     ).toEqual({
-      state: "missing_auth",
-    });
-    expect(execFileSyncMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("reports Claude as available when auth is available", () => {
-    execFileSyncMock.mockImplementation(mockClaudeAvailable);
-
-    const provider = claudeAdapter;
-
-    expect(
-      provider.getCapabilityStatus(
-        {
-          pathToClaudeCodeExecutable: process.execPath,
-        },
-        process.cwd(),
-      ),
-    ).toEqual({
       state: "ready",
     });
-    expect(execFileSyncMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("caches Claude auth status across repeated availability checks", () => {
-    execFileSyncMock.mockImplementation(mockClaudeAvailable);
-
-    const config = {
-      pathToClaudeCodeExecutable: process.execPath,
-    };
-
-    expect(claudeAdapter.getCapabilityStatus(config, process.cwd())).toEqual({
-      state: "ready",
-    });
-    expect(claudeAdapter.getCapabilityStatus(config, process.cwd())).toEqual({
-      state: "ready",
-    });
-    expect(execFileSyncMock).toHaveBeenCalledTimes(1);
   });
 
   it("attaches config settings to Claude operation plans", () => {
@@ -309,19 +270,6 @@ describe("claudeAdapter", () => {
     expect(response.text).toContain("Claude answer");
   });
 });
-
-function mockLoggedOutClaudeStatus(): never {
-  throw Object.assign(new Error("not logged in"), {
-    stdout: '{"loggedIn":false,"authMethod":"none"}',
-  });
-}
-
-function mockClaudeAvailable(_command: string, args: string[]): string {
-  if (args.includes("auth") && args.includes("status")) {
-    return '{"loggedIn":true,"authMethod":"claude.ai"}';
-  }
-  throw new Error(`Unexpected Claude command: ${args.join(" ")}`);
-}
 
 function createQueryResult(structuredOutput: unknown) {
   return {

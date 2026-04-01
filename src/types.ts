@@ -234,7 +234,6 @@ export type ProviderSetupState = "builtin" | "configured" | "none";
 export type ProviderCapabilityStatus =
   | { state: "ready" }
   | { state: "missing_api_key" }
-  | { state: "missing_auth" }
   | { state: "missing_executable" }
   | { state: "missing_command" }
   | { state: "invalid_config"; detail: string };

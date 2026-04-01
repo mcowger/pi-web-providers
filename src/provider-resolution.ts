@@ -177,12 +177,6 @@ export function formatProviderCapabilityStatus(
       return "Ready";
     case "missing_api_key":
       return "Missing API key";
-    case "missing_auth":
-      return providerId === "claude"
-        ? "Missing Claude auth"
-        : providerId === "codex"
-          ? "Missing Codex auth"
-          : "Missing auth";
     case "missing_executable":
       return providerId === "claude"
         ? "Missing Claude Code executable"

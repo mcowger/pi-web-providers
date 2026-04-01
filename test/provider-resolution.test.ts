@@ -23,7 +23,6 @@ import {
   resolveProviderForTool,
   resolveSearchProvider,
 } from "../src/provider-resolution.js";
-import { resetClaudeProviderCachesForTests } from "../src/providers/claude.js";
 import type { WebProviders } from "../src/types.js";
 
 const originalHome = process.env.HOME;
@@ -55,7 +54,6 @@ afterEach(() => {
   delete process.env.TAVILY_API_KEY;
   delete process.env.VALYU_API_KEY;
   execFileSyncMock.mockReset();
-  resetClaudeProviderCachesForTests();
   if (originalHome === undefined) {
     delete process.env.HOME;
   } else {
@@ -85,16 +83,15 @@ describe("provider resolution", () => {
     expect(provider.id).toBe("exa");
   });
 
-  it("rejects Claude when it is explicitly selected without local auth", () => {
+  it("does not preflight Claude auth when it is explicitly selected", () => {
     const config = createConfig({
       providers: {
         claude: {},
       },
     });
 
-    expect(() =>
-      resolveSearchProvider(config, process.cwd(), "claude"),
-    ).toThrow(/Provider 'claude' is not available: missing Claude auth/);
+    const provider = resolveSearchProvider(config, process.cwd(), "claude");
+    expect(provider.id).toBe("claude");
   });
 
   it("uses the mapped search provider", () => {
@@ -123,7 +120,7 @@ describe("provider resolution", () => {
     );
   });
 
-  it("rejects an unavailable mapped provider", () => {
+  it("does not preflight Codex auth for a mapped provider", () => {
     const config = createConfig({
       tools: {
         search: "codex",
@@ -133,9 +130,8 @@ describe("provider resolution", () => {
       },
     });
 
-    expect(() => resolveSearchProvider(config, process.cwd())).toThrow(
-      /Provider 'codex' is not available: missing Codex auth/,
-    );
+    const provider = resolveSearchProvider(config, process.cwd());
+    expect(provider.id).toBe("codex");
   });
 
   it("uses the mapped contents provider", () => {

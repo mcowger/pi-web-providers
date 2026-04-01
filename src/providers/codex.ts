@@ -1,6 +1,3 @@
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { Codex as CodexClient } from "@openai/codex-sdk";
 import { z } from "zod";
 import { resolveConfigValue, resolveEnvMap } from "../config.js";
@@ -89,9 +86,6 @@ export const codexAdapter: CodexAdapter = {
         state: "invalid_config",
         detail: (error as Error).message,
       };
-    }
-    if (!hasCodexCredentials(effectiveConfig)) {
-      return { state: "missing_auth" };
     }
     return { state: "ready" };
   },
@@ -253,46 +247,6 @@ function readEnum<const TValue extends string>(
   return typeof value === "string" && values.includes(value as TValue)
     ? (value as TValue)
     : undefined;
-}
-
-function hasCodexCredentials(config: Codex): boolean {
-  if (hasConfiguredReference(config.apiKey)) {
-    return true;
-  }
-
-  if (
-    hasConfiguredReference(config.env?.CODEX_API_KEY) ||
-    hasConfiguredReference(config.env?.OPENAI_API_KEY)
-  ) {
-    return true;
-  }
-
-  if (!config.env) {
-    const inheritedKey =
-      process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY;
-    if (typeof inheritedKey === "string" && inheritedKey.trim().length > 0) {
-      return true;
-    }
-  }
-
-  return existsSync(join(homedir(), ".codex", "auth.json"));
-}
-
-function hasConfiguredReference(reference: string | undefined): boolean {
-  if (!reference) {
-    return false;
-  }
-  if (reference.startsWith("!")) {
-    return reference.slice(1).trim().length > 0;
-  }
-  const envValue = process.env[reference];
-  if (typeof envValue === "string") {
-    return envValue.trim().length > 0;
-  }
-  if (/^[A-Z][A-Z0-9_]*$/.test(reference)) {
-    return false;
-  }
-  return reference.trim().length > 0;
 }
 
 function parseOutput(raw: string): CodexOutput {

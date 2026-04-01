@@ -77,20 +77,11 @@ describe("provider config manifests", () => {
     ).toThrow(/non-empty JSON string array/);
   });
 
-  it("exposes Cloudflare token and account settings", () => {
+  it("exposes only Cloudflare-specific settings", () => {
     const manifest = getProviderConfigManifest("cloudflare");
     const ids = manifest.settings.map((setting) => setting.id);
 
-    expect(ids).toEqual(
-      expect.arrayContaining([
-        "apiToken",
-        "accountId",
-        "requestTimeoutMs",
-        "retryCount",
-        "retryDelayMs",
-        "researchTimeoutMs",
-      ]),
-    );
+    expect(ids).toEqual(["apiToken", "accountId"]);
   });
 
   it("round-trips Cloudflare token and account settings", () => {
@@ -121,7 +112,7 @@ describe("provider config manifests", () => {
     });
   });
 
-  it("exposes Tavily API key and base URL settings", () => {
+  it("exposes Tavily API key, base URL, and non-research execution settings", () => {
     const manifest = getProviderConfigManifest("tavily");
     const ids = manifest.settings.map((setting) => setting.id);
 
@@ -132,9 +123,9 @@ describe("provider config manifests", () => {
         "requestTimeoutMs",
         "retryCount",
         "retryDelayMs",
-        "researchTimeoutMs",
       ]),
     );
+    expect(ids).not.toContain("researchTimeoutMs");
   });
 
   it("round-trips Tavily API key and base URL settings", () => {

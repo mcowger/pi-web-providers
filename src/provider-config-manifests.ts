@@ -1,3 +1,4 @@
+import { supportsTool } from "./provider-tools.js";
 import type {
   Claude,
   ClaudeOptions,
@@ -143,7 +144,6 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           );
         },
       }),
-      ...requestSettings<Cloudflare>(),
     ],
   },
   codex: {
@@ -380,7 +380,7 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           setCustomEnv(config, "research", value);
         },
       }),
-      ...requestSettings<Custom>(),
+      ...requestSettings<Custom>("custom"),
     ],
   },
   exa: {
@@ -586,7 +586,7 @@ export const PROVIDER_CONFIG_MANIFESTS = {
     settings: [
       apiKeySetting<Tavily>(),
       baseUrlSetting<Tavily>(),
-      ...requestSettings<Tavily>(),
+      ...requestSettings<Tavily>("tavily"),
     ],
   },
   valyu: {
@@ -692,8 +692,10 @@ function baseUrlSetting<TConfig extends { baseUrl?: string }>() {
   });
 }
 
-function requestSettings<TConfig extends { settings?: ExecutionSettings }>() {
-  return [
+function requestSettings<TConfig extends { settings?: ExecutionSettings }>(
+  providerId: ProviderId,
+) {
+  const settings = [
     stringSetting<TConfig>({
       id: "requestTimeoutMs",
       label: "Request timeout (ms)",
@@ -741,23 +743,30 @@ function requestSettings<TConfig extends { settings?: ExecutionSettings }>() {
         cleanupEmpty(config, "settings");
       },
     }),
-    stringSetting<TConfig>({
-      id: "researchTimeoutMs",
-      label: "Research timeout (ms)",
-      help: "Maximum total time to allow long-running web research for this provider before aborting it. Leave empty to inherit the shared setting.",
-      getValue: (config) =>
-        getIntegerString(config?.settings?.researchTimeoutMs),
-      setValue: (config, value) => {
-        assignOptionalInteger(
-          ensureSettings(config),
-          "researchTimeoutMs",
-          value,
-          "Research timeout must be a positive integer.",
-        );
-        cleanupEmpty(config, "settings");
-      },
-    }),
-  ] as const;
+  ];
+
+  if (supportsTool(providerId, "research")) {
+    settings.push(
+      stringSetting<TConfig>({
+        id: "researchTimeoutMs",
+        label: "Research timeout (ms)",
+        help: "Maximum total time to allow long-running web research for this provider before aborting it. Leave empty to inherit the shared setting.",
+        getValue: (config) =>
+          getIntegerString(config?.settings?.researchTimeoutMs),
+        setValue: (config, value) => {
+          assignOptionalInteger(
+            ensureSettings(config),
+            "researchTimeoutMs",
+            value,
+            "Research timeout must be a positive integer.",
+          );
+          cleanupEmpty(config, "settings");
+        },
+      }),
+    );
+  }
+
+  return settings;
 }
 
 function assignOptionalString(

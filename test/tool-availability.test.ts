@@ -33,6 +33,7 @@ beforeEach(() => {
   delete process.env.EXA_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.GOOGLE_API_KEY;
+  delete process.env.LINKUP_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.PARALLEL_API_KEY;
   delete process.env.TAVILY_API_KEY;
@@ -43,6 +44,7 @@ afterEach(() => {
   delete process.env.EXA_API_KEY;
   delete process.env.CODEX_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
+  delete process.env.LINKUP_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.TAVILY_API_KEY;
   execFileSyncMock.mockReset();
@@ -421,6 +423,40 @@ describe("managed tool availability", () => {
         "contents",
       ),
     ).toEqual(["tavily"]);
+    expect(
+      __test__.getAvailableManagedToolNames(config, process.cwd()),
+    ).toEqual(["web_search", "web_contents"]);
+  });
+
+  it("surfaces mapped Linkup tools when Linkup is available", () => {
+    process.env.LINKUP_API_KEY = "test-key";
+
+    const config = createConfig({
+      tools: {
+        search: "linkup",
+        contents: "linkup",
+      },
+      providers: {
+        linkup: {
+          apiKey: "LINKUP_API_KEY",
+        },
+      },
+    });
+
+    expect(
+      __test__.getAvailableProviderIdsForCapability(
+        config,
+        process.cwd(),
+        "search",
+      ),
+    ).toEqual(["linkup"]);
+    expect(
+      __test__.getAvailableProviderIdsForCapability(
+        config,
+        process.cwd(),
+        "contents",
+      ),
+    ).toEqual(["linkup"]);
     expect(
       __test__.getAvailableManagedToolNames(config, process.cwd()),
     ).toEqual(["web_search", "web_contents"]);

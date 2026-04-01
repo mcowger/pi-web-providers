@@ -9,6 +9,7 @@ export const PROVIDER_IDS = [
   "exa",
   "firecrawl",
   "gemini",
+  "linkup",
   "perplexity",
   "parallel",
   "tavily",
@@ -183,6 +184,11 @@ export interface Gemini extends Provider<GeminiOptions> {
   apiKey?: string;
 }
 
+export interface Linkup extends Provider<Record<string, unknown>> {
+  apiKey?: string;
+  baseUrl?: string;
+}
+
 export interface Perplexity extends Provider<PerplexityOptions> {
   apiKey?: string;
   baseUrl?: string;
@@ -217,6 +223,7 @@ export interface Providers {
   exa?: Exa;
   firecrawl?: Firecrawl;
   gemini?: Gemini;
+  linkup?: Linkup;
   perplexity?: Perplexity;
   parallel?: Parallel;
   tavily?: Tavily;
@@ -231,6 +238,7 @@ export type AnyProvider =
   | Exa
   | Firecrawl
   | Gemini
+  | Linkup
   | Perplexity
   | Parallel
   | Tavily

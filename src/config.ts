@@ -14,6 +14,7 @@ import type {
   ExecutionSettings,
   Firecrawl,
   Gemini,
+  Linkup,
   Parallel,
   Perplexity,
   ProviderId,
@@ -113,6 +114,13 @@ const geminiProviderSchema = z
   .object({
     apiKey: stringSchema.optional(),
     options: geminiOptionsSchema.optional(),
+    settings: executionSettingsSchema.optional(),
+  })
+  .strict();
+const linkupProviderSchema = z
+  .object({
+    apiKey: stringSchema.optional(),
+    baseUrl: stringSchema.optional(),
     settings: executionSettingsSchema.optional(),
   })
   .strict();
@@ -270,6 +278,7 @@ export function parseProviderConfig(
   | Exa
   | Firecrawl
   | Gemini
+  | Linkup
   | Perplexity
   | Parallel
   | Tavily
@@ -399,6 +408,7 @@ function normalizeConfig(raw: unknown, source: string): WebProviders {
       exa: normalizeExaProvider,
       firecrawl: normalizeFirecrawlProvider,
       gemini: normalizeGeminiProvider,
+      linkup: normalizeLinkupProvider,
       perplexity: normalizePerplexityProvider,
       parallel: normalizeParallelProvider,
       tavily: normalizeTavilyProvider,
@@ -460,6 +470,10 @@ function normalizeValyuProvider(raw: unknown, source: string): Valyu {
 
 function normalizeGeminiProvider(raw: unknown, source: string): Gemini {
   return parseProviderWithSchema(raw, source, "gemini", geminiProviderSchema);
+}
+
+function normalizeLinkupProvider(raw: unknown, source: string): Linkup {
+  return parseProviderWithSchema(raw, source, "linkup", linkupProviderSchema);
 }
 
 function normalizePerplexityProvider(raw: unknown, source: string): Perplexity {
@@ -540,7 +554,9 @@ function toPublicProviderConfig(
     | Codex
     | Custom
     | Exa
+    | Firecrawl
     | Gemini
+    | Linkup
     | Perplexity
     | Parallel
     | Tavily

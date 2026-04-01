@@ -36,6 +36,7 @@ beforeEach(() => {
   delete process.env.CODEX_API_KEY;
   delete process.env.EXA_API_KEY;
   delete process.env.GOOGLE_API_KEY;
+  delete process.env.LINKUP_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.PARALLEL_API_KEY;
@@ -48,6 +49,7 @@ afterEach(() => {
   delete process.env.CODEX_API_KEY;
   delete process.env.EXA_API_KEY;
   delete process.env.GOOGLE_API_KEY;
+  delete process.env.LINKUP_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.PARALLEL_API_KEY;
@@ -170,6 +172,27 @@ describe("provider resolution", () => {
     expect(resolveSearchProvider(config, process.cwd()).id).toBe("tavily");
     expect(resolveProviderForTool(config, process.cwd(), "contents").id).toBe(
       "tavily",
+    );
+  });
+
+  it("uses the mapped Linkup provider for search and contents", () => {
+    process.env.LINKUP_API_KEY = "test-key";
+
+    const config = createConfig({
+      tools: {
+        search: "linkup",
+        contents: "linkup",
+      },
+      providers: {
+        linkup: {
+          apiKey: "LINKUP_API_KEY",
+        },
+      },
+    });
+
+    expect(resolveSearchProvider(config, process.cwd()).id).toBe("linkup");
+    expect(resolveProviderForTool(config, process.cwd(), "contents").id).toBe(
+      "linkup",
     );
   });
 

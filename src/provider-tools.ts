@@ -13,6 +13,7 @@ export const PROVIDER_TOOLS_BY_ID: Record<ProviderId, readonly Tool[]> = {
   exa: ["search", "contents", "answer", "research"],
   firecrawl: ["search", "contents"],
   gemini: ["search", "answer", "research"],
+  linkup: ["search", "contents"],
   perplexity: ["search", "answer", "research"],
   parallel: ["search", "contents"],
   tavily: ["search", "contents"],

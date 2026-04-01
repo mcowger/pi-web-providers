@@ -13,7 +13,7 @@ off entirely.
 ## ✨ Features
 
 - **Multiple providers**: Claude, Cloudflare, Codex, Exa, Firecrawl,
-  Gemini, Perplexity, Parallel, [Tavily](https://tavily.com), Valyu
+  Gemini, Linkup, Perplexity, Parallel, [Tavily](https://tavily.com), Valyu
 - **Batched search and answers**: run several related queries in a single
   `web_search` or `web_answer` call and get grouped results back in one response
 - **Async contents prefetch**: optionally start background `web_contents`
@@ -46,6 +46,7 @@ Each tool can be routed to any compatible provider:
 | **Exa**        |   ✔    |    ✔     |   ✔    |    ✔     | `EXA_API_KEY`                                    |
 | **Firecrawl**  |   ✔    |    ✔     |        |          | `FIRECRAWL_API_KEY`                              |
 | **Gemini**     |   ✔    |          |   ✔    |    ✔     | `GOOGLE_API_KEY`                                 |
+| **Linkup**     |   ✔    |    ✔     |        |          | `LINKUP_API_KEY`                                 |
 | **Perplexity** |   ✔    |          |   ✔    |    ✔     | `PERPLEXITY_API_KEY`                             |
 | **Parallel**   |   ✔    |    ✔     |        |          | `PARALLEL_API_KEY`                               |
 | **Tavily**     |   ✔    |    ✔     |        |          | `TAVILY_API_KEY`                                 |
@@ -261,6 +262,16 @@ scope, or account ID is usually wrong.
 - Deep-research agents via Google's Gemini API
 - Supports provider-specific request options such as `model`, `config`,
   `generation_config`, and `agent_config` depending on the tool
+
+</details>
+
+<details>
+<summary><strong>Linkup</strong></summary>
+
+- SDK: `linkup-sdk`
+- Supports `web_search` via Linkup Search with standard search-results output
+- Supports `web_contents` via Linkup Fetch and always returns markdown
+- Good fit for a simple search-plus-markdown setup without extra provider wiring
 
 </details>
 

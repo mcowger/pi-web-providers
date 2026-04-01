@@ -6,6 +6,7 @@ import { customAdapter } from "./custom.js";
 import { exaAdapter } from "./exa.js";
 import { firecrawlAdapter } from "./firecrawl.js";
 import { geminiAdapter } from "./gemini.js";
+import { linkupAdapter } from "./linkup.js";
 import { parallelAdapter } from "./parallel.js";
 import { perplexityAdapter } from "./perplexity.js";
 import { tavilyAdapter } from "./tavily.js";
@@ -22,6 +23,7 @@ export const ADAPTERS_BY_ID: Record<
   exa: exaAdapter,
   firecrawl: firecrawlAdapter,
   gemini: geminiAdapter,
+  linkup: linkupAdapter,
   perplexity: perplexityAdapter,
   parallel: parallelAdapter,
   tavily: tavilyAdapter,

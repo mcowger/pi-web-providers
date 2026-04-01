@@ -29,6 +29,7 @@ afterEach(async () => {
   delete process.env.CLOUDFLARE_API_TOKEN;
   delete process.env.CLOUDFLARE_ACCOUNT_ID;
   delete process.env.GOOGLE_API_KEY;
+  delete process.env.LINKUP_API_KEY;
   delete process.env.PARALLEL_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.TAVILY_API_KEY;
@@ -142,6 +143,31 @@ describe("config parsing", () => {
           format: "text",
         },
       },
+      settings: {
+        requestTimeoutMs: 45000,
+      },
+    });
+  });
+
+  it("parses Linkup provider config", () => {
+    const parsed = parseConfig(
+      JSON.stringify({
+        providers: {
+          linkup: {
+            apiKey: "LINKUP_API_KEY",
+            baseUrl: "https://api.linkup.test/v1",
+            settings: {
+              requestTimeoutMs: 45000,
+            },
+          },
+        },
+      }),
+      "test-config.json",
+    );
+
+    expect(parsed.providers?.linkup).toEqual({
+      apiKey: "LINKUP_API_KEY",
+      baseUrl: "https://api.linkup.test/v1",
       settings: {
         requestTimeoutMs: 45000,
       },
@@ -429,6 +455,9 @@ describe("config parsing", () => {
       webSearchMode: "live",
     });
     expect(ADAPTERS_BY_ID.gemini.createTemplate().settings).toBeUndefined();
+    expect(ADAPTERS_BY_ID.linkup.createTemplate()).toEqual({
+      apiKey: "LINKUP_API_KEY",
+    });
     expect(ADAPTERS_BY_ID.tavily.createTemplate().options).toEqual({
       search: {
         includeFavicon: true,

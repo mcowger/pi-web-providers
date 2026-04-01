@@ -12,6 +12,7 @@ import type {
   Firecrawl,
   Gemini,
   GeminiOptions,
+  Linkup,
   Parallel,
   ParallelOptions,
   Perplexity,
@@ -509,6 +510,13 @@ export const PROVIDER_CONFIG_MANIFESTS = {
           cleanupEmpty(config, "options");
         },
       }),
+    ],
+  },
+  linkup: {
+    settings: [
+      apiKeySetting<Linkup>(),
+      baseUrlSetting<Linkup>(),
+      ...requestSettings<Linkup>("linkup"),
     ],
   },
   perplexity: {

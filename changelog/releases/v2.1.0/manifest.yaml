@@ -1,0 +1,9 @@
+created: 2026-04-01
+title: Add Linkup provider for web search and contents
+intro: >-
+  The extension now supports Linkup as a provider for web_search and web_contents,
+  letting you route both tools to Linkup with a single API key. This adds a straightforward
+  option for standard web search and Markdown page extraction alongside existing providers.
+source:
+  mode: sync-stable-queue
+  previous_stable: v2.0.0

@@ -974,7 +974,8 @@ describe("provider tool output", () => {
         ctx: { cwd: process.cwd() },
         signal: undefined,
         onUpdate: undefined,
-        options: {
+        options: undefined,
+        runtimeOptions: {
           requestTimeoutMs: 1000,
           resumeId: "job-1",
           timeoutMs: 60000,
@@ -1003,7 +1004,8 @@ describe("provider tool output", () => {
         ctx: { cwd: process.cwd() },
         signal: undefined,
         onUpdate: undefined,
-        options: {
+        options: undefined,
+        runtimeOptions: {
           requestTimeoutMs: "1000" as never,
         },
         urls: ["https://example.com"],
@@ -1037,7 +1039,8 @@ describe("provider tool output", () => {
         ctx: { cwd: process.cwd() },
         signal: undefined,
         onUpdate: undefined,
-        options: {
+        options: undefined,
+        runtimeOptions: {
           timeoutMs: 1000,
           resumeId: "job-1",
         },
@@ -1057,20 +1060,34 @@ describe("provider tool output", () => {
     );
   });
 
-  it("describes supported local execution controls in tool option help", () => {
-    expect(__test__.describeOptionsField("contents", ["exa"])).toBe(
-      "Provider-specific extraction options. Local execution controls: requestTimeoutMs, retryCount, retryDelayMs.",
-    );
-    expect(__test__.describeOptionsField("search", ["exa"])).toBe(
-      "Provider-specific search options. Local execution controls: requestTimeoutMs, retryCount, retryDelayMs. Local orchestration options may include prefetch={ provider, maxUrls, ttlMs, contentsOptions }. Prefetch runs only when prefetch.provider is set.",
-    );
-    expect(
-      __test__.describeOptionsField("research", [
-        "perplexity",
-        "exa",
-        "gemini",
-      ]),
-    ).toBe("Provider-specific research options.");
+  it("builds structured options schema with provider and runtime sub-objects", () => {
+    const schema = __test__.buildStructuredOptionsSchema("search", "tavily");
+    const inner = schema.anyOf?.[0] ?? schema;
+    const props = inner.properties ?? {};
+    expect(props).toHaveProperty("provider");
+    expect(props).toHaveProperty("runtime");
+    const runtimeProps =
+      (props.runtime?.anyOf?.[0] ?? props.runtime)?.properties ?? {};
+    expect(runtimeProps).toHaveProperty("prefetch");
+    expect(runtimeProps).toHaveProperty("requestTimeoutMs");
+  });
+
+  it("omits provider sub-schema when provider has none", () => {
+    const schema = __test__.buildStructuredOptionsSchema("search", undefined);
+    const inner = schema.anyOf?.[0] ?? schema;
+    const props = inner.properties ?? {};
+    expect(props).not.toHaveProperty("provider");
+    expect(props).toHaveProperty("runtime");
+  });
+
+  it("omits prefetch from runtime for non-search capabilities", () => {
+    const schema = __test__.buildStructuredOptionsSchema("contents", "tavily");
+    const inner = schema.anyOf?.[0] ?? schema;
+    const runtimeInner =
+      inner.properties?.runtime?.anyOf?.[0] ?? inner.properties?.runtime;
+    const runtimeProps = runtimeInner?.properties ?? {};
+    expect(runtimeProps).not.toHaveProperty("prefetch");
+    expect(runtimeProps).toHaveProperty("requestTimeoutMs");
   });
 
   it("rejects removed resumeInteractionId compatibility for research", async () => {
@@ -1090,7 +1107,8 @@ describe("provider tool output", () => {
         ctx: { cwd: process.cwd() },
         signal: undefined,
         onUpdate: undefined,
-        options: {
+        options: undefined,
+        runtimeOptions: {
           resumeInteractionId: "job-1",
         },
         input: "Investigate the topic",

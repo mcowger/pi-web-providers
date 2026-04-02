@@ -78,7 +78,8 @@ describe("search contents prefetch", () => {
       ctx: { cwd: process.cwd() },
       signal: undefined,
       onUpdate: undefined,
-      options: {
+      options: undefined,
+      runtimeOptions: {
         prefetch: {
           maxUrls: 2,
           provider: "exa",
@@ -178,7 +179,8 @@ describe("search contents prefetch", () => {
       ctx: { cwd: process.cwd() },
       signal: undefined,
       onUpdate: undefined,
-      options: {
+      options: undefined,
+      runtimeOptions: {
         prefetch: {
           maxUrls: 1,
         },
@@ -282,7 +284,8 @@ describe("search contents prefetch", () => {
       ctx: { cwd: process.cwd() },
       signal: undefined,
       onUpdate: undefined,
-      options: {
+      options: undefined,
+      runtimeOptions: {
         prefetch: {
           provider: null,
         },
@@ -449,7 +452,8 @@ describe("search contents prefetch", () => {
         ctx: { cwd: process.cwd() },
         signal: undefined,
         onUpdate: undefined,
-        options: {
+        options: undefined,
+        runtimeOptions: {
           prefetch: {
             maxUrls: 1,
             provider: "exa",

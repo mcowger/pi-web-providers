@@ -1,4 +1,5 @@
 import type { ModelReasoningEffort, WebSearchMode } from "@openai/codex-sdk";
+import type { TObject } from "@sinclair/typebox";
 import type { ContentsResponse } from "./contents.js";
 
 export const PROVIDER_IDS = [
@@ -332,6 +333,8 @@ export interface ProviderPlan<TResult> {
 
 export type ProviderResult = SearchResponse | ContentsResponse | ToolOutput;
 
+export type ProviderOptionsSchema = TObject;
+
 export interface ProviderAdapter<TConfig> {
   readonly id: ProviderId;
   readonly label: string;
@@ -348,4 +351,5 @@ export interface ProviderAdapter<TConfig> {
     request: ProviderRequest,
     config: TConfig,
   ): ProviderPlan<ProviderResult> | null;
+  getToolOptionsSchema?(capability: Tool): ProviderOptionsSchema | undefined;
 }

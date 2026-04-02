@@ -32,11 +32,8 @@ import {
 import { Type } from "@sinclair/typebox";
 import { getConfigPath, loadConfig, writeConfigFile } from "./config.js";
 import { type ContentsResponse, renderContentsAnswers } from "./contents.js";
-import {
-  formatElapsed,
-  formatErrorMessage,
-  stripLocalExecutionOptions,
-} from "./execution-policy.js";
+import { formatElapsed, formatErrorMessage } from "./execution-policy.js";
+import { buildToolOptionsSchema, type ToolOptionsFor } from "./options.js";
 import {
   cleanupContentStore,
   DEFAULT_CONTENT_TTL_MS,
@@ -107,6 +104,45 @@ const CAPABILITY_TOOL_NAMES: Record<Tool, string> = {
   research: "web_research",
 };
 const MANAGED_TOOL_NAMES = Object.values(CAPABILITY_TOOL_NAMES);
+
+type ToolUpdateCallback =
+  | ((update: {
+      content: Array<{ type: "text"; text: string }>;
+      details: {};
+    }) => void)
+  | undefined;
+
+type ProgressCallback = ((message: string) => void) | undefined;
+
+interface ToolExecutionContext {
+  cwd: string;
+  signal?: AbortSignal;
+  progress?: (message: string) => void;
+}
+
+interface SearchToolRequest {
+  queries: string[];
+  maxResults?: number;
+  options?: ToolOptionsFor<"search">;
+}
+
+interface AnswerToolRequest {
+  queries: string[];
+  options?: ToolOptionsFor<"answer">;
+}
+
+interface ProviderToolRequest<TCapability extends Exclude<Tool, "search">> {
+  capability: TCapability;
+  options?: ToolOptionsFor<TCapability>;
+  urls?: string[];
+  query?: string;
+  input?: string;
+}
+
+interface ResearchToolRequest {
+  input: string;
+  options?: ToolOptionsFor<"research">;
+}
 
 export default function webProvidersExtension(pi: ExtensionAPI) {
   const activeWebResearchRequests = new Map<string, WebResearchRequest>();
@@ -256,8 +292,8 @@ function registerWebSearchTool(
   pi: ExtensionAPI,
   providerIds: readonly ProviderId[],
 ): void {
-  const visibleProviderIds =
-    providerIds.length > 0 ? providerIds : PROVIDER_IDS;
+  const selectedProviderId =
+    providerIds.length === 1 ? providerIds[0] : undefined;
 
   pi.registerTool({
     name: "web_search",
@@ -281,20 +317,22 @@ function registerWebSearchTool(
           description: `Maximum number of results to return (default: ${DEFAULT_MAX_RESULTS})`,
         }),
       ),
-      options: jsonOptionsSchema(
-        describeOptionsField("search", visibleProviderIds),
-      ),
+      options: buildStructuredOptionsSchema("search", selectedProviderId),
     }),
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       return executeSearchTool({
         config: await loadConfig(),
-        ctx,
-        signal,
-        onUpdate,
-        options: normalizeOptions(params.options),
-        maxResults: params.maxResults,
-        queries: params.queries,
+        request: {
+          queries: params.queries,
+          maxResults: params.maxResults,
+          options: params.options as ToolOptionsFor<"search"> | undefined,
+        },
+        context: {
+          cwd: ctx.cwd,
+          signal: signal ?? undefined,
+          progress: createProgressEmitter(onUpdate),
+        },
       });
     },
 
@@ -325,6 +363,9 @@ function registerWebContentsTool(
 ): void {
   if (providerIds.length === 0) return;
 
+  const selectedProviderId =
+    providerIds.length === 1 ? providerIds[0] : undefined;
+
   pi.registerTool({
     name: "web_contents",
     label: "Web Contents",
@@ -335,17 +376,21 @@ function registerWebContentsTool(
         minItems: 1,
         description: "One or more URLs to extract",
       }),
-      options: jsonOptionsSchema(describeOptionsField("contents", providerIds)),
+      options: buildStructuredOptionsSchema("contents", selectedProviderId),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       return executeProviderTool({
-        capability: "contents",
         config: await loadConfig(),
-        ctx,
-        signal,
-        onUpdate,
-        options: normalizeOptions(params.options),
-        urls: params.urls,
+        request: {
+          capability: "contents",
+          urls: params.urls,
+          options: params.options as ToolOptionsFor<"contents"> | undefined,
+        },
+        context: {
+          cwd: ctx.cwd,
+          signal: signal ?? undefined,
+          progress: createProgressEmitter(onUpdate),
+        },
       });
     },
     renderCall(args, theme) {
@@ -376,6 +421,9 @@ function registerWebAnswerTool(
 ): void {
   if (providerIds.length === 0) return;
 
+  const selectedProviderId =
+    providerIds.length === 1 ? providerIds[0] : undefined;
+
   pi.registerTool({
     name: "web_answer",
     label: "Web Answer",
@@ -386,7 +434,7 @@ function registerWebAnswerTool(
         maxItems: MAX_SEARCH_QUERIES,
         description: `One or more questions to answer in one call (max ${MAX_SEARCH_QUERIES})`,
       }),
-      options: jsonOptionsSchema(describeOptionsField("answer", providerIds)),
+      options: buildStructuredOptionsSchema("answer", selectedProviderId),
     }),
     promptGuidelines: [
       "Batch related questions when the answers belong together; use separate sibling web_answer calls when earlier independent answers can unblock the next step.",
@@ -394,11 +442,15 @@ function registerWebAnswerTool(
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       return executeAnswerTool({
         config: await loadConfig(),
-        ctx,
-        signal,
-        onUpdate,
-        options: normalizeOptions(params.options),
-        queries: params.queries,
+        request: {
+          queries: params.queries,
+          options: params.options as ToolOptionsFor<"answer"> | undefined,
+        },
+        context: {
+          cwd: ctx.cwd,
+          signal: signal ?? undefined,
+          progress: createProgressEmitter(onUpdate),
+        },
       });
     },
     renderCall(args, theme) {
@@ -436,6 +488,9 @@ function registerWebResearchTool(
 ): void {
   if (providerIds.length === 0) return;
 
+  const selectedProviderId =
+    providerIds.length === 1 ? providerIds[0] : undefined;
+
   pi.registerTool({
     name: "web_research",
     label: "Web Research",
@@ -443,7 +498,7 @@ function registerWebResearchTool(
       "Start a long-running web research job. Returns immediately with a dispatch notice; the final report is saved to a file and posted later as a custom message.",
     parameters: Type.Object({
       input: Type.String({ description: "Research brief or question" }),
-      options: jsonOptionsSchema(describeOptionsField("research", providerIds)),
+      options: buildStructuredOptionsSchema("research", selectedProviderId),
     }),
     promptGuidelines: [
       "Use this tool for deep investigations that can finish asynchronously.",
@@ -456,9 +511,11 @@ function registerWebResearchTool(
           webResearchLifecycle.activeWebResearchRequests,
         updateWebResearchWidget: webResearchLifecycle.updateWebResearchWidget,
         config: await loadConfig(),
-        ctx,
-        options: normalizeOptions(params.options),
-        input: params.input,
+        request: {
+          input: params.input,
+          options: params.options as ToolOptionsFor<"research"> | undefined,
+        },
+        context: ctx,
       });
     },
     renderCall(args, theme) {
@@ -653,65 +710,56 @@ function getProviderIdsForCapability(capability: Tool): ProviderId[] {
   );
 }
 
-function jsonOptionsSchema(description: string) {
-  return Type.Optional(
-    Type.Object(
-      {},
-      {
-        additionalProperties: true,
-        description,
-      },
-    ),
-  );
+function buildStructuredOptionsSchema(
+  capability: Tool,
+  providerId: ProviderId | undefined,
+) {
+  const providerSchema = resolveProviderOptionsSchema(capability, providerId);
+  return Type.Optional(buildToolOptionsSchema(capability, providerSchema));
 }
 
-function describeOptionsField(
+function resolveProviderOptionsSchema(
   capability: Tool,
-  providerIds: readonly ProviderId[],
-): string {
-  const labels: Record<Tool, string> = {
-    search: "Provider-specific search options.",
-    contents: "Provider-specific extraction options.",
-    answer: "Provider-specific answer options.",
-    research: "Provider-specific research options.",
-  };
-  const supportedControls = getSupportedExecutionControlsForCapability(
-    capability,
-    providerIds,
-  );
-
-  let description = labels[capability];
-
-  if (supportedControls.length > 0) {
-    description += ` Local execution controls: ${supportedControls.join(", ")}.`;
+  providerId: ProviderId | undefined,
+) {
+  if (!providerId) {
+    return undefined;
   }
-
-  if (capability === "search") {
-    description +=
-      " Local orchestration options may include prefetch={ provider, maxUrls, ttlMs, contentsOptions }. Prefetch runs only when prefetch.provider is set.";
-  }
-
-  return description;
-}
-
-function getSupportedExecutionControlsForCapability(
-  capability: Tool,
-  _providerIds: readonly ProviderId[],
-): string[] {
-  if (capability === "research") {
-    return [];
-  }
-
-  return ["requestTimeoutMs", "retryCount", "retryDelayMs"];
+  const adapter = ADAPTERS_BY_ID[providerId];
+  return adapter.getToolOptionsSchema?.(capability);
 }
 
 async function executeSearchTool({
   config,
+  request,
+  context,
+}: {
+  config: WebProviders;
+  request: SearchToolRequest;
+  context: ToolExecutionContext;
+}) {
+  return executeSearchToolInternal({
+    config,
+    ctx: { cwd: context.cwd },
+    signal: context.signal,
+    progress: context.progress,
+    providerOptions: request.options?.provider,
+    runtimeOptions: request.options?.runtime as
+      | Record<string, unknown>
+      | undefined,
+    maxResults: request.maxResults,
+    queries: request.queries,
+  });
+}
+
+async function executeSearchToolInternal({
+  config,
   explicitProvider,
   ctx,
   signal,
-  onUpdate,
-  options,
+  progress,
+  providerOptions,
+  runtimeOptions,
   maxResults,
   queries,
   planOverrides,
@@ -720,13 +768,9 @@ async function executeSearchTool({
   explicitProvider?: ProviderId;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
-  onUpdate:
-    | ((update: {
-        content: Array<{ type: "text"; text: string }>;
-        details: {};
-      }) => void)
-    | undefined;
-  options: Record<string, unknown> | undefined;
+  progress?: ProgressCallback;
+  providerOptions: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   maxResults?: number;
   queries: string[];
   planOverrides?: ProviderPlan<SearchResponse>[];
@@ -738,9 +782,8 @@ async function executeSearchTool({
 
   const prefetchOptions = mergeSearchContentsPrefetchOptions(
     getSearchPrefetchDefaults(config),
-    parseSearchContentsPrefetchOptions(options),
+    parseSearchContentsPrefetchOptions(runtimeOptions),
   );
-  const providerOptions = stripSearchContentsPrefetchOptions(options);
   const searchQueries = resolveSearchQueries(queries);
   if (
     planOverrides !== undefined &&
@@ -751,14 +794,18 @@ async function executeSearchTool({
     );
   }
 
-  const progress = createToolProgressReporter("search", provider.id, onUpdate);
+  const progressReporter = createToolProgressReporter(
+    "search",
+    provider.id,
+    progress,
+  );
   const batchProgress =
     searchQueries.length > 1
       ? createBatchCompletionReporter(
           "Searching",
           provider.label,
           searchQueries.length,
-          progress.report,
+          progressReporter.report,
         )
       : undefined;
   const providerContext = {
@@ -778,8 +825,10 @@ async function executeSearchTool({
           query: searchQuery,
           maxResults: clampedMaxResults,
           options: providerOptions,
+          runtimeOptions,
           providerContext,
-          onProgress: searchQueries.length > 1 ? undefined : progress.report,
+          onProgress:
+            searchQueries.length > 1 ? undefined : progressReporter.report,
           planOverride: planOverrides?.[index],
         }).then(
           (value) => {
@@ -802,7 +851,7 @@ async function executeSearchTool({
           },
     );
   } finally {
-    progress.stop();
+    progressReporter.stop();
   }
 
   if (outcomes.every((outcome) => outcome.error !== undefined)) {
@@ -837,6 +886,7 @@ async function executeRawProviderRequest({
   ctx,
   signal,
   options,
+  runtimeOptions,
   maxResults,
   urls,
   query,
@@ -848,6 +898,7 @@ async function executeRawProviderRequest({
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   maxResults?: number;
   urls?: string[];
   query?: string;
@@ -863,6 +914,7 @@ async function executeRawProviderRequest({
       query: query ?? "",
       maxResults: clampResults(maxResults),
       options,
+      runtimeOptions,
       providerContext: {
         cwd: ctx.cwd,
         signal: signal ?? undefined,
@@ -887,6 +939,7 @@ async function executeRawProviderRequest({
       ctx,
       signal,
       options,
+      runtimeOptions,
       urls,
     });
   }
@@ -900,6 +953,7 @@ async function executeRawProviderRequest({
       ctx,
       signal,
       options,
+      runtimeOptions,
       query,
     });
   }
@@ -912,6 +966,7 @@ async function executeRawProviderRequest({
     ctx,
     signal,
     options,
+    runtimeOptions,
     input,
   });
 }
@@ -943,6 +998,7 @@ async function executeSingleSearchQuery({
   query,
   maxResults,
   options,
+  runtimeOptions,
   providerContext,
   onProgress,
   planOverride,
@@ -952,6 +1008,7 @@ async function executeSingleSearchQuery({
   query: string;
   maxResults: number;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   providerContext: { cwd: string; signal?: AbortSignal };
   onProgress?: (message: string) => void;
   planOverride?: ProviderPlan<SearchResponse>;
@@ -962,11 +1019,11 @@ async function executeSingleSearchQuery({
       capability: "search",
       query,
       maxResults,
-      options: stripLocalExecutionOptions(options),
+      options,
     });
 
   onProgress?.(`Searching via ${provider.label}: ${query}`);
-  const result = await executeOperationPlan(plan, options, {
+  const result = await executeOperationPlan(plan, runtimeOptions, {
     ...providerContext,
     onProgress,
   });
@@ -982,11 +1039,34 @@ type AnswerQueryOutcome =
 
 async function executeAnswerTool({
   config,
+  request,
+  context,
+}: {
+  config: WebProviders;
+  request: AnswerToolRequest;
+  context: ToolExecutionContext;
+}) {
+  return executeAnswerToolInternal({
+    config,
+    ctx: { cwd: context.cwd },
+    signal: context.signal,
+    progress: context.progress,
+    providerOptions: request.options?.provider,
+    runtimeOptions: request.options?.runtime as
+      | Record<string, unknown>
+      | undefined,
+    queries: request.queries,
+  });
+}
+
+async function executeAnswerToolInternal({
+  config,
   explicitProvider,
   ctx,
   signal,
-  onUpdate,
-  options,
+  progress,
+  providerOptions,
+  runtimeOptions,
   queries,
   planOverrides,
 }: {
@@ -994,13 +1074,9 @@ async function executeAnswerTool({
   explicitProvider?: ProviderId;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
-  onUpdate:
-    | ((update: {
-        content: Array<{ type: "text"; text: string }>;
-        details: {};
-      }) => void)
-    | undefined;
-  options: Record<string, unknown> | undefined;
+  progress?: ProgressCallback;
+  providerOptions: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   queries: string[];
   planOverrides?: ProviderPlan<ToolOutput>[];
 }) {
@@ -1022,14 +1098,18 @@ async function executeAnswerTool({
     );
   }
 
-  const progress = createToolProgressReporter("answer", provider.id, onUpdate);
+  const progressReporter = createToolProgressReporter(
+    "answer",
+    provider.id,
+    progress,
+  );
   const batchProgress =
     answerQueries.length > 1
       ? createBatchCompletionReporter(
           "Answering",
           provider.label,
           answerQueries.length,
-          progress.report,
+          progressReporter.report,
         )
       : undefined;
   let outcomes: AnswerQueryOutcome[];
@@ -1044,9 +1124,11 @@ async function executeAnswerTool({
           providerConfig: providerConfig as AnyProvider,
           ctx,
           signal,
-          options,
+          options: providerOptions,
+          runtimeOptions,
           query: answerQuery,
-          onProgress: answerQueries.length > 1 ? undefined : progress.report,
+          onProgress:
+            answerQueries.length > 1 ? undefined : progressReporter.report,
           planOverride: planOverrides?.[index],
         }).then(
           (value) => {
@@ -1069,7 +1151,7 @@ async function executeAnswerTool({
           },
     );
   } finally {
-    progress.stop();
+    progressReporter.stop();
   }
 
   if (outcomes.every((outcome) => outcome.error !== undefined)) {
@@ -1160,6 +1242,7 @@ async function executeProviderOperation({
   ctx,
   signal,
   options,
+  runtimeOptions,
   urls,
   onProgress,
   planOverride,
@@ -1171,6 +1254,7 @@ async function executeProviderOperation({
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   urls?: string[];
   onProgress?: (message: string) => void;
   planOverride?: ProviderPlan<ContentsResponse>;
@@ -1183,6 +1267,7 @@ async function executeProviderOperation({
   ctx,
   signal,
   options,
+  runtimeOptions,
   query,
   input,
   onProgress,
@@ -1195,6 +1280,7 @@ async function executeProviderOperation({
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   query?: string;
   input?: string;
   onProgress?: (message: string) => void;
@@ -1208,6 +1294,7 @@ async function executeProviderOperation({
   ctx,
   signal,
   options,
+  runtimeOptions,
   urls,
   query,
   input,
@@ -1221,6 +1308,7 @@ async function executeProviderOperation({
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   urls?: string[];
   query?: string;
   input?: string;
@@ -1236,7 +1324,7 @@ async function executeProviderOperation({
         urls,
         query,
         input,
-        options: stripLocalExecutionOptions(options),
+        options,
       }),
     );
 
@@ -1251,6 +1339,7 @@ async function executeProviderOperation({
       config,
       cwd: ctx.cwd,
       options,
+      runtimeOptions,
       signal: signal ?? undefined,
       onProgress,
     });
@@ -1266,7 +1355,7 @@ async function executeProviderOperation({
     onProgress?.(`Researching via ${provider.label}`);
   }
 
-  const result = await executeOperationPlan(plan, options, {
+  const result = await executeOperationPlan(plan, runtimeOptions, {
     cwd: ctx.cwd,
     signal: signal ?? undefined,
     onProgress,
@@ -1280,13 +1369,39 @@ async function executeProviderOperation({
 }
 
 async function executeProviderTool({
+  config,
+  request,
+  context,
+}: {
+  config: WebProviders;
+  request: ProviderToolRequest<Exclude<Tool, "search">>;
+  context: ToolExecutionContext;
+}) {
+  return executeProviderToolInternal({
+    capability: request.capability,
+    config,
+    ctx: { cwd: context.cwd },
+    signal: context.signal,
+    progress: context.progress,
+    providerOptions: request.options?.provider,
+    runtimeOptions: request.options?.runtime as
+      | Record<string, unknown>
+      | undefined,
+    urls: request.urls,
+    query: request.query,
+    input: request.input,
+  });
+}
+
+async function executeProviderToolInternal({
   capability,
   config,
   explicitProvider,
   ctx,
   signal,
-  onUpdate,
-  options,
+  progress,
+  providerOptions,
+  runtimeOptions,
   urls,
   query,
   input,
@@ -1298,13 +1413,9 @@ async function executeProviderTool({
   explicitProvider?: ProviderId;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
-  onUpdate:
-    | ((update: {
-        content: Array<{ type: "text"; text: string }>;
-        details: {};
-      }) => void)
-    | undefined;
-  options: Record<string, unknown> | undefined;
+  progress?: ProgressCallback;
+  providerOptions: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   urls?: string[];
   query?: string;
   input?: string;
@@ -1321,10 +1432,10 @@ async function executeProviderTool({
   );
   const providerConfig = getEffectiveProviderConfig(config, provider.id);
 
-  const progress = createToolProgressReporter(
+  const progressReporter = createToolProgressReporter(
     capability,
     provider.id,
-    onUpdate,
+    progress,
   );
 
   let response: ContentsResponse | ToolOutput;
@@ -1339,9 +1450,10 @@ async function executeProviderTool({
               providerConfig: providerConfig as AnyProvider,
               ctx,
               signal,
-              options,
+              options: providerOptions,
+              runtimeOptions,
               urls: urls ?? [],
-              progressReport: progress.report,
+              progressReport: progressReporter.report,
               planOverrides,
             })
           : await executeProviderOperation({
@@ -1351,9 +1463,10 @@ async function executeProviderTool({
               providerConfig: providerConfig as AnyProvider,
               ctx,
               signal,
-              options,
+              options: providerOptions,
+              runtimeOptions,
               urls,
-              onProgress: progress.report,
+              onProgress: progressReporter.report,
               planOverride: planOverride as
                 | ProviderPlan<ContentsResponse>
                 | undefined,
@@ -1366,15 +1479,16 @@ async function executeProviderTool({
         providerConfig: providerConfig as AnyProvider,
         ctx,
         signal,
-        options,
+        options: providerOptions,
+        runtimeOptions,
         query,
         input,
-        onProgress: progress.report,
+        onProgress: progressReporter.report,
         planOverride: planOverride as ProviderPlan<ToolOutput> | undefined,
       });
     }
   } finally {
-    progress.stop();
+    progressReporter.stop();
   }
 
   const details: ToolDetails = {
@@ -1402,9 +1516,41 @@ async function dispatchWebResearch({
   activeWebResearchRequests,
   updateWebResearchWidget,
   config,
+  request,
+  context,
+}: {
+  pi: Pick<ExtensionAPI, "sendMessage">;
+  activeWebResearchRequests: Map<string, WebResearchRequest>;
+  updateWebResearchWidget: (
+    ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+  ) => void;
+  config: WebProviders;
+  request: ResearchToolRequest;
+  context: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
+}) {
+  return dispatchWebResearchInternal({
+    pi,
+    activeWebResearchRequests,
+    updateWebResearchWidget,
+    config,
+    ctx: context,
+    providerOptions: request.options?.provider,
+    runtimeOptions: request.options?.runtime as
+      | Record<string, unknown>
+      | undefined,
+    input: request.input,
+  });
+}
+
+async function dispatchWebResearchInternal({
+  pi,
+  activeWebResearchRequests,
+  updateWebResearchWidget,
+  config,
   explicitProvider,
   ctx,
-  options,
+  providerOptions,
+  runtimeOptions,
   input,
   planOverride,
 }: {
@@ -1416,7 +1562,8 @@ async function dispatchWebResearch({
   config: WebProviders;
   explicitProvider?: ProviderId;
   ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
-  options: Record<string, unknown> | undefined;
+  providerOptions: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   input: string;
   planOverride?: ProviderPlan<ToolOutput>;
 }) {
@@ -1444,7 +1591,8 @@ async function dispatchWebResearch({
       provider,
       providerConfig: providerConfig as AnyProvider,
       ctx,
-      options,
+      options: providerOptions,
+      runtimeOptions,
       planOverride,
     }),
   );
@@ -1470,6 +1618,7 @@ async function runDispatchedWebResearch({
   providerConfig,
   ctx,
   options,
+  runtimeOptions,
   planOverride,
 }: {
   pi: Pick<ExtensionAPI, "sendMessage">;
@@ -1483,6 +1632,7 @@ async function runDispatchedWebResearch({
   providerConfig: AnyProvider;
   ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   planOverride?: ProviderPlan<ToolOutput>;
 }): Promise<void> {
   let result: WebResearchResult;
@@ -1497,6 +1647,7 @@ async function runDispatchedWebResearch({
       ctx,
       signal: undefined,
       options,
+      runtimeOptions,
       input: request.input,
       onProgress: (message) => {
         request.progress = summarizeWebResearchProgress(
@@ -1771,6 +1922,7 @@ async function executeBatchedContentsTool({
   ctx,
   signal,
   options,
+  runtimeOptions,
   urls,
   progressReport,
   planOverrides,
@@ -1781,6 +1933,7 @@ async function executeBatchedContentsTool({
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   urls: string[];
   progressReport: ((message: string) => void) | undefined;
   planOverrides?: ProviderPlan<ContentsResponse>[];
@@ -1809,6 +1962,7 @@ async function executeBatchedContentsTool({
         ctx,
         signal,
         options,
+        runtimeOptions,
         urls: [url],
         onProgress: undefined,
         planOverride: planOverrides?.[index],
@@ -1908,6 +2062,8 @@ function buildOperationRequest(
     input?: string;
   },
 ): ProviderRequest {
+  // Provider options are passed directly — no stripping needed since
+  // global execution controls are already separated at the tool boundary.
   if (capability === "contents") {
     return {
       capability,
@@ -1961,32 +2117,32 @@ function formatContentsResponse(response: ContentsResponse): string {
   return renderContentsAnswers(response.answers);
 }
 
-function normalizeOptions(value: unknown): Record<string, unknown> | undefined {
-  return isJsonObject(value) ? value : undefined;
+function createProgressEmitter(onUpdate: ToolUpdateCallback): ProgressCallback {
+  if (!onUpdate) {
+    return undefined;
+  }
+
+  return (message: string) => {
+    onUpdate({
+      content: [{ type: "text", text: message }],
+      details: {},
+    });
+  };
 }
 
 function createToolProgressReporter(
   capability: Tool,
   providerId: ProviderId,
-  onUpdate:
-    | ((update: {
-        content: Array<{ type: "text"; text: string }>;
-        details: {};
-      }) => void)
-    | undefined,
+  progress: ProgressCallback,
 ): {
   report?: (message: string) => void;
   stop: () => void;
 } {
-  if (!onUpdate) {
+  if (!progress) {
     return { report: undefined, stop: () => {} };
   }
 
-  const emit = (message: string) =>
-    onUpdate({
-      content: [{ type: "text", text: message }],
-      details: {},
-    });
+  const emit = (message: string) => progress(message);
 
   const startedAt = Date.now();
   let lastUpdateAt = startedAt;
@@ -4082,17 +4238,161 @@ function truncateInline(text: string, maxLength: number): string {
 export const __test__ = {
   loadConfig,
   didContentsCacheInputsChange,
-  dispatchWebResearch,
-  executeAnswerTool,
+  dispatchWebResearch: ({
+    pi,
+    activeWebResearchRequests,
+    updateWebResearchWidget,
+    config,
+    explicitProvider,
+    ctx,
+    options,
+    runtimeOptions,
+    input,
+    planOverride,
+  }: {
+    pi: Pick<ExtensionAPI, "sendMessage">;
+    activeWebResearchRequests: Map<string, WebResearchRequest>;
+    updateWebResearchWidget: (
+      ctx?: Pick<ExtensionContext, "hasUI" | "ui">,
+    ) => void;
+    config: WebProviders;
+    explicitProvider?: ProviderId;
+    ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
+    options: Record<string, unknown> | undefined;
+    runtimeOptions?: Record<string, unknown> | undefined;
+    input: string;
+    planOverride?: ProviderPlan<ToolOutput>;
+  }) =>
+    dispatchWebResearchInternal({
+      pi,
+      activeWebResearchRequests,
+      updateWebResearchWidget,
+      config,
+      explicitProvider,
+      ctx,
+      providerOptions: options,
+      runtimeOptions,
+      input,
+      planOverride,
+    }),
+  executeAnswerTool: ({
+    config,
+    explicitProvider,
+    ctx,
+    signal,
+    onUpdate,
+    options,
+    runtimeOptions,
+    queries,
+    planOverrides,
+  }: {
+    config: WebProviders;
+    explicitProvider?: ProviderId;
+    ctx: { cwd: string };
+    signal: AbortSignal | null | undefined;
+    onUpdate: ToolUpdateCallback;
+    options: Record<string, unknown> | undefined;
+    runtimeOptions?: Record<string, unknown> | undefined;
+    queries: string[];
+    planOverrides?: ProviderPlan<ToolOutput>[];
+  }) =>
+    executeAnswerToolInternal({
+      config,
+      explicitProvider,
+      ctx,
+      signal,
+      progress: createProgressEmitter(onUpdate),
+      providerOptions: options,
+      runtimeOptions,
+      queries,
+      planOverrides,
+    }),
   executeRawProviderRequest,
-  executeProviderTool,
-  executeSearchTool,
+  executeProviderTool: ({
+    capability,
+    config,
+    explicitProvider,
+    ctx,
+    signal,
+    onUpdate,
+    options,
+    runtimeOptions,
+    urls,
+    query,
+    input,
+    planOverride,
+    planOverrides,
+  }: {
+    capability: Exclude<Tool, "search">;
+    config: WebProviders;
+    explicitProvider?: ProviderId;
+    ctx: { cwd: string };
+    signal: AbortSignal | null | undefined;
+    onUpdate: ToolUpdateCallback;
+    options: Record<string, unknown> | undefined;
+    runtimeOptions?: Record<string, unknown> | undefined;
+    urls?: string[];
+    query?: string;
+    input?: string;
+    planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
+    planOverrides?: ProviderPlan<ContentsResponse>[];
+  }) =>
+    executeProviderToolInternal({
+      capability,
+      config,
+      explicitProvider,
+      ctx,
+      signal,
+      progress: createProgressEmitter(onUpdate),
+      providerOptions: options,
+      runtimeOptions,
+      urls,
+      query,
+      input,
+      planOverride,
+      planOverrides,
+    }),
+  executeSearchTool: ({
+    config,
+    explicitProvider,
+    ctx,
+    signal,
+    onUpdate,
+    options,
+    runtimeOptions,
+    maxResults,
+    queries,
+    planOverrides,
+  }: {
+    config: WebProviders;
+    explicitProvider?: ProviderId;
+    ctx: { cwd: string };
+    signal: AbortSignal | null | undefined;
+    onUpdate: ToolUpdateCallback;
+    options: Record<string, unknown> | undefined;
+    runtimeOptions?: Record<string, unknown> | undefined;
+    maxResults?: number;
+    queries: string[];
+    planOverrides?: ProviderPlan<SearchResponse>[];
+  }) =>
+    executeSearchToolInternal({
+      config,
+      explicitProvider,
+      ctx,
+      signal,
+      progress: createProgressEmitter(onUpdate),
+      providerOptions: options,
+      runtimeOptions,
+      maxResults,
+      queries,
+      planOverrides,
+    }),
   extractTextContent,
   formatWebResearchResultMessage,
   getAvailableManagedToolNames,
   getReadyCompatibleProvidersForTool,
   getEnabledCompatibleProvidersForTool: getReadyCompatibleProvidersForTool,
-  describeOptionsField,
+  buildStructuredOptionsSchema,
   getAvailableProviderIdsForCapability,
   getProviderStatusForTool,
   getSyncedActiveTools,

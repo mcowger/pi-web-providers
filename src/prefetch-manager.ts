@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import type { ContentsAnswer, ContentsResponse } from "./contents.js";
-import { stripLocalExecutionOptions } from "./execution-policy.js";
 import {
   getEffectiveProviderConfig,
   getProviderCapabilityStatus,
@@ -45,6 +44,7 @@ interface EnsureContentsArgs {
   config: WebProviders;
   cwd: string;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   ttlMs?: number;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
@@ -115,6 +115,7 @@ export async function resolveContentsFromStore({
   config,
   cwd,
   options,
+  runtimeOptions,
   signal,
   onProgress,
 }: {
@@ -123,6 +124,7 @@ export async function resolveContentsFromStore({
   config: WebProviders;
   cwd: string;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
 }): Promise<ContentsResponse> {
@@ -138,6 +140,7 @@ export async function resolveContentsFromStore({
       config,
       cwd,
       options,
+      runtimeOptions,
       signal,
       onProgress,
     });
@@ -149,6 +152,7 @@ export async function resolveContentsFromStore({
     config,
     cwd,
     options,
+    runtimeOptions,
     signal,
     onProgress,
   });
@@ -229,6 +233,7 @@ async function resolvePerUrlContents({
   config,
   cwd,
   options,
+  runtimeOptions,
   signal,
   onProgress,
 }: {
@@ -237,6 +242,7 @@ async function resolvePerUrlContents({
   config: WebProviders;
   cwd: string;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
 }): Promise<ContentsResponse> {
@@ -248,6 +254,7 @@ async function resolvePerUrlContents({
         config,
         cwd,
         options,
+        runtimeOptions,
         signal,
         onProgress,
       }),
@@ -304,6 +311,7 @@ async function fetchBatchContents({
   config,
   cwd,
   options,
+  runtimeOptions,
   signal,
   onProgress,
   ttlMs = DEFAULT_CONTENT_TTL_MS,
@@ -314,6 +322,7 @@ async function fetchBatchContents({
   config: WebProviders;
   cwd: string;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
   ttlMs?: number;
@@ -330,6 +339,7 @@ async function fetchBatchContents({
     config,
     cwd,
     options,
+    runtimeOptions,
     signal,
     onProgress,
   });
@@ -368,6 +378,7 @@ async function ensureContentsStored({
   config,
   cwd,
   options,
+  runtimeOptions,
   signal,
   onProgress,
   ttlMs = DEFAULT_CONTENT_TTL_MS,
@@ -395,6 +406,7 @@ async function ensureContentsStored({
         config,
         cwd,
         options,
+        runtimeOptions,
         signal,
         onProgress,
       });
@@ -427,6 +439,7 @@ async function fetchContentsViaProvider({
   config,
   cwd,
   options,
+  runtimeOptions,
   signal,
   onProgress,
 }: {
@@ -435,6 +448,7 @@ async function fetchContentsViaProvider({
   config: WebProviders;
   cwd: string;
   options: Record<string, unknown> | undefined;
+  runtimeOptions?: Record<string, unknown> | undefined;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
 }): Promise<ContentsResponse> {
@@ -448,7 +462,7 @@ async function fetchContentsViaProvider({
     {
       capability: "contents",
       urls,
-      options: stripLocalExecutionOptions(options),
+      options,
     },
     providerConfig as never,
   );
@@ -458,7 +472,7 @@ async function fetchContentsViaProvider({
     );
   }
 
-  const result = await executeOperationPlan(plan, options, {
+  const result = await executeOperationPlan(plan, runtimeOptions, {
     cwd,
     signal,
     onProgress,
@@ -577,7 +591,7 @@ function buildContentsCacheKey(
 }
 
 function hashOptions(options: Record<string, unknown> | undefined): string {
-  return hashString(stableStringify(stripLocalExecutionOptions(options) ?? {}));
+  return hashString(stableStringify(options ?? {}));
 }
 
 function hashString(value: string): string {

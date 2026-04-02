@@ -78,17 +78,18 @@ results should arrive as soon as they are ready.
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
 
-| Parameter    | Type     | Default  | Description                                                    |
-| ------------ | -------- | -------- | -------------------------------------------------------------- |
-| `queries`    | string[] | required | One or more search queries to run (max 10)                     |
-| `maxResults` | integer  | `5`      | Result count per query, clamped to `1–20`                      |
-| `options`    | object   | —        | Provider-specific search options and local `prefetch` settings |
+| Parameter    | Type     | Default  | Description                                                                    |
+| ------------ | -------- | -------- | ------------------------------------------------------------------------------ |
+| `queries`    | string[] | required | One or more search queries to run (max 10)                                     |
+| `maxResults` | integer  | `5`      | Result count per query, clamped to `1–20`                                      |
+| `options`    | object   | —        | `provider` settings for the SDK and `runtime` settings for local orchestration |
 
-`web_search.options.prefetch` is local-only and not forwarded into the provider
-SDK. It accepts `provider`, `maxUrls`, `ttlMs`, and `contentsOptions`, and
-starts a background page-extraction workflow only when `prefetch.provider` is
-set. `/web-providers` can also persist default search prefetch settings under
-`settings.search`.
+`web_search.options.runtime.prefetch` is local-only and is not forwarded to the
+provider SDK. It accepts `provider`, `maxUrls`, `ttlMs`, and
+`contentsOptions`, and starts a background page-extraction workflow only when
+`prefetch.provider` is set. `/web-providers` can also persist default search
+prefetch settings under `settings.search`. Per-call retry and timeout overrides
+also live under `web_search.options.runtime`.
 
 </details>
 
@@ -102,10 +103,10 @@ each page can be acted on independently.
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
 
-| Parameter | Type     | Default  | Description                          |
-| --------- | -------- | -------- | ------------------------------------ |
-| `urls`    | string[] | required | One or more URLs to extract          |
-| `options` | object   | —        | Provider-specific extraction options |
+| Parameter | Type     | Default  | Description                                                               |
+| --------- | -------- | -------- | ------------------------------------------------------------------------- |
+| `urls`    | string[] | required | One or more URLs to extract                                               |
+| `options` | object   | —        | `provider` settings for extraction and optional local `runtime` overrides |
 
 `web_contents` reuses any matching cached pages already present in the local
 in-memory cache—whether they came from prefetch or an earlier read—and only
@@ -123,10 +124,10 @@ calls when earlier independent answers can unblock the next step.
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
 
-| Parameter | Type     | Default  | Description                                          |
-| --------- | -------- | -------- | ---------------------------------------------------- |
-| `queries` | string[] | required | One or more questions to answer in one call (max 10) |
-| `options` | object   | —        | Provider-specific options                            |
+| Parameter | Type     | Default  | Description                                                |
+| --------- | -------- | -------- | ---------------------------------------------------------- |
+| `queries` | string[] | required | One or more questions to answer in one call (max 10)       |
+| `options` | object   | —        | `provider` settings and optional local `runtime` overrides |
 
 Responses are grouped into per-question sections when more than one question is
 provided.
@@ -143,15 +144,15 @@ saved report path.
 <details>
 <summary><strong>Parameters and behavior</strong></summary>
 
-| Parameter | Type   | Default  | Description                |
-| --------- | ------ | -------- | -------------------------- |
-| `input`   | string | required | Research brief or question |
-| `options` | object | —        | Provider-specific options  |
+| Parameter | Type   | Default  | Description                           |
+| --------- | ------ | -------- | ------------------------------------- |
+| `input`   | string | required | Research brief or question            |
+| `options` | object | —        | Provider-specific `provider` settings |
 
-`options` are provider-specific. Equivalent concepts can use
-different field names across SDKs—for example Perplexity uses `country`, Exa
-uses `userLocation`, and Valyu uses `countryCode`. Runtime `options` override
-provider config, but managed tool inputs and tool wiring stay fixed.
+`options.provider` is provider-specific. Equivalent concepts can use different
+field names across SDKs—for example Perplexity uses `country`, Exa uses
+`userLocation`, and Valyu uses `countryCode`. Unlike the other managed tools,
+`web_research` does not support per-call `options.runtime` overrides.
 
 Unlike the other managed tools, `web_research` does not accept local timeout,
 retry, polling, or resume controls. Research has one opinionated execution

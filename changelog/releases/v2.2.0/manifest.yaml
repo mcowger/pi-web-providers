@@ -1,0 +1,8 @@
+created: 2026-04-03
+title: Pi Web Providers v2.2.0
+intro: >-
+  Managed tools now advertise explicit provider-specific option schemas, and provider
+  options are scoped strictly to their respective capabilities.
+source:
+  mode: sync-stable-queue
+  previous_stable: v2.1.0

@@ -14,7 +14,7 @@ off entirely.
 ## ✨ Features
 
 - **Multiple providers**: Claude, Cloudflare, Codex, Exa, Firecrawl,
-  Gemini, Linkup, OpenAI, Perplexity, Parallel, Serper,
+  Gemini, Linkup, Ollama, OpenAI, Perplexity, Parallel, Serper,
   [Tavily](https://tavily.com), Valyu
 - **Provider-aware tool options**: pi only exposes the provider settings that
   actually apply to the backend you selected, so tool calls are easier to
@@ -61,6 +61,7 @@ Each tool can be routed to any compatible provider:
 | **Firecrawl**  |   ✔    |    ✔     |        |          | `FIRECRAWL_API_KEY`                              |
 | **Gemini**     |   ✔    |          |   ✔    |    ✔     | `GOOGLE_API_KEY`                                 |
 | **Linkup**     |   ✔    |    ✔     |        |          | `LINKUP_API_KEY`                                 |
+| **Ollama**     |   ✔    |    ✔     |        |          | `OLLAMA_API_KEY`                                 |
 | **OpenAI**     |   ✔    |          |   ✔    |    ✔     | `OPENAI_API_KEY`                                 |
 | **Parallel**   |   ✔    |    ✔     |        |          | `PARALLEL_API_KEY`                               |
 | **Perplexity** |   ✔    |          |   ✔    |    ✔     | `PERPLEXITY_API_KEY`                             |
@@ -296,6 +297,18 @@ scope, or account ID is usually wrong.
   `excludeDomains`, `fromDate`, and `toDate`
 - Exposes contents options `renderJs`, `includeRawHtml`, and `extractImages`
 - Good fit for a simple search-plus-markdown setup without extra provider wiring
+
+</details>
+
+<details>
+<summary><strong>Ollama</strong></summary>
+
+- API: [Ollama Web Search & Fetch API](https://docs.ollama.com/web-search)
+- Supports `web_search` via `POST /api/web_search` and `web_contents` via
+  `POST /api/web_fetch`
+- No external SDK dependency — uses native `fetch` against the REST API
+- Authenticates via `OLLAMA_API_KEY` (Bearer token)
+- Configurable base URL overrides for search and fetch endpoints
 
 </details>
 

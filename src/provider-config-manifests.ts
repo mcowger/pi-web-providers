@@ -12,6 +12,7 @@ import type {
   Gemini,
   GeminiOptions,
   Linkup,
+  Ollama,
   OpenAI,
   OpenAIAnswerOptions,
   OpenAIResearchOptions,
@@ -518,6 +519,9 @@ export const PROVIDER_CONFIG_MANIFESTS = {
   },
   linkup: {
     settings: [apiKeySetting<Linkup>(), baseUrlSetting<Linkup>()],
+  },
+  ollama: {
+    settings: [apiKeySetting<Ollama>(), baseUrlSetting<Ollama>()],
   },
   openai: {
     settings: [

@@ -11,6 +11,7 @@ export const PROVIDER_IDS = [
   "firecrawl",
   "gemini",
   "linkup",
+  "ollama",
   "openai",
   "parallel",
   "perplexity",
@@ -243,6 +244,16 @@ export interface Parallel extends Provider<ParallelOptions> {
   baseUrl?: string;
 }
 
+export interface OllamaOptions {
+  search?: Record<string, unknown>;
+  fetch?: Record<string, unknown>;
+}
+
+export interface Ollama extends Provider<OllamaOptions> {
+  apiKey?: string;
+  baseUrl?: string;
+}
+
 export interface OpenAI extends Provider<OpenAIOptions> {
   apiKey?: string;
   baseUrl?: string;
@@ -278,6 +289,7 @@ export interface Providers {
   firecrawl?: Firecrawl;
   gemini?: Gemini;
   linkup?: Linkup;
+  ollama?: Ollama;
   perplexity?: Perplexity;
   parallel?: Parallel;
   openai?: OpenAI;
@@ -295,6 +307,7 @@ export type AnyProvider =
   | Firecrawl
   | Gemini
   | Linkup
+  | Ollama
   | OpenAI
   | Perplexity
   | Parallel

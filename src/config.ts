@@ -14,6 +14,7 @@ import type {
   Firecrawl,
   Gemini,
   Linkup,
+  Ollama,
   OpenAI,
   OpenAIOptions,
   Parallel,
@@ -95,6 +96,7 @@ export function parseProviderConfig(
   | Firecrawl
   | Gemini
   | Linkup
+  | Ollama
   | OpenAI
   | Perplexity
   | Parallel
@@ -245,6 +247,7 @@ function normalizeProvider(
   | Firecrawl
   | Gemini
   | Linkup
+  | Ollama
   | OpenAI
   | Parallel
   | Perplexity
@@ -322,9 +325,10 @@ function normalizeProvider(
       });
     case "firecrawl":
     case "linkup":
+    case "ollama":
     case "parallel":
     case "perplexity":
-      return parseProviderWithShape<Firecrawl | Linkup | Parallel | Perplexity>(
+      return parseProviderWithShape<Firecrawl | Linkup | Ollama | Parallel | Perplexity>(
         raw,
         source,
         providerId,

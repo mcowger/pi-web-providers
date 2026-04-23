@@ -1,5 +1,5 @@
 import type { ModelReasoningEffort, WebSearchMode } from "@openai/codex-sdk";
-import type { TObject } from "@sinclair/typebox";
+import type { TObject } from "typebox";
 import type { ContentsResponse } from "./contents.js";
 
 export const PROVIDER_IDS = [

@@ -1,5 +1,5 @@
 import PerplexityClient from "@perplexity-ai/perplexity_ai";
-import { type TObject, Type } from "@sinclair/typebox";
+import { type TObject, Type } from "typebox";
 import { resolveConfigValue } from "../config.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";
 import type {

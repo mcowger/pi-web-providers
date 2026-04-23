@@ -1,4 +1,4 @@
-import type { TObject } from "@sinclair/typebox";
+import type { TObject } from "typebox";
 import type { ContentsAnswer, ContentsResponse } from "../contents.js";
 import type {
   Custom,

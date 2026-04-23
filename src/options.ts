@@ -1,5 +1,5 @@
-import type { TObject } from "@sinclair/typebox";
-import { type Static, Type } from "@sinclair/typebox";
+import type { TObject } from "typebox";
+import { type Static, Type } from "typebox";
 import type { Tool } from "./types.js";
 import { PROVIDER_IDS } from "./types.js";
 

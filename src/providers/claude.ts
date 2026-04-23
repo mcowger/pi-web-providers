@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
-import { type TObject, Type } from "@sinclair/typebox";
+import { type TObject, Type } from "typebox";
 import type {
   Claude,
   ProviderAdapter,

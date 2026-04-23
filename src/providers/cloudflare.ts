@@ -1,4 +1,4 @@
-import { type TObject, Type } from "@sinclair/typebox";
+import { type TObject, Type } from "typebox";
 import CloudflareClient from "cloudflare";
 import { resolveConfigValue } from "../config.js";
 import type { ContentsResponse } from "../contents.js";

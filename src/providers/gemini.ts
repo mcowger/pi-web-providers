@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { type TObject, Type } from "@sinclair/typebox";
+import { type TObject, Type } from "typebox";
 import { resolveConfigValue } from "../config.js";
 import { executeAsyncResearch } from "../execution-policy.js";
 import { DEFAULT_GEMINI_RESEARCH_MAX_CONSECUTIVE_POLL_ERRORS } from "../execution-policy-defaults.js";

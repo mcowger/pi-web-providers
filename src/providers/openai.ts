@@ -1,4 +1,4 @@
-import { type TObject, Type } from "@sinclair/typebox";
+import { type TObject, Type } from "typebox";
 import OpenAI from "openai";
 import { resolveConfigValue } from "../config.js";
 import { executeAsyncResearch } from "../execution-policy.js";

@@ -1,5 +1,5 @@
 import { Codex as CodexClient } from "@openai/codex-sdk";
-import { type Static, type TObject, Type } from "@sinclair/typebox";
+import { type Static, type TObject, Type } from "typebox";
 import { resolveConfigValue, resolveEnvMap } from "../config.js";
 import type {
   Codex,

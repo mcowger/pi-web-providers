@@ -2,7 +2,7 @@ import FirecrawlClient, {
   type Document,
   type SearchData,
 } from "@mendable/firecrawl-js";
-import { type TObject, Type } from "@sinclair/typebox";
+import { type TObject, Type } from "typebox";
 import { resolveConfigValue } from "../config.js";
 import type { ContentsResponse } from "../contents.js";
 import { stripLocalExecutionOptions } from "../execution-policy.js";

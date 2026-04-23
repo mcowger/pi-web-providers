@@ -29,7 +29,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { getConfigPath, loadConfig, writeConfigFile } from "./config.js";
 import { type ContentsResponse, renderContentsAnswers } from "./contents.js";
 import { formatElapsed, formatErrorMessage } from "./execution-policy.js";
@@ -232,11 +232,6 @@ export default function webProvidersExtension(pi: ExtensionAPI) {
       ctx.cwd,
       { addAvailable: true },
     );
-  });
-
-  pi.on("session_switch", async (_event, ctx) => {
-    latestWidgetContext = ctx;
-    updateWebResearchWidget(ctx);
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {

@@ -5,6 +5,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { __test__ } from "../src/index.js";
 import type { WebProviders } from "../src/types.js";
 
+interface TestSchema {
+  anyOf?: TestSchema[];
+  properties?: Record<string, TestSchema>;
+}
+
+function schemaInner(schema: unknown): TestSchema {
+  const typed = schema as TestSchema;
+  return typed.anyOf?.[0] ?? typed;
+}
+
 const cleanupDirs: string[] = [];
 
 afterEach(async () => {
@@ -1054,8 +1064,9 @@ describe("provider tool output", () => {
   });
 
   it("builds structured options schema with provider and runtime sub-objects", () => {
-    const schema = __test__.buildStructuredOptionsSchema("search", "tavily")!;
-    const inner = schema.anyOf?.[0] ?? schema;
+    const inner = schemaInner(
+      __test__.buildStructuredOptionsSchema("search", "tavily"),
+    );
     const props = inner.properties ?? {};
     expect(props).toHaveProperty("provider");
     expect(props).toHaveProperty("runtime");
@@ -1066,16 +1077,18 @@ describe("provider tool output", () => {
   });
 
   it("omits provider sub-schema when provider has none", () => {
-    const schema = __test__.buildStructuredOptionsSchema("search", undefined)!;
-    const inner = schema.anyOf?.[0] ?? schema;
+    const inner = schemaInner(
+      __test__.buildStructuredOptionsSchema("search", undefined),
+    );
     const props = inner.properties ?? {};
     expect(props).not.toHaveProperty("provider");
     expect(props).toHaveProperty("runtime");
   });
 
   it("omits prefetch from runtime for non-search capabilities", () => {
-    const schema = __test__.buildStructuredOptionsSchema("contents", "tavily")!;
-    const inner = schema.anyOf?.[0] ?? schema;
+    const inner = schemaInner(
+      __test__.buildStructuredOptionsSchema("contents", "tavily"),
+    );
     const runtimeInner =
       inner.properties?.runtime?.anyOf?.[0] ?? inner.properties?.runtime;
     const runtimeProps = runtimeInner?.properties ?? {};
@@ -1092,18 +1105,17 @@ describe("provider tool output", () => {
       "custom",
     )!;
 
-    const exaContentsProps =
-      (exaContents.anyOf?.[0] ?? exaContents).properties ?? {};
-    const customSearchProps =
-      (customSearch.anyOf?.[0] ?? customSearch).properties ?? {};
+    const exaContentsProps = schemaInner(exaContents).properties ?? {};
+    const customSearchProps = schemaInner(customSearch).properties ?? {};
 
     expect(exaContentsProps).not.toHaveProperty("provider");
     expect(customSearchProps).not.toHaveProperty("provider");
   });
 
   it("does not leak Exa search options into the contents schema", () => {
-    const schema = __test__.buildStructuredOptionsSchema("contents", "exa")!;
-    const inner = schema.anyOf?.[0] ?? schema;
+    const inner = schemaInner(
+      __test__.buildStructuredOptionsSchema("contents", "exa"),
+    );
     const props = inner.properties ?? {};
 
     expect(props).not.toHaveProperty("provider");
@@ -1123,11 +1135,10 @@ describe("provider tool output", () => {
     const serper = __test__.buildStructuredOptionsSchema("search", "serper")!;
     const tavily = __test__.buildStructuredOptionsSchema("search", "tavily")!;
 
-    const perplexityProvider = (perplexity.anyOf?.[0] ?? perplexity).properties
-      ?.provider;
-    const exaProvider = (exa.anyOf?.[0] ?? exa).properties?.provider;
-    const serperProvider = (serper.anyOf?.[0] ?? serper).properties?.provider;
-    const tavilyProvider = (tavily.anyOf?.[0] ?? tavily).properties?.provider;
+    const perplexityProvider = schemaInner(perplexity).properties?.provider;
+    const exaProvider = schemaInner(exa).properties?.provider;
+    const serperProvider = schemaInner(serper).properties?.provider;
+    const tavilyProvider = schemaInner(tavily).properties?.provider;
 
     expect(perplexityProvider?.properties ?? {}).toHaveProperty("country");
     expect(exaProvider?.properties ?? {}).toHaveProperty("userLocation");
@@ -1140,16 +1151,17 @@ describe("provider tool output", () => {
     const gemini = __test__.buildStructuredOptionsSchema("research", "gemini")!;
     const valyu = __test__.buildStructuredOptionsSchema("search", "valyu")!;
 
-    const geminiProvider = (gemini.anyOf?.[0] ?? gemini).properties?.provider;
-    const valyuProvider = (valyu.anyOf?.[0] ?? valyu).properties?.provider;
+    const geminiProvider = schemaInner(gemini).properties?.provider;
+    const valyuProvider = schemaInner(valyu).properties?.provider;
 
     expect(geminiProvider?.properties ?? {}).toHaveProperty("agent_config");
     expect(valyuProvider?.properties ?? {}).toHaveProperty("countryCode");
   });
 
   it("omits runtime from the research tool schema", () => {
-    const schema = __test__.buildStructuredOptionsSchema("research", "gemini")!;
-    const inner = schema.anyOf?.[0] ?? schema;
+    const inner = schemaInner(
+      __test__.buildStructuredOptionsSchema("research", "gemini"),
+    );
     const props = inner.properties ?? {};
 
     expect(props).not.toHaveProperty("runtime");

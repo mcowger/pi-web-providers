@@ -1,0 +1,9 @@
+created: 2026-04-25
+title: Reliable web research
+intro: >-
+  This release makes Gemini-powered web research start reliably in the default pi
+  workflow and improves the completion summary for saved reports. It also clarifies
+  the expand hint for collapsed research details.
+source:
+  mode: sync-stable-queue
+  previous_stable: v2.4.1

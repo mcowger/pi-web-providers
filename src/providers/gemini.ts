@@ -23,7 +23,7 @@ const DEFAULT_SEARCH_MODEL = "gemini-2.5-flash";
 const DEFAULT_ANSWER_MODEL = "gemini-2.5-flash";
 const DEFAULT_RESEARCH_AGENT = "deep-research-pro-preview-12-2025";
 
-type GeminiAdapter = ProviderAdapter<Gemini> & {
+type GeminiAdapter = ProviderAdapter<"gemini"> & {
   search(
     query: string,
     maxResults: number,
@@ -114,11 +114,17 @@ const geminiAnswerConfigSchema = Type.Object(
 
 const geminiAgentConfigSchema = Type.Object(
   {
-    response_length: Type.Optional(
-      Type.String({ description: "Research response length hint." }),
+    thinking_summaries: Type.Optional(
+      literalUnion(["auto", "none"], {
+        description: "Whether to include thought summaries in the response.",
+      }),
     ),
   },
-  { description: "Gemini agent configuration." },
+  {
+    additionalProperties: false,
+    description:
+      "Safe Gemini deep-research agent configuration. The adapter adds the required type field.",
+  },
 );
 
 const geminiSearchOptionsSchema = Type.Object(
@@ -150,49 +156,8 @@ const geminiAnswerOptionsSchema = Type.Object(
 const geminiResearchOptionsSchema = Type.Object(
   {
     agent_config: Type.Optional(geminiAgentConfigSchema),
-    store: Type.Optional(
-      Type.Boolean({
-        description: "Store the interaction for later retrieval.",
-      }),
-    ),
-    response_format: Type.Optional(
-      Type.Object(
-        {
-          type: Type.Optional(
-            Type.String({ description: "Requested response format type." }),
-          ),
-        },
-        { description: "Response format overrides." },
-      ),
-    ),
-    response_modalities: Type.Optional(
-      Type.Array(Type.String(), {
-        description: "Response modalities to request from Gemini.",
-      }),
-    ),
-    system_instruction: Type.Optional(
-      Type.String({
-        description: "System instruction for the research agent.",
-      }),
-    ),
-    tools: Type.Optional(
-      Type.Array(
-        Type.Object(
-          {
-            urlContext: Type.Optional(
-              Type.Object({}, { description: "Enable URL context." }),
-            ),
-            googleSearch: Type.Optional(
-              Type.Object({}, { description: "Enable Google Search." }),
-            ),
-          },
-          { description: "Gemini tool configuration." },
-        ),
-        { description: "Tools available to the Gemini research run." },
-      ),
-    ),
   },
-  { description: "Gemini research options." },
+  { additionalProperties: false, description: "Gemini research options." },
 );
 
 export const geminiAdapter: GeminiAdapter = {
@@ -1123,7 +1088,56 @@ function getGeminiResearchRequestOptions(
     return {};
   }
 
-  return { ...options };
+  const unknownKeys = Object.keys(options).filter(
+    (key) => key !== "agent_config",
+  );
+  if (unknownKeys.length > 0) {
+    throw new Error(
+      `Unsupported Gemini research options: ${unknownKeys.join(", ")}.`,
+    );
+  }
+
+  const requestOptions: Record<string, unknown> = {};
+
+  const agentConfig = getGeminiDeepResearchAgentConfig(options.agent_config);
+  if (agentConfig) {
+    requestOptions.agent_config = agentConfig;
+  }
+
+  return requestOptions;
+}
+
+function getGeminiDeepResearchAgentConfig(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  if (Object.keys(value).length === 0) {
+    return undefined;
+  }
+
+  const unknownKeys = Object.keys(value).filter(
+    (key) => key !== "thinking_summaries",
+  );
+  if (unknownKeys.length > 0) {
+    throw new Error(
+      `Unsupported Gemini agent_config options: ${unknownKeys.join(", ")}.`,
+    );
+  }
+
+  const thinkingSummaries = readNonEmptyString(value.thinking_summaries);
+  if (thinkingSummaries !== "auto" && thinkingSummaries !== "none") {
+    throw new Error(
+      "Gemini agent_config.thinking_summaries must be 'auto' or 'none'.",
+    );
+  }
+
+  return {
+    type: "deep-research",
+    thinking_summaries: thinkingSummaries,
+  };
 }
 
 function stripToolChoice(

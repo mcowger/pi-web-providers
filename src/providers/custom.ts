@@ -14,7 +14,7 @@ import type {
 import { runCliJsonCommand } from "./cli-json.js";
 import { buildProviderPlan } from "./framework.js";
 
-type CustomAdapter = ProviderAdapter<Custom> & {
+type CustomAdapter = ProviderAdapter<"custom"> & {
   search(
     query: string,
     maxResults: number,

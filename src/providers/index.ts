@@ -1,4 +1,4 @@
-import type { AnyProvider, ProviderAdapter, ProviderId } from "../types.js";
+import type { ProviderAdaptersById } from "../types.js";
 import { claudeAdapter } from "./claude.js";
 import { cloudflareAdapter } from "./cloudflare.js";
 import { codexAdapter } from "./codex.js";
@@ -14,10 +14,7 @@ import { serperAdapter } from "./serper.js";
 import { tavilyAdapter } from "./tavily.js";
 import { valyuAdapter } from "./valyu.js";
 
-export const ADAPTERS_BY_ID: Record<
-  ProviderId,
-  ProviderAdapter<AnyProvider>
-> = {
+export const ADAPTERS_BY_ID: ProviderAdaptersById = {
   claude: claudeAdapter,
   codex: codexAdapter,
   cloudflare: cloudflareAdapter,

@@ -6,6 +6,7 @@ import { __test__ } from "../src/index.js";
 import type { WebProviders } from "../src/types.js";
 
 interface TestSchema {
+  additionalProperties?: boolean;
   anyOf?: TestSchema[];
   properties?: Record<string, TestSchema>;
 }
@@ -324,7 +325,7 @@ describe("provider tool output", () => {
       options: undefined,
       queries: [
         "What are common ACME platform use cases?",
-        "How can an ACME platform help with legacy tool migration?",
+        "How can an ACME platform help with tool migration?",
       ],
       planOverrides: [
         {
@@ -355,7 +356,7 @@ describe("provider tool output", () => {
       "ACME platforms are used for workflow automation and data operations.",
     );
     expect(result.content[0]?.text).toContain(
-      'Question 2: "How can an ACME platform help with legacy tool migration?"',
+      'Question 2: "How can an ACME platform help with tool migration?"',
     );
     expect(result.content[0]?.text).toContain(
       "ACME platforms can reduce migration costs by reshaping and routing data.",
@@ -387,7 +388,7 @@ describe("provider tool output", () => {
       options: undefined,
       queries: [
         "What are common ACME platform use cases?",
-        "How can an ACME platform help with legacy tool migration?",
+        "How can an ACME platform help with tool migration?",
       ],
       planOverrides: [
         {
@@ -414,7 +415,7 @@ describe("provider tool output", () => {
       'Question 1: "What are common ACME platform use cases?"',
     );
     expect(result.content[0]?.text).toContain(
-      'Question 2: "How can an ACME platform help with legacy tool migration?"',
+      'Question 2: "How can an ACME platform help with tool migration?"',
     );
     expect(result.content[0]?.text).toContain(
       "Answer failed: Gemini: rate limited.",
@@ -447,7 +448,7 @@ describe("provider tool output", () => {
         options: undefined,
         queries: [
           "What are common ACME platform use cases?",
-          "How can an ACME platform help with legacy tool migration?",
+          "How can an ACME platform help with tool migration?",
         ],
         planOverrides: [
           {
@@ -469,7 +470,7 @@ describe("provider tool output", () => {
         ],
       }),
     ).rejects.toThrow(
-      'All 2 web_answer queries failed: 1. "What are common ACME platform use cases?" — Gemini: timeout.; 2. "How can an ACME platform help with lega…" — Gemini: rate limited.',
+      'All 2 web_answer queries failed: 1. "What are common ACME platform use cases?" — Gemini: timeout.; 2. "How can an ACME platform help with tool…" — Gemini: rate limited.',
     );
   });
 
@@ -497,7 +498,7 @@ describe("provider tool output", () => {
           providerLabel: "Gemini",
           execute: async () => ({
             provider: "gemini",
-            text: "ACME platforms are used for workflow automation and legacy migrations.",
+            text: "ACME platforms are used for workflow automation and data migrations.",
             itemCount: 2,
           }),
         },
@@ -505,7 +506,7 @@ describe("provider tool output", () => {
     });
 
     expect(result.content[0]?.text).toBe(
-      '## "What are common ACME platform use cases?"\n\nACME platforms are used for workflow automation and legacy migrations.',
+      '## "What are common ACME platform use cases?"\n\nACME platforms are used for workflow automation and data migrations.',
     );
     expect(result.details).toEqual({
       tool: "web_answer",
@@ -540,7 +541,7 @@ describe("provider tool output", () => {
       options: undefined,
       queries: [
         "What are common ACME platform use cases?",
-        "How can an ACME platform help with legacy tool migration?",
+        "How can an ACME platform help with tool migration?",
       ],
       planOverrides: [
         {
@@ -1147,14 +1148,24 @@ describe("provider tool output", () => {
     expect(tavilyProvider?.properties ?? {}).toHaveProperty("country");
   });
 
-  it("exposes provider-specific research knobs in provider schemas", () => {
+  it("exposes only safe Gemini research knobs in provider schemas", () => {
     const gemini = __test__.buildStructuredOptionsSchema("research", "gemini")!;
     const valyu = __test__.buildStructuredOptionsSchema("search", "valyu")!;
 
     const geminiProvider = schemaInner(gemini).properties?.provider;
+    const geminiProviderProps = geminiProvider?.properties ?? {};
     const valyuProvider = schemaInner(valyu).properties?.provider;
 
-    expect(geminiProvider?.properties ?? {}).toHaveProperty("agent_config");
+    expect(geminiProvider?.additionalProperties).toBe(false);
+    expect(geminiProviderProps).toHaveProperty("agent_config");
+    expect(geminiProviderProps.agent_config?.additionalProperties).toBe(false);
+    expect(geminiProviderProps).not.toHaveProperty("store");
+    expect(geminiProviderProps).not.toHaveProperty("tools");
+    expect(geminiProviderProps).not.toHaveProperty("response_format");
+    expect(geminiProviderProps).not.toHaveProperty("response_modalities");
+    expect(geminiProviderProps).not.toHaveProperty("system_instruction");
+    expect(JSON.stringify(gemini)).not.toContain("search_types");
+    expect(JSON.stringify(gemini)).not.toContain("response_length");
     expect(valyuProvider?.properties ?? {}).toHaveProperty("countryCode");
   });
 

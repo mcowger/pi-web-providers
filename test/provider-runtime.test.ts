@@ -11,7 +11,7 @@ describe("executeOperationPlan research timeouts", () => {
     vi.useFakeTimers();
 
     try {
-      const plan: ProviderPlan<ToolOutput> = {
+      const plan: ProviderPlan<"research"> = {
         capability: "research",
         providerId: "gemini",
         providerLabel: "Gemini",

@@ -73,7 +73,7 @@ interface ClaudeAnswerOutput {
   }>;
 }
 
-type ClaudeAdapter = ProviderAdapter<Claude> & {
+type ClaudeAdapter = ProviderAdapter<"claude"> & {
   search(
     queryText: string,
     maxResults: number,

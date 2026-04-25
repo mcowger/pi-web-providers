@@ -21,7 +21,7 @@ import { buildProviderPlan } from "./framework.js";
 import { literalUnion } from "./schema.js";
 import { asJsonObject, getApiKeyStatus, trimSnippet } from "./shared.js";
 
-type TavilyAdapter = ProviderAdapter<Tavily> & {
+type TavilyAdapter = ProviderAdapter<"tavily"> & {
   search(
     query: string,
     maxResults: number,

@@ -2,20 +2,17 @@ import { createDefaultExecutionSettings } from "./execution-policy-defaults.js";
 import { getMappedProviderForTool } from "./provider-tools.js";
 import { ADAPTERS_BY_ID } from "./providers/index.js";
 import type {
-  AnyProvider,
   ExecutionSettings,
   ProviderAdapter,
   ProviderCapabilityStatus,
+  ProviderConfig,
   ProviderId,
   ProviderSetupState,
   Tool,
   WebProviders,
 } from "./types.js";
 
-export function supportsTool(
-  provider: ProviderAdapter<unknown>,
-  tool: Tool,
-): boolean {
+export function supportsTool(provider: ProviderAdapter, tool: Tool): boolean {
   return provider.tools.includes(tool);
 }
 
@@ -36,22 +33,24 @@ export function getEffectiveSharedSettings(
   };
 }
 
-export function getEffectiveProviderConfig(
+export function getEffectiveProviderConfig<TProviderId extends ProviderId>(
   config: WebProviders,
-  providerId: ProviderId,
-): AnyProvider {
-  const defaults = ADAPTERS_BY_ID[providerId].createTemplate() as AnyProvider;
-  const overrides = (config.providers?.[providerId] ?? {}) as AnyProvider;
+  providerId: TProviderId,
+): ProviderConfig<TProviderId> {
+  const defaults = ADAPTERS_BY_ID[providerId].createTemplate();
+  const overrides =
+    config.providers?.[providerId] ??
+    ({} as Partial<ProviderConfig<TProviderId>>);
   const providerSettings = mergeExecutionSettings(
     defaults.settings,
     overrides.settings,
   );
 
-  const resolved = {
+  const resolved: ProviderConfig<TProviderId> = {
     ...defaults,
     ...overrides,
     options: mergeNestedObjects(defaults.options, overrides.options),
-  } as AnyProvider;
+  };
 
   const effectiveSettings = mergeExecutionSettings(
     config.settings,
@@ -118,15 +117,15 @@ export function getMappedProviderIdForTool(
   return getMappedProviderForTool(config, tool);
 }
 
-export function getProviderCapabilityStatus(
+export function getProviderCapabilityStatus<TProviderId extends ProviderId>(
   config: WebProviders,
   cwd: string,
-  providerId: ProviderId,
+  providerId: TProviderId,
   tool?: Tool,
 ): ProviderCapabilityStatus {
   const provider = ADAPTERS_BY_ID[providerId];
   return provider.getCapabilityStatus(
-    getEffectiveProviderConfig(config, providerId) as never,
+    getEffectiveProviderConfig(config, providerId),
     cwd,
     tool,
   );

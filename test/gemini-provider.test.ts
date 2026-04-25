@@ -491,7 +491,7 @@ it("does not build a contents plan", () => {
 });
 
 describe("GeminiAdapter research", () => {
-  it("starts Gemini deep research and forwards provider-specific request options", async () => {
+  it("starts Gemini deep research with supported request options", async () => {
     const create = vi.fn().mockResolvedValue({ id: "research-1" });
 
     const provider = createProvider({
@@ -504,41 +504,87 @@ describe("GeminiAdapter research", () => {
       "Investigate ACME platform use cases",
       createConfig(),
       { ...createContext(), idempotencyKey: "stable-key" },
-      {
-        agent_config: {
-          response_length: "short",
-        },
-        store: true,
-        response_format: {
-          type: "json_schema",
-        },
-        response_modalities: ["TEXT"],
-        system_instruction: "Focus on official sources.",
-        tools: [{ urlContext: {} }],
-        agent: "override-agent",
-        background: false,
-        input: "override",
-      },
+      undefined,
     );
 
     expect(job).toEqual({ id: "research-1" });
     expect(create).toHaveBeenCalledWith(
       {
-        agent_config: {
-          response_length: "short",
-        },
-        store: true,
-        response_format: {
-          type: "json_schema",
-        },
-        response_modalities: ["TEXT"],
-        system_instruction: "Focus on official sources.",
-        tools: [{ urlContext: {} }],
         input: "Investigate ACME platform use cases",
         agent: "deep-research-pro-preview-12-2025",
         background: true,
       },
       { idempotencyKey: "stable-key" },
+    );
+  });
+
+  it("rejects unsupported Gemini deep-research options", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "research-1" });
+    const provider = createProvider({ interactions: { create } });
+
+    await expect(
+      provider.startResearch!(
+        "Investigate ACME platform use cases",
+        createConfig(),
+        createContext(),
+        { tools: [] },
+      ),
+    ).rejects.toThrow("Unsupported Gemini research options: tools.");
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported Gemini deep-research agent configuration", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "research-1" });
+    const provider = createProvider({ interactions: { create } });
+
+    await expect(
+      provider.startResearch!(
+        "Investigate ACME platform use cases",
+        createConfig(),
+        createContext(),
+        {
+          agent_config: {
+            response_length: "short",
+          },
+        },
+      ),
+    ).rejects.toThrow(
+      "Unsupported Gemini agent_config options: response_length.",
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("forwards supported Gemini deep-research agent configuration", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "research-1" });
+
+    const provider = createProvider({
+      interactions: {
+        create,
+      },
+    });
+
+    await provider.startResearch!(
+      "Investigate ACME platform use cases",
+      createConfig(),
+      createContext(),
+      {
+        agent_config: {
+          thinking_summaries: "auto",
+        },
+      },
+    );
+
+    expect(create).toHaveBeenCalledWith(
+      {
+        agent_config: {
+          type: "deep-research",
+          thinking_summaries: "auto",
+        },
+        input: "Investigate ACME platform use cases",
+        agent: "deep-research-pro-preview-12-2025",
+        background: true,
+      },
+      undefined,
     );
   });
 

@@ -21,7 +21,7 @@ import {
   trimSnippet,
 } from "./shared.js";
 
-type ParallelAdapter = ProviderAdapter<Parallel> & {
+type ParallelAdapter = ProviderAdapter<"parallel"> & {
   search(
     query: string,
     maxResults: number,

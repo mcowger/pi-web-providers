@@ -254,7 +254,7 @@ describe("config parsing", () => {
     });
   });
 
-  it("rejects legacy flat Exa provider options", () => {
+  it("rejects unsupported flat Exa provider options", () => {
     expect(() =>
       parseConfig(
         JSON.stringify({
@@ -311,7 +311,7 @@ describe("config parsing", () => {
     });
   });
 
-  it("rejects legacy flat Valyu provider options", () => {
+  it("rejects unsupported flat Valyu provider options", () => {
     expect(() =>
       parseConfig(
         JSON.stringify({
@@ -329,7 +329,7 @@ describe("config parsing", () => {
     ).toThrow(/providers\.valyu\.options/);
   });
 
-  it("rejects legacy provider-local tool toggles", () => {
+  it("rejects unsupported provider-local tool toggles", () => {
     expect(() =>
       parseConfig(
         JSON.stringify({

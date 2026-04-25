@@ -1,4 +1,3 @@
-import type { ContentsResponse } from "./contents.js";
 import {
   formatDuration,
   formatErrorMessage,
@@ -10,17 +9,15 @@ import type {
   ExecutionSettings,
   ProviderContext,
   ProviderPlan,
-  SearchResponse,
-  ToolOutput,
+  ProviderResult,
+  Tool,
 } from "./types.js";
 
-export async function executeOperationPlan<
-  TResult extends SearchResponse | ContentsResponse | ToolOutput,
->(
-  plan: ProviderPlan<TResult>,
+export async function executeOperationPlan<TTool extends Tool>(
+  plan: ProviderPlan<TTool>,
   options: Record<string, unknown> | undefined,
   context: ProviderContext,
-): Promise<TResult> {
+): Promise<ProviderResult<TTool>> {
   if (plan.capability === "research") {
     rejectResearchExecutionControls(plan.providerLabel, options);
     const deadline = createResearchDeadlineSignal(

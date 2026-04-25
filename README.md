@@ -281,8 +281,11 @@ scope, or account ID is usually wrong.
 - Google Search grounding for answers
 - Deep-research agents via Google's Gemini API
 - Exposes `model` and `generation_config` for search, `model` and `config`
-  for answers, and `agent_config`, `store`, `response_format`,
-  `response_modalities`, `system_instruction`, and `tools` for research
+  for answers, and only the conservative deep-research option
+  `agent_config.thinking_summaries` for research
+- Gemini research intentionally does not expose or send Interactions API
+  `tools`, `response_format`, `response_modalities`, or `system_instruction`
+  because the default deep-research agent rejects several of those fields
 
 </details>
 

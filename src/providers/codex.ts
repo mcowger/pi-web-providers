@@ -25,7 +25,7 @@ const codexOutputSchema = Type.Object({
 
 type CodexOutput = Static<typeof codexOutputSchema>;
 
-type CodexAdapter = ProviderAdapter<Codex> & {
+type CodexAdapter = ProviderAdapter<"codex"> & {
   search(
     query: string,
     maxResults: number,

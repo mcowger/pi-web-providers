@@ -20,7 +20,7 @@ import { buildProviderPlan } from "./framework.js";
 import { literalUnion } from "./schema.js";
 import { asJsonObject, getApiKeyStatus, trimSnippet } from "./shared.js";
 
-type FirecrawlAdapter = ProviderAdapter<Firecrawl> & {
+type FirecrawlAdapter = ProviderAdapter<"firecrawl"> & {
   search(
     query: string,
     maxResults: number,

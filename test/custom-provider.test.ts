@@ -125,14 +125,16 @@ describe("customAdapter", () => {
     });
   });
 
-  it("rejects legacy contents text payloads from the wrapped command", async () => {
+  it("rejects unsupported contents text payloads from the wrapped command", async () => {
     const root = await mkdtemp(join(tmpdir(), "pi-web-providers-custom-"));
     cleanupDirs.push(root);
 
-    const scriptPath = join(root, "legacy-contents.mjs");
+    const scriptPath = join(root, "unsupported-contents.mjs");
     await writeFile(
       scriptPath,
-      ['process.stdout.write(JSON.stringify({ text: "legacy" }));'].join("\n"),
+      ['process.stdout.write(JSON.stringify({ text: "unsupported" }));'].join(
+        "\n",
+      ),
       "utf8",
     );
 

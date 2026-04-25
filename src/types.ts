@@ -269,38 +269,27 @@ export interface Settings extends ExecutionSettings {
   search?: SearchSettings;
 }
 
-export interface Providers {
-  claude?: Claude;
-  cloudflare?: Cloudflare;
-  codex?: Codex;
-  custom?: Custom;
-  exa?: Exa;
-  firecrawl?: Firecrawl;
-  gemini?: Gemini;
-  linkup?: Linkup;
-  perplexity?: Perplexity;
-  parallel?: Parallel;
-  openai?: OpenAI;
-  serper?: Serper;
-  tavily?: Tavily;
-  valyu?: Valyu;
+export interface ProviderConfigMap {
+  claude: Claude;
+  cloudflare: Cloudflare;
+  codex: Codex;
+  custom: Custom;
+  exa: Exa;
+  firecrawl: Firecrawl;
+  gemini: Gemini;
+  linkup: Linkup;
+  openai: OpenAI;
+  parallel: Parallel;
+  perplexity: Perplexity;
+  serper: Serper;
+  tavily: Tavily;
+  valyu: Valyu;
 }
 
-export type AnyProvider =
-  | Claude
-  | Cloudflare
-  | Codex
-  | Custom
-  | Exa
-  | Firecrawl
-  | Gemini
-  | Linkup
-  | OpenAI
-  | Perplexity
-  | Parallel
-  | Serper
-  | Tavily
-  | Valyu;
+export type ProviderConfig<TProviderId extends ProviderId = ProviderId> =
+  ProviderConfigMap[TProviderId];
+
+export type Providers = Partial<ProviderConfigMap>;
 
 export interface WebProviders {
   tools?: Tools;
@@ -356,11 +345,15 @@ export interface ResearchRequest {
   options?: Record<string, unknown>;
 }
 
-export type ProviderRequest =
-  | SearchRequest
-  | ContentsRequest
-  | AnswerRequest
-  | ResearchRequest;
+export interface ProviderRequestMap {
+  search: SearchRequest;
+  contents: ContentsRequest;
+  answer: AnswerRequest;
+  research: ResearchRequest;
+}
+
+export type ProviderRequest<TTool extends Tool = Tool> =
+  ProviderRequestMap[TTool];
 
 export const EXECUTION_CONTROL_KEYS = [
   "requestTimeoutMs",
@@ -375,34 +368,49 @@ export interface ProviderPlanTraits {
   settings?: ExecutionSettings;
 }
 
-export interface ProviderPlan<TResult> {
-  capability: Tool;
+export interface ProviderResultMap {
+  search: SearchResponse;
+  contents: ContentsResponse;
+  answer: ToolOutput;
+  research: ToolOutput;
+}
+
+export type ProviderResult<TTool extends Tool = Tool> =
+  ProviderResultMap[TTool];
+
+export interface ProviderPlan<TTool extends Tool = Tool> {
+  capability: TTool;
   providerId: ProviderId;
   providerLabel: string;
   traits?: ProviderPlanTraits;
-  execute: (context: ProviderContext) => Promise<TResult>;
+  execute: (context: ProviderContext) => Promise<ProviderResult<TTool>>;
 }
-
-export type ProviderResult = SearchResponse | ContentsResponse | ToolOutput;
 
 export type ProviderOptionsSchema = TObject;
 
-export interface ProviderAdapter<TConfig> {
-  readonly id: ProviderId;
+export interface ProviderAdapter<TProviderId extends ProviderId = ProviderId> {
+  readonly id: TProviderId;
   readonly label: string;
   readonly docsUrl: string;
   readonly tools: readonly Tool[];
 
-  createTemplate(): TConfig;
+  createTemplate(): ProviderConfig<TProviderId>;
   getCapabilityStatus(
-    config: TConfig | undefined,
+    config: ProviderConfig<TProviderId> | undefined,
     cwd: string,
     tool?: Tool,
   ): ProviderCapabilityStatus;
   buildPlan(
     request: ProviderRequest,
-    config: TConfig,
-  ): ProviderPlan<ProviderResult> | null;
+    config: ProviderConfig<TProviderId>,
+  ): ProviderPlan | null;
   getToolOptionsSchema?(capability: Tool): ProviderOptionsSchema | undefined;
-  getConfigForCapability?(capability: Tool, config: TConfig): unknown;
+  getConfigForCapability?(
+    capability: Tool,
+    config: ProviderConfig<TProviderId>,
+  ): unknown;
 }
+
+export type ProviderAdaptersById = {
+  [TProviderId in ProviderId]: ProviderAdapter<TProviderId>;
+};

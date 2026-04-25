@@ -27,7 +27,7 @@ import {
   trimSnippet,
 } from "./shared.js";
 
-type ValyuAdapter = ProviderAdapter<Valyu> & {
+type ValyuAdapter = ProviderAdapter<"valyu"> & {
   search(
     query: string,
     maxResults: number,

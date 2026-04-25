@@ -30,7 +30,7 @@ type PerplexityForegroundChunk = {
   citations?: Array<string | null> | null;
 };
 
-type PerplexityAdapter = ProviderAdapter<Perplexity> & {
+type PerplexityAdapter = ProviderAdapter<"perplexity"> & {
   search(
     query: string,
     maxResults: number,

@@ -206,7 +206,7 @@ describe("web_answer renderer", () => {
         {
           queries: [
             "What are common ACME platform use cases?",
-            "How can an ACME platform help with legacy tool migration?",
+            "How can an ACME platform help with tool migration?",
           ],
         },
         createTheme(),
@@ -217,7 +217,7 @@ describe("web_answer renderer", () => {
     expect(rendered).toContain("web_answer");
     expect(rendered).toContain("  What are common ACME platform use cases?");
     expect(rendered).toContain(
-      "  How can an ACME platform help with legacy tool migration?",
+      "  How can an ACME platform help with tool migration?",
     );
     expect(rendered).not.toContain("provider=");
   });
@@ -265,7 +265,7 @@ describe("web_research renderer", () => {
     );
 
     expect(rendered).toContain("Started web research via Gemini");
-    expect(rendered).toContain("to expand");
+    expect(rendered).toContain("ctrl+o to expand");
   });
 
   it("shows the full research prompt in the expanded tool result", () => {
@@ -324,7 +324,7 @@ describe("web_research renderer", () => {
     expect(rendered).toContain(
       "▸ file: /tmp/project/.pi/artifacts/research/report.md",
     );
-    expect(rendered).toContain("to expand");
+    expect(rendered).toContain("ctrl+o to expand");
     expect(rendered).not.toContain("# Web research report");
   });
 

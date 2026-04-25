@@ -48,7 +48,7 @@ const serperSearchOptionsSchema = Type.Object(
   { description: "Serper search options." },
 );
 
-export const serperAdapter: ProviderAdapter<Serper> & {
+export const serperAdapter: ProviderAdapter<"serper"> & {
   search(
     query: string,
     maxResults: number,

@@ -27,7 +27,7 @@ import {
   trimSnippet,
 } from "./shared.js";
 
-type ExaAdapter = ProviderAdapter<Exa> & {
+type ExaAdapter = ProviderAdapter<"exa"> & {
   search(
     query: string,
     maxResults: number,

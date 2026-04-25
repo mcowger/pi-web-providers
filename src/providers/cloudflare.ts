@@ -15,7 +15,7 @@ import { buildProviderPlan } from "./framework.js";
 import { literalUnion } from "./schema.js";
 import { asJsonObject } from "./shared.js";
 
-type CloudflareAdapter = ProviderAdapter<Cloudflare> & {
+type CloudflareAdapter = ProviderAdapter<"cloudflare"> & {
   contents(
     urls: string[],
     config: Cloudflare,

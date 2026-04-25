@@ -136,7 +136,7 @@ interface OpenAIResponseLike {
   }>;
 }
 
-type OpenAIAdapter = ProviderAdapter<OpenAIConfig> & {
+type OpenAIAdapter = ProviderAdapter<"openai"> & {
   search(
     query: string,
     maxResults: number,

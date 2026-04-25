@@ -1,39 +1,31 @@
-import type { ContentsResponse } from "../contents.js";
 import { createProviderPlan } from "../provider-plans.js";
 import type {
-  AnswerRequest,
-  ContentsRequest,
   ExecutionSettings,
   ProviderContext,
+  ProviderId,
   ProviderPlan,
   ProviderRequest,
-  ResearchRequest,
-  SearchRequest,
-  SearchResponse,
-  ToolOutput,
+  ProviderResult,
+  Tool,
 } from "../types.js";
 
 interface ConfigWithSettings {
   settings?: ExecutionSettings;
 }
 
-type Handler<
-  TConfig,
-  TRequest extends ProviderRequest,
-  TResult extends SearchResponse | ContentsResponse | ToolOutput,
-> = {
+type Handler<TConfig, TTool extends Tool> = {
   execute: (
-    request: TRequest,
+    request: ProviderRequest<TTool>,
     config: TConfig,
     context: ProviderContext,
-  ) => Promise<TResult>;
+  ) => Promise<ProviderResult<TTool>>;
 };
 
 export interface ProviderCapabilityHandlers<TConfig> {
-  search?: Handler<TConfig, SearchRequest, SearchResponse>;
-  contents?: Handler<TConfig, ContentsRequest, ContentsResponse>;
-  answer?: Handler<TConfig, AnswerRequest, ToolOutput>;
-  research?: Handler<TConfig, ResearchRequest, ToolOutput>;
+  search?: Handler<TConfig, "search">;
+  contents?: Handler<TConfig, "contents">;
+  answer?: Handler<TConfig, "answer">;
+  research?: Handler<TConfig, "research">;
 }
 
 export function buildProviderPlan<TConfig>({
@@ -46,11 +38,11 @@ export function buildProviderPlan<TConfig>({
 }: {
   request: ProviderRequest;
   config: TConfig;
-  providerId: ProviderPlan<unknown>["providerId"];
+  providerId: ProviderId;
   providerLabel: string;
   handlers: ProviderCapabilityHandlers<TConfig>;
   resolvePlanConfig?: (config: TConfig) => ConfigWithSettings;
-}): ProviderPlan<SearchResponse | ContentsResponse | ToolOutput> | null {
+}): ProviderPlan | null {
   const planConfig = resolvePlanConfig?.(config) ?? asPlanConfig(config);
 
   switch (request.capability) {
@@ -93,11 +85,7 @@ export function buildProviderPlan<TConfig>({
   }
 }
 
-function buildPlan<
-  TConfig,
-  TRequest extends ProviderRequest,
-  TResult extends SearchResponse | ContentsResponse | ToolOutput,
->({
+function buildPlan<TConfig, TTool extends Tool>({
   request,
   config,
   providerId,
@@ -105,20 +93,20 @@ function buildPlan<
   planConfig,
   handler,
 }: {
-  request: TRequest;
+  request: ProviderRequest<TTool>;
   config: TConfig;
-  providerId: ProviderPlan<unknown>["providerId"];
+  providerId: ProviderId;
   providerLabel: string;
   planConfig: ConfigWithSettings;
-  handler: Handler<TConfig, TRequest, TResult> | undefined;
-}): ProviderPlan<TResult> | null {
+  handler: Handler<TConfig, TTool> | undefined;
+}): ProviderPlan<TTool> | null {
   if (!handler) {
     return null;
   }
 
-  return createProviderPlan({
+  return createProviderPlan<TTool>({
     config: planConfig,
-    capability: request.capability,
+    capability: request.capability as TTool,
     providerId,
     providerLabel,
     execute: (context: ProviderContext) =>

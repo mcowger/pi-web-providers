@@ -46,7 +46,7 @@ type ManagedLinkupSearchParams = Extract<
   { outputType: "searchResults" }
 >;
 
-type LinkupAdapter = ProviderAdapter<Linkup> & {
+type LinkupAdapter = ProviderAdapter<"linkup"> & {
   search(
     query: string,
     maxResults: number,

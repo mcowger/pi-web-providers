@@ -10,7 +10,6 @@ import {
   type ExtensionContext,
   formatSize,
   getMarkdownTheme,
-  keyHint,
   type Theme,
   truncateHead,
 } from "@mariozechner/pi-coding-agent";
@@ -65,13 +64,13 @@ import { executeOperationPlan } from "./provider-runtime.js";
 import { getCompatibleProviders, TOOL_INFO } from "./provider-tools.js";
 import { ADAPTERS, ADAPTERS_BY_ID } from "./providers/index.js";
 import type {
-  AnyProvider,
   Claude,
   Codex,
   Exa,
   ExecutionSettings,
   Gemini,
   Parallel,
+  ProviderConfig,
   ProviderId,
   ProviderPlan,
   ProviderRequest,
@@ -788,7 +787,7 @@ async function executeSearchToolInternal({
   runtimeOptions?: Record<string, unknown> | undefined;
   maxResults?: number;
   queries: string[];
-  planOverrides?: ProviderPlan<SearchResponse>[];
+  planOverrides?: ProviderPlan<"search">[];
 }) {
   await cleanupContentStore();
 
@@ -836,7 +835,7 @@ async function executeSearchToolInternal({
       searchQueries.map((searchQuery, index) =>
         executeSingleSearchQuery({
           provider,
-          providerConfig: providerConfig as AnyProvider,
+          providerConfig,
           query: searchQuery,
           maxResults: clampedMaxResults,
           options: providerOptions,
@@ -925,7 +924,7 @@ async function executeRawProviderRequest({
 
     return executeSingleSearchQuery({
       provider,
-      providerConfig: providerConfig as AnyProvider,
+      providerConfig,
       query: query ?? "",
       maxResults: clampResults(maxResults),
       options,
@@ -950,7 +949,7 @@ async function executeRawProviderRequest({
       capability,
       config,
       provider,
-      providerConfig: providerConfig as AnyProvider,
+      providerConfig,
       ctx,
       signal,
       options,
@@ -964,7 +963,7 @@ async function executeRawProviderRequest({
       capability,
       config,
       provider,
-      providerConfig: providerConfig as AnyProvider,
+      providerConfig,
       ctx,
       signal,
       options,
@@ -977,7 +976,7 @@ async function executeRawProviderRequest({
     capability,
     config,
     provider,
-    providerConfig: providerConfig as AnyProvider,
+    providerConfig,
     ctx,
     signal,
     options,
@@ -1019,14 +1018,14 @@ async function executeSingleSearchQuery({
   planOverride,
 }: {
   provider: (typeof ADAPTERS)[number];
-  providerConfig: AnyProvider;
+  providerConfig: ProviderConfig;
   query: string;
   maxResults: number;
   options: Record<string, unknown> | undefined;
   runtimeOptions?: Record<string, unknown> | undefined;
   providerContext: { cwd: string; signal?: AbortSignal };
   onProgress?: (message: string) => void;
-  planOverride?: ProviderPlan<SearchResponse>;
+  planOverride?: ProviderPlan<"search">;
 }): Promise<SearchResponse> {
   const plan =
     planOverride ??
@@ -1097,7 +1096,7 @@ async function executeAnswerToolInternal({
   providerOptions: Record<string, unknown> | undefined;
   runtimeOptions?: Record<string, unknown> | undefined;
   queries: string[];
-  planOverrides?: ProviderPlan<ToolOutput>[];
+  planOverrides?: ProviderPlan<"answer">[];
 }) {
   const provider = resolveProviderForTool(
     config,
@@ -1140,7 +1139,7 @@ async function executeAnswerToolInternal({
           capability: "answer",
           config,
           provider,
-          providerConfig: providerConfig as AnyProvider,
+          providerConfig,
           ctx,
           signal,
           options: providerOptions,
@@ -1269,14 +1268,14 @@ async function executeProviderOperation({
   capability: "contents";
   config: WebProviders;
   provider: (typeof ADAPTERS)[number];
-  providerConfig: AnyProvider;
+  providerConfig: ProviderConfig;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
   runtimeOptions?: Record<string, unknown> | undefined;
   urls?: string[];
   onProgress?: (message: string) => void;
-  planOverride?: ProviderPlan<ContentsResponse>;
+  planOverride?: ProviderPlan<"contents">;
 }): Promise<ContentsResponse>;
 async function executeProviderOperation({
   capability,
@@ -1295,7 +1294,7 @@ async function executeProviderOperation({
   capability: Exclude<Tool, "search" | "contents">;
   config: WebProviders;
   provider: (typeof ADAPTERS)[number];
-  providerConfig: AnyProvider;
+  providerConfig: ProviderConfig;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
@@ -1303,7 +1302,7 @@ async function executeProviderOperation({
   query?: string;
   input?: string;
   onProgress?: (message: string) => void;
-  planOverride?: ProviderPlan<ToolOutput>;
+  planOverride?: ProviderPlan<Exclude<Tool, "search" | "contents">>;
 }): Promise<ToolOutput>;
 async function executeProviderOperation({
   capability,
@@ -1323,7 +1322,7 @@ async function executeProviderOperation({
   capability: Exclude<Tool, "search">;
   config: WebProviders;
   provider: (typeof ADAPTERS)[number];
-  providerConfig: AnyProvider;
+  providerConfig: ProviderConfig;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
@@ -1332,7 +1331,7 @@ async function executeProviderOperation({
   query?: string;
   input?: string;
   onProgress?: (message: string) => void;
-  planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
+  planOverride?: ProviderPlan<Exclude<Tool, "search">>;
 }): Promise<ContentsResponse | ToolOutput> {
   const plan =
     planOverride ??
@@ -1438,8 +1437,8 @@ async function executeProviderToolInternal({
   urls?: string[];
   query?: string;
   input?: string;
-  planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
-  planOverrides?: ProviderPlan<ContentsResponse>[];
+  planOverride?: ProviderPlan<Exclude<Tool, "search">>;
+  planOverrides?: ProviderPlan<"contents">[];
 }) {
   await cleanupContentStore();
 
@@ -1466,7 +1465,7 @@ async function executeProviderToolInternal({
           ? await executeBatchedContentsTool({
               config,
               provider,
-              providerConfig: providerConfig as AnyProvider,
+              providerConfig,
               ctx,
               signal,
               options: providerOptions,
@@ -1479,7 +1478,7 @@ async function executeProviderToolInternal({
               capability,
               config,
               provider,
-              providerConfig: providerConfig as AnyProvider,
+              providerConfig,
               ctx,
               signal,
               options: providerOptions,
@@ -1487,7 +1486,7 @@ async function executeProviderToolInternal({
               urls,
               onProgress: progressReporter.report,
               planOverride: planOverride as
-                | ProviderPlan<ContentsResponse>
+                | ProviderPlan<"contents">
                 | undefined,
             });
     } else {
@@ -1495,7 +1494,7 @@ async function executeProviderToolInternal({
         capability,
         config,
         provider,
-        providerConfig: providerConfig as AnyProvider,
+        providerConfig,
         ctx,
         signal,
         options: providerOptions,
@@ -1503,7 +1502,9 @@ async function executeProviderToolInternal({
         query,
         input,
         onProgress: progressReporter.report,
-        planOverride: planOverride as ProviderPlan<ToolOutput> | undefined,
+        planOverride: planOverride as
+          | ProviderPlan<Exclude<Tool, "search" | "contents">>
+          | undefined,
       });
     }
   } finally {
@@ -1579,7 +1580,7 @@ async function dispatchWebResearchInternal({
   ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
   providerOptions: Record<string, unknown> | undefined;
   input: string;
-  planOverride?: ProviderPlan<ToolOutput>;
+  planOverride?: ProviderPlan<"research">;
 }) {
   await cleanupContentStore();
 
@@ -1603,7 +1604,7 @@ async function dispatchWebResearchInternal({
       request,
       config,
       provider,
-      providerConfig: providerConfig as AnyProvider,
+      providerConfig,
       ctx,
       options: providerOptions,
       planOverride,
@@ -1641,10 +1642,10 @@ async function runDispatchedWebResearch({
   request: WebResearchRequest;
   config: WebProviders;
   provider: (typeof ADAPTERS)[number];
-  providerConfig: AnyProvider;
+  providerConfig: ProviderConfig;
   ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
   options: Record<string, unknown> | undefined;
-  planOverride?: ProviderPlan<ToolOutput>;
+  planOverride?: ProviderPlan<"research">;
 }): Promise<void> {
   let result: WebResearchResult;
   let reportText = "";
@@ -1939,14 +1940,14 @@ async function executeBatchedContentsTool({
 }: {
   config: WebProviders;
   provider: (typeof ADAPTERS)[number];
-  providerConfig: AnyProvider;
+  providerConfig: ProviderConfig;
   ctx: { cwd: string };
   signal: AbortSignal | null | undefined;
   options: Record<string, unknown> | undefined;
   runtimeOptions?: Record<string, unknown> | undefined;
   urls: string[];
   progressReport: ((message: string) => void) | undefined;
-  planOverrides?: ProviderPlan<ContentsResponse>[];
+  planOverrides?: ProviderPlan<"contents">[];
 }): Promise<ContentsResponse> {
   if (planOverrides !== undefined && planOverrides.length !== urls.length) {
     throw new Error(
@@ -2099,7 +2100,7 @@ function buildOperationRequest(
 
 function buildProviderPlan(
   provider: (typeof ADAPTERS)[number],
-  providerConfig: AnyProvider,
+  providerConfig: ProviderConfig,
   request: ProviderRequest,
 ) {
   const plan = provider.buildPlan(request, providerConfig as never);
@@ -2524,14 +2525,14 @@ interface SettingsEntry {
 
 function getProviderSettings(
   providerId: ProviderId,
-): readonly ProviderSettingDescriptor<AnyProvider>[] {
+): readonly ProviderSettingDescriptor<ProviderConfig>[] {
   return getProviderConfigManifest(providerId)
-    .settings as readonly ProviderSettingDescriptor<AnyProvider>[];
+    .settings as readonly ProviderSettingDescriptor<ProviderConfig>[];
 }
 
 function buildManifestSettingsEntry(
-  setting: ProviderSettingDescriptor<AnyProvider>,
-  providerConfig: AnyProvider | undefined,
+  setting: ProviderSettingDescriptor<ProviderConfig>,
+  providerConfig: ProviderConfig | undefined,
 ): SettingsEntry {
   if (setting.kind === "values") {
     return {
@@ -2749,7 +2750,7 @@ function cleanupSettings(config: WebProviders): void {
 function stripDuplicatePolicyOverrides(config: WebProviders): void {
   for (const providerId of PROVIDER_IDS) {
     const providerConfig = config.providers?.[providerId] as
-      | AnyProvider
+      | ProviderConfig
       | undefined;
     if (!providerConfig?.settings) {
       continue;
@@ -3136,7 +3137,7 @@ class WebProvidersSettingsView implements Component {
             config.providers ??= {};
             const providerConfig = getEditableProviderConfig(
               providerId,
-              config.providers?.[providerId] as AnyProvider | undefined,
+              config.providers?.[providerId],
             );
             mutate(providerConfig);
             config.providers[providerId] = providerConfig as never;
@@ -3174,8 +3175,8 @@ class WebProvidersSettingsView implements Component {
 
   private currentProviderConfigFor(
     providerId: ProviderId,
-  ): AnyProvider | undefined {
-    return this.config.providers?.[providerId] as AnyProvider | undefined;
+  ): ProviderConfig | undefined {
+    return this.config.providers?.[providerId];
   }
 
   private async persist(mutate: (config: WebProviders) => void): Promise<void> {
@@ -3464,9 +3465,9 @@ class ProviderSettingsSubmenu implements Component {
     private readonly tui: TUI,
     private readonly theme: Theme,
     private readonly providerId: ProviderId,
-    private readonly getProviderConfig: () => AnyProvider | undefined,
+    private readonly getProviderConfig: () => ProviderConfig | undefined,
     private readonly persist: (
-      mutate: (config: AnyProvider) => void,
+      mutate: (config: ProviderConfig) => void,
     ) => Promise<void>,
     private readonly done: () => void,
   ) {}
@@ -3706,9 +3707,9 @@ class TextValueSubmenu implements Component {
 
 function getEditableProviderConfig(
   _providerId: ProviderId,
-  current: AnyProvider | undefined,
-): AnyProvider {
-  return structuredClone((current ?? {}) as AnyProvider);
+  current: ProviderConfig | undefined,
+): ProviderConfig {
+  return structuredClone((current ?? {}) as ProviderConfig);
 }
 
 function getInitialProviderSelection(config: WebProviders): ProviderId {
@@ -3806,7 +3807,7 @@ function getProviderReadinessSummary(
 
 function getProviderReadinessSummaryForProviderConfig(
   providerId: ProviderId,
-  providerConfig: AnyProvider | undefined,
+  providerConfig: ProviderConfig | undefined,
 ): string {
   const status = ADAPTERS_BY_ID[providerId].getCapabilityStatus(
     (providerConfig ?? ADAPTERS_BY_ID[providerId].createTemplate()) as never,
@@ -4111,10 +4112,14 @@ function getFirstLine(text: string | undefined): string | undefined {
 
 function getExpandHint(): string {
   try {
-    return keyHint("app.tools.expand", "to expand");
+    const keys = getKeybindings().getKeys("app.tools.expand");
+    if (keys.length > 0) {
+      return `${keys.join("/")} to expand`;
+    }
   } catch {
-    return "to expand";
+    // Fall through to the default pi binding.
   }
+  return "ctrl+o to expand";
 }
 
 function cleanSingleLine(text: string): string {
@@ -4274,7 +4279,7 @@ export const __test__ = {
     ctx: Pick<ExtensionContext, "cwd" | "hasUI" | "ui">;
     options: Record<string, unknown> | undefined;
     input: string;
-    planOverride?: ProviderPlan<ToolOutput>;
+    planOverride?: ProviderPlan<"research">;
   }) =>
     dispatchWebResearchInternal({
       pi,
@@ -4306,7 +4311,7 @@ export const __test__ = {
     options: Record<string, unknown> | undefined;
     runtimeOptions?: Record<string, unknown> | undefined;
     queries: string[];
-    planOverrides?: ProviderPlan<ToolOutput>[];
+    planOverrides?: ProviderPlan<"answer">[];
   }) =>
     executeAnswerToolInternal({
       config,
@@ -4346,8 +4351,8 @@ export const __test__ = {
     urls?: string[];
     query?: string;
     input?: string;
-    planOverride?: ProviderPlan<ContentsResponse | ToolOutput>;
-    planOverrides?: ProviderPlan<ContentsResponse>[];
+    planOverride?: ProviderPlan<Exclude<Tool, "search">>;
+    planOverrides?: ProviderPlan<"contents">[];
   }) =>
     executeProviderToolInternal({
       capability,
@@ -4385,7 +4390,7 @@ export const __test__ = {
     runtimeOptions?: Record<string, unknown> | undefined;
     maxResults?: number;
     queries: string[];
-    planOverrides?: ProviderPlan<SearchResponse>[];
+    planOverrides?: ProviderPlan<"search">[];
   }) =>
     executeSearchToolInternal({
       config,

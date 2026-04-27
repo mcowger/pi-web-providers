@@ -11,15 +11,21 @@ import type {
 } from "../types.js";
 import { trimSnippet } from "./shared.js";
 
-const codexOutputSchema = Type.Object({
-  sources: Type.Array(
-    Type.Object({
-      title: Type.String(),
-      url: Type.String(),
-      snippet: Type.String(),
-    }),
-  ),
-});
+const codexOutputSchema = Type.Object(
+  {
+    sources: Type.Array(
+      Type.Object(
+        {
+          title: Type.String(),
+          url: Type.String(),
+          snippet: Type.String(),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 type CodexOutput = Static<typeof codexOutputSchema>;
 

@@ -18,7 +18,6 @@ import type {
   Gemini,
   Linkup,
   Ollama,
-  OllamaOptions,
   OpenAI,
   OpenAIOptions,
   Parallel,
@@ -276,13 +275,6 @@ function normalizeProvider(
       return parseProviderWithShape<Ollama>(raw, source, providerId, {
         apiKey: readOptionalString,
         baseUrl: readOptionalString,
-        options: (value, innerSource, field) =>
-          parseOptionalCapabilityOptions<OllamaOptions>(
-            value,
-            innerSource,
-            field,
-            ["search", "fetch"],
-          ),
         settings: parseOptionalExecutionSettings,
       });
     case "firecrawl":

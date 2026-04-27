@@ -123,11 +123,6 @@ export interface LinkupOptions {
   fetch?: Record<string, unknown>;
 }
 
-export interface OllamaOptions {
-  search?: Record<string, unknown>;
-  fetch?: Record<string, unknown>;
-}
-
 export interface PerplexityOptions {
   search?: Record<string, unknown>;
   answer?: Record<string, unknown>;
@@ -198,7 +193,7 @@ export interface CustomOptions {
   research?: CustomCommandConfig;
 }
 
-export interface Provider<TOptions> {
+export interface Provider<TOptions = never> {
   options?: TOptions;
   settings?: ExecutionSettings;
 }
@@ -239,7 +234,7 @@ export interface Linkup extends Provider<LinkupOptions> {
   baseUrl?: string;
 }
 
-export interface Ollama extends Provider<OllamaOptions> {
+export interface Ollama extends Provider {
   apiKey?: string;
   baseUrl?: string;
 }

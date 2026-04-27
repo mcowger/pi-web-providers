@@ -1,6 +1,5 @@
 import { resolveConfigValue } from "../config-values.js";
 import type { ContentsResponse } from "../contents.js";
-import { stripLocalExecutionOptions } from "../execution-policy.js";
 import type {
   Ollama,
   ProviderAdapter,
@@ -9,7 +8,6 @@ import type {
   SearchResponse,
 } from "../types.js";
 import {
-  asJsonObject,
   getApiKeyStatus,
   normalizeContentText,
   trimSnippet,
@@ -53,14 +51,9 @@ export const ollamaAdapter: ProviderAdapter<"ollama"> & {
     maxResults: number,
     config: Ollama,
     context: ProviderContext,
-    options?: Record<string, unknown>,
+    _options?: Record<string, unknown>,
   ): Promise<SearchResponse> {
     const apiKey = resolveApiKey(config);
-    const providerOptions = mergeProviderOptions(
-      config.options?.search,
-      options,
-      ["query", "max_results"],
-    );
 
     const response = await fetch(
       resolveEndpoint(config.baseUrl, WEB_SEARCH_PATH),
@@ -68,7 +61,6 @@ export const ollamaAdapter: ProviderAdapter<"ollama"> & {
         method: "POST",
         headers: buildHeaders(apiKey),
         body: JSON.stringify({
-          ...providerOptions,
           query,
           max_results: clampMaxResults(maxResults),
         }),
@@ -97,15 +89,10 @@ export const ollamaAdapter: ProviderAdapter<"ollama"> & {
     urls: string[],
     config: Ollama,
     context: ProviderContext,
-    options?: Record<string, unknown>,
+    _options?: Record<string, unknown>,
   ): Promise<ContentsResponse> {
     const apiKey = resolveApiKey(config);
     const endpoint = resolveEndpoint(config.baseUrl, WEB_FETCH_PATH);
-    const providerOptions = mergeProviderOptions(
-      config.options?.fetch,
-      options,
-      ["url"],
-    );
 
     return {
       provider: ollamaAdapter.id,
@@ -116,7 +103,6 @@ export const ollamaAdapter: ProviderAdapter<"ollama"> & {
               method: "POST",
               headers: buildHeaders(apiKey),
               body: JSON.stringify({
-                ...providerOptions,
                 url,
               }),
               signal: context.signal,
@@ -186,23 +172,6 @@ function resolveEndpoint(
     return `${base}/${apiPath}`;
   }
   return `${base}${endpointPath}`;
-}
-
-function mergeProviderOptions(
-  defaults: Record<string, unknown> | undefined,
-  options: Record<string, unknown> | undefined,
-  reservedKeys: readonly string[],
-): Record<string, unknown> {
-  const merged = {
-    ...(stripLocalExecutionOptions(asJsonObject(defaults)) ?? {}),
-    ...(stripLocalExecutionOptions(asJsonObject(options)) ?? {}),
-  };
-
-  for (const key of reservedKeys) {
-    delete merged[key];
-  }
-
-  return merged;
 }
 
 function clampMaxResults(value: number): number {

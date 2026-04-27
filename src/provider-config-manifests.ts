@@ -775,7 +775,9 @@ export const PROVIDER_CONFIG_MANIFESTS = {
   },
 } as const;
 
-export function getProviderConfigManifest(providerId: ProviderId) {
+export function getProviderConfigManifest<TProviderId extends ProviderId>(
+  providerId: TProviderId,
+): (typeof PROVIDER_CONFIG_MANIFESTS)[TProviderId] {
   return PROVIDER_CONFIG_MANIFESTS[providerId];
 }
 

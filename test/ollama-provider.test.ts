@@ -103,47 +103,6 @@ describe("ollamaAdapter", () => {
     );
   });
 
-  it("does not let provider options override the query or max result count", async () => {
-    process.env.OLLAMA_API_KEY = "test-key";
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ results: [] }), { status: 200 }),
-      );
-    globalThis.fetch = fetchMock as typeof fetch;
-
-    await ollamaAdapter.search(
-      "real query",
-      3,
-      {
-        apiKey: "OLLAMA_API_KEY",
-        options: {
-          search: {
-            query: "ignored query",
-            max_results: 9,
-            locale: "en-US",
-          },
-        },
-      },
-      { cwd: process.cwd() },
-      {
-        query: "also ignored",
-        max_results: 8,
-      },
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: JSON.stringify({
-          locale: "en-US",
-          query: "real query",
-          max_results: 3,
-        }),
-      }),
-    );
-  });
-
   it("returns contents from the Ollama web fetch API", async () => {
     process.env.OLLAMA_API_KEY = "test-key";
     const fetchMock = vi.fn().mockResolvedValue(
@@ -324,14 +283,6 @@ describe("Ollama config", () => {
           ollama: {
             apiKey: "OLLAMA_API_KEY",
             baseUrl: "https://ollama-proxy.test",
-            options: {
-              search: {
-                locale: "en-US",
-              },
-              fetch: {
-                format: "markdown",
-              },
-            },
             settings: {
               requestTimeoutMs: 45000,
             },
@@ -344,21 +295,13 @@ describe("Ollama config", () => {
     expect(parsed.providers?.ollama).toEqual({
       apiKey: "OLLAMA_API_KEY",
       baseUrl: "https://ollama-proxy.test",
-      options: {
-        search: {
-          locale: "en-US",
-        },
-        fetch: {
-          format: "markdown",
-        },
-      },
       settings: {
         requestTimeoutMs: 45000,
       },
     });
   });
 
-  it("rejects unsupported flat Ollama provider options", () => {
+  it("rejects unsupported Ollama provider options", () => {
     expect(() =>
       parseConfig(
         JSON.stringify({
@@ -373,7 +316,7 @@ describe("Ollama config", () => {
         }),
         "test-config.json",
       ),
-    ).toThrow(/providers\.ollama\.options/);
+    ).toThrow(/providers\.ollama/);
   });
 
   it("creates an Ollama provider template", () => {
